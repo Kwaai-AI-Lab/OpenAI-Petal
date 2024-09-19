@@ -1,0 +1,8 @@
+git+https://github.com/bigscience-workshop/petals
+fastapi 
+uvicorn
+langchain
+peft==0.6.0
+transformers>=4.37.1,<4.39.0
+langchain_community
+openai

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenAI-Petals</title>
+    <!-- Load Milligram CSS for styling -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.min.css">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f7f6;
+        }
+
+        h1 {
+            text-align: center;
+            color: #3d4852;
+        }
+
+        .tab-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .tab-header button {
+            padding: 10px 20px;
+            border-radius: 5px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+            line-height: 1.2;  /* Ensure vertical alignment */
+            transition: background-color 0.3s ease;
+        }
+
+        .tab-header button.active {
+            background-color: #0056b3;
+        }
+
+        .form-group {
+            margin-bottom: 10px; /* Reduced spacing between fields */
+        }
+
+        .form-group label {
+            font-weight: bold;
+        }
+
+        .form-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px; /* Reduced gap between columns */
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        textarea, input[type="text"], input[type="number"], select {
+            width: 100%;
+            padding: 8px; /* Reduced padding */
+            margin-bottom: 10px; /* Reduced margin */
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border-radius: 5px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+            line-height: 1.2;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        .tab {
+            display: none;
+        }
+
+        .tab-header button:hover {
+            background-color: #0056b3;
+        }
+
+        .tab-header button:focus, button:focus {
+            outline: none;
+        }
+
+        pre {
+            background: #f7f7f7;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            white-space: pre-wrap; /* Wrap lines inside pre */
+            word-wrap: break-word;  /* Break long words */
+            overflow-x: hidden;     /* Hide horizontal scrollbar */
+        }
+
+        /* Loading spinner styles */
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Hide spinner by default */
+        .loading-status {
+            display: none;
+            color: #333;
+            font-weight: bold;
+        }
+
+    </style>
+</head>
+<body>
+    <h1>OpenAI-Petals</h1>
+
+    <div class="form-group">
+        <label for="serverUrl">Server URL:</label>
+        <input type="text" id="serverUrl" value="http://localhost:8000/v1" />
+    </div>
+
+    <div class="tab-header">
+        <button id="modelsTabButton" onclick="openTab('modelsTab')" class="active">Models</button>
+        <button id="completionsTabButton" onclick="openTab('completionsTab')">Completions</button>
+        <button id="chatTabButton" onclick="openTab('chatTab')">Chat Completions</button>
+    </div>
+
+    <div id="modelsTab" class="tab" style="display: block;">
+        <h2>List Models</h2>
+        <button onclick="listModels()">Refresh Models</button>
+        <select id="modelList"><option>Loading models...</option></select>
+        <pre id="output-models"></pre>
+    </div>
+
+    <!-- Consolidated Completions Tab -->
+    <div id="completionsTab" class="tab">
+        <h2>Completions</h2>
+
+        <div class="form-group">
+            <label for="model">Model:</label>
+            <select id="model"><option>Select a model</option></select>
+        </div>
+
+        <div class="form-group">
+            <label for="prompt">Prompt:</label>
+            <textarea id="prompt" rows="3">Once upon a time, </textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="max_tokens">Max Tokens:</label>
+            <input type="number" id="max_tokens" value="50" />
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="temperature">Temperature:</label>
+                <input type="number" id="temperature" value="0.7" step="0.1" min="0" max="2" />
+            </div>
+            <div class="form-group">
+                <label for="top_p">Top P:</label>
+                <input type="number" id="top_p" value="1" step="0.1" min="0" max="1" />
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="top_k">Top K:</label>
+                <input type="number" id="top_k" value="50" />
+            </div>
+            <div class="form-group">
+                <label for="repetition_penalty">Repetition Penalty:</label>
+                <input type="number" id="repetition_penalty" value="1" step="0.1" min="1" />
+            </div>
+        </div>
+
+        <button onclick="sendCompletionRequest(false)">Send Non-Streaming Request</button>
+        <button onclick="sendCompletionRequest(true)">Send Streaming Request</button>
+        <span class="loading-status" id="loading-status-completions">Processing<span class="spinner"></span></span>
+        <pre id="output-completions"></pre>
+    </div>
+
+    <!-- Chat Completion Tab -->
+    <div id="chatTab" class="tab">
+        <h2>Chat Completions</h2>
+
+        <div class="form-group">
+            <label for="chatModel">Model:</label>
+            <select id="chatModel"><option>Select a model</option></select>
+        </div>
+
+        <div class="form-group">
+            <label for="systemMessage">System Message (Optional):</label>
+            <textarea id="systemMessage" rows="2">You are a helpful assistant.</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="userMessage">User Message:</label>
+            <textarea id="userMessage" rows="2">Once upon a time, </textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="chatMaxTokens">Max Tokens:</label>
+            <input type="number" id="chatMaxTokens" value="50" />
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="chatTemperature">Temperature:</label>
+                <input type="number" id="chatTemperature" value="0.7" step="0.1" min="0" max="2" />
+            </div>
+            <div class="form-group">
+                <label for="chatTopP">Top P:</label>
+                <input type="number" id="chatTopP" value="1" step="0.1" min="0" max="1" />
+            </div>
+        </div>
+
+        <button onclick="sendChatCompletionRequest(false)">Send Chat Request (Non-Streaming)</button>
+        <button onclick="sendChatCompletionRequest(true)">Send Chat Request (Streaming)</button>
+
+        <span class="loading-status" id="loading-status-chat">Processing<span class="spinner"></span></span>
+        <pre id="output-chat"></pre>
+    </div>
+
+    <script>
+        function openTab(tabName) {
+            var tabs = document.getElementsByClassName("tab");
+            var buttons = document.querySelectorAll(".tab-header button");
+
+            for (var i = 0; i < tabs.length; i++) {
+                tabs[i].style.display = "none";
+                buttons[i].classList.remove("active");
+            }
+
+            document.getElementById(tabName).style.display = "block";
+            event.target.classList.add("active");
+        }
+
+        async function listModels() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const modelSelects = [
+                document.getElementById('chatModel'), 
+                document.getElementById('model'), 
+                document.getElementById('modelList')
+            ];
+
+            try {
+                const response = await fetch(`${serverUrl}/models`);
+                const data = await response.json();
+                const models = data.data;
+
+                modelSelects.forEach(select => {
+                    select.innerHTML = '';
+                    models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.id;
+                        option.textContent = model.id;
+                        select.appendChild(option);
+                    });
+                });
+
+                document.getElementById('output-models').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                console.error("Error fetching models:", error);
+                document.getElementById('output-models').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function sendCompletionRequest(isStreaming) {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const outputElement = 'output-completions';
+            const loadingStatus = 'loading-status-completions';
+
+            document.getElementById(loadingStatus).style.display = 'inline-block';
+
+            const requestBody = {
+                model: document.getElementById('model').value,
+                prompt: document.getElementById('prompt').value,
+                max_tokens: parseInt(document.getElementById('max_tokens').value),
+                temperature: parseFloat(document.getElementById('temperature').value),
+                top_p: parseFloat(document.getElementById('top_p').value),
+                top_k: parseInt(document.getElementById('top_k').value),
+                repetition_penalty: parseFloat(document.getElementById('repetition_penalty').value),
+                stream: isStreaming
+            };
+
+            try {
+                const response = await fetch(`${serverUrl}/completions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (isStreaming) {
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    document.getElementById(outputElement).textContent = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n');
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                const jsonData = line.slice(6);
+                                if (jsonData === '[DONE]') {
+                                    break;
+                                }
+                                try {
+                                    const parsedData = JSON.parse(jsonData);
+                                    document.getElementById(outputElement).textContent += parsedData.choices[0].text;
+                                } catch (e) {
+                                    console.error('Error parsing JSON:', e);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    const data = await response.json();
+                    document.getElementById(outputElement).textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                document.getElementById(outputElement).textContent = `Error: ${error.message}`;
+            } finally {
+                document.getElementById(loadingStatus).style.display = 'none';
+            }
+        }
+
+        async function sendChatCompletionRequest(isStreaming) {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const loadingStatus = 'loading-status-chat';
+            const outputElement = 'output-chat';
+
+            document.getElementById(loadingStatus).style.display = 'inline-block';
+
+            const chatMessages = [];
+            const systemMessage = document.getElementById('systemMessage').value;
+            const userMessage = document.getElementById('userMessage').value;
+
+            if (systemMessage) {
+                chatMessages.push({ role: 'system', content: systemMessage });
+            }
+            chatMessages.push({ role: 'user', content: userMessage });
+
+            const requestBody = {
+                model: document.getElementById('chatModel').value,
+                messages: chatMessages,
+                max_tokens: parseInt(document.getElementById('chatMaxTokens').value),
+                temperature: parseFloat(document.getElementById('chatTemperature').value),
+                top_p: parseFloat(document.getElementById('chatTopP').value),
+                stream: isStreaming
+            };
+
+            try {
+                const response = await fetch(`${serverUrl}/chat/completions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (isStreaming) {
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    document.getElementById(outputElement).textContent = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n');
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                const jsonData = line.slice(6);
+                                if (jsonData === '[DONE]') {
+                                    break;
+                                }
+                                try {
+                                    const parsedData = JSON.parse(jsonData);
+                                    document.getElementById(outputElement).textContent += parsedData.choices[0].delta.content;
+                                } catch (e) {
+                                    console.error('Error parsing JSON:', e);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    const data = await response.json();
+                    document.getElementById(outputElement).textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                document.getElementById(outputElement).textContent = `Error: ${error.message}`;
+            } finally {
+                document.getElementById(loadingStatus).style.display = 'none';
+            }
+        }
+
+        document.getElementById('modelsTabButton').classList.add('active');
+        document.getElementById('modelsTab').style.display = 'block';
+        listModels();
+    </script>
+</body>
+</html>
