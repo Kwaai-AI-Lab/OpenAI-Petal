@@ -30,15 +30,15 @@ The steps below can be used to setup the enviroment for this project. The instal
 > **Note:** The default setup and run process provided here will allow you to connect to Petals' public swarm. Data you send will be public. Please be aware!
 
 
-### Prerequisites.
-1. Install petals package by following instructions at [Petals](https://github.com/bigscience-workshop/petals)
 
-- Typically this step should work.
-```bash
-    pip install git+https://github.com/bigscience-workshop/petals
-```
-### Clone repository
+### Installation process.
 - Clone this repository using git clone command.
+- Install requirements
+```bash
+    pip install -r requirements.txt
+    pip install peft==0.6.0 --no-deps
+```
+
 
 ### Run api server using public peers at health.petals.dev
 ```bash

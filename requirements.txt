@@ -2,7 +2,6 @@ git+https://github.com/bigscience-workshop/petals
 fastapi 
 uvicorn
 langchain
-peft==0.6.0
 transformers
 langchain_community
 openai
