@@ -11,8 +11,9 @@
 </p>
 
 
-OpenAI compliant api server deveoped using FastAPI to bridge to [Petals](https://github.com/bigscience-workshop/petals)
- v1/generate api call.  
+OpenAI compliant api server developed using FastAPI to bridge to [Petals](https://github.com/bigscience-workshop/petals)
+ v1/generate api call. Parts of code were referenced from [Petals chat](https://github.com/petals-infra/chat.petals.dev)
+ 
 ### Endpoints
 - `v1/models`
 - `v1/completions`
