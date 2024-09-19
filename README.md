@@ -1,4 +1,4 @@
-<h1 align="center">OpenAI api compliant server for Petals distributed inference 👋</h1>
+<h1 align="center">OpenAI API-compatible server for Petals distributed inference 👋</h1>
 <p>
   <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-blue.svg?cacheSeconds=2592000" />
   <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">
