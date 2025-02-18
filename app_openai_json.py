@@ -18,7 +18,8 @@ models = utils.load_models()
 # Add CORS middleware. Allowing null for development use. TODO: based on env remove it.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost", "http://127.0.0.1", "null"],
+#    allow_origins=["http://localhost", "http://127.0.0.1", "null"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,6 +65,8 @@ async def chat_completions(request: ChatCompletionRequest):
         top_k = request.top_k
         repetition_penalty = request.repetition_penalty
         stream = request.stream
+
+        #print("Max New tokens:" + str(max_new_tokens))
 
         if model_name not in models:
             raise HTTPException(status_code=404, detail=f"Model '{model_name}' not found")

@@ -1,7 +1,11 @@
 import torch
+import os
 from petals.constants import PUBLIC_INITIAL_PEERS
 
 from data_structures import ModelBackendConfig, ModelChatConfig, ModelConfig, ModelFrontendConfig
+# Extract KWAAINET_MODEL from environment variable
+KWAAINET_MODEL = os.getenv("KWAAINET_MODEL", "")
+
 
 default_chat_config = ModelChatConfig(
     max_session_length=8192,
@@ -14,11 +18,11 @@ default_chat_config = ModelChatConfig(
 MODEL_FAMILIES = {
     "Llama 2": [
         ModelConfig(
-            ModelBackendConfig(repository="meta-llama/Meta-Llama-3.1-8B", aliases=["meta-llama/Meta-Llama-3.1-8B"]),
+            ModelBackendConfig(repository=KWAAINET_MODEL, aliases=[KWAAINET_MODEL]),
             ModelFrontendConfig(
-                name="Meta Llama 3.1",
-                model_card="https://huggingface.co/meta-llama/Meta-Llama-3.1-8B",
-                license="https://huggingface.co/meta-llama/Meta-Llama-3.1-8B/blob/main/LICENSE.txt",
+                name=KWAAINET_MODEL.split("/")[-1],
+                model_card=f"https://huggingface.co/{KWAAINET_MODEL}",
+                license="https://huggingface.co/{KWAAINET_MODEL}/blob/main/LICENSE", 
             ),
             default_chat_config,
         ),

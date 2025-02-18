@@ -1,0 +1,13 @@
+services:
+  web:
+    container_name: kwaainet-slim
+    build:
+      context: ../../
+      dockerfile: docker/kwaainet_slim/DockerFile
+    image: kwaainet-slim
+    ports:
+      - "8000:8000"
+ # Run with GPUs only if available
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all  # Use all GPUs if available, otherwise use CPU
