@@ -92,9 +92,12 @@ MODEL_FAMILIES = {
     # ],
 }
 
-INITIAL_PEERS = PUBLIC_INITIAL_PEERS
-# Set this to a list of multiaddrs to connect to a private swarm instead of the public one, for example:
-# INITIAL_PEERS = ['/ip4/10.1.2.3/tcp/31234/p2p/QmcXhze98AcgGQDDYna23s4Jho96n8wkwLJv78vxtFNq44']
+# Get INITIAL_PEERS from environment, default to PUBLIC_INITIAL_PEERS
+initial_peers_env = os.getenv("INITIAL_PEERS")
+
+# Split by comma if INITIAL_PEERS is set, otherwise use PUBLIC_INITIAL_PEERS
+INITIAL_PEERS = initial_peers_env.split(",") if initial_peers_env else PUBLIC_INITIAL_PEERS
+
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 

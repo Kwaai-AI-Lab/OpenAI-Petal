@@ -1,0 +1,70 @@
+FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04
+
+# Set the working directory inside the container
+WORKDIR /kwaainet
+
+# Set environment variables for cache folders and offline mode
+ENV HF_HOME=/root/.cache/huggingface \
+    HF_HUB_CACHE=/root/.cache/huggingface/hub \
+    HUGGINGFACE_HUB_CACHE=/root/.cache/huggingface/hub \
+    PETALS_CACHE=/root/.cache/huggingface \
+    TRANSFORMERS_CACHE=/root/.cache/huggingface \
+    SENTENCE_TRANSFORMERS_HOME=/root/.cache/tf-cache \
+    LLAMA_INDEX_CACHE_DIR=/root/.cache/llama-index-cache \
+    NLTK_DATA=/root/.cache/nltk-cache \
+    TIKTOKEN_CACHE_DIR=/root/.cache/tiktoken-cache \
+    TMPDIR=/root/.cache/temp 
+
+# Install dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  build-essential \
+  software-properties-common \
+  wget \
+  git \
+  && apt-get clean autoclean && rm -rf /var/lib/apt/lists/*
+
+RUN DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:ubuntu-toolchain-r/test
+RUN apt update
+RUN apt install gcc-12 g++-12 gcc-13 g++-13 -y
+
+# Install Miniconda
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O install_miniconda.sh && \
+  bash install_miniconda.sh -b -p /opt/conda && rm install_miniconda.sh
+ENV PATH="/opt/conda/bin:${PATH}"
+
+RUN conda install python~=3.10.12 pip && \
+    pip install --no-cache-dir "torch>=1.12" && \
+    conda clean --all && rm -rf ~/.cache/pip
+
+RUN pip install --upgrade git+https://github.com/bigscience-workshop/petals
+
+# Create /kwaainet/api directory and copy required files
+#RUN mkdir -p /kwaainet/api
+RUN mkdir -p /root/.cache/temp
+#COPY app_openai_json.py config.py data_structures.py requirements.txt utils.py /kwaainet/api/
+
+#WORKDIR /kwaainet/api
+#RUN pip install -r requirements.txt
+RUN pip install peft==0.6.0 --no-deps
+
+WORKDIR /kwaainet/petals/
+# Uninstall bitsandbytes
+RUN pip uninstall -y bitsandbytes
+
+# Install bitsandbytes
+RUN pip install bitsandbytes
+
+# Expose port 8080
+EXPOSE 8080
+
+# Set the environment variable with a default value of 1 if not provided
+
+ENV KWAAINET_BLOCKS=${KWAAINET_BLOCKS:-1}
+ENV KWAAINET_MODEL=${KWAAINET_MODEL:-"deepseek-ai/DeepSeek-R1-Distill-Llama-8B"}
+
+# Copy and set up entrypoint
+COPY docker/kwaainet_server/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Entrypoint now fully manages starting all processes
+ENTRYPOINT ["/entrypoint.sh"]

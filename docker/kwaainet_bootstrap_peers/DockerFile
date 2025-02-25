@@ -1,0 +1,26 @@
+# Use a minimal Python image
+FROM python:3.10-slim
+
+# Set the working directory
+WORKDIR /app
+
+# Install required packages and Petals from GitHub
+RUN apt-get update && apt-get install -y git && \
+    pip install --no-cache-dir --upgrade git+https://github.com/bigscience-workshop/petals && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+   
+# Copy Python script for handling keys
+COPY docker/kwaainet_bootstrap_peers/check_identity.py /app/check_identity.py
+
+# Copy entrypoint script
+COPY docker/kwaainet_bootstrap_peers/entrypoint.sh /app/entrypoint.sh
+
+# Ensure entrypoint.sh is executable
+RUN chmod +x /app/entrypoint.sh
+
+# Expose port 8000
+EXPOSE 8000
+
+# Set the entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]

@@ -1,0 +1,9 @@
+services:
+  web:
+    container_name: kwaainet-health
+    build:
+      context: ../../
+      dockerfile: docker/kwaainet_health/DockerFile
+    image: kwaainet-health
+    ports:
+      - "8000:8000"

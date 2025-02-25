@@ -1,12 +1,12 @@
 services:
   web:
-    container_name: kwaainet-slim
+    container_name: kwaainet-server
     build:
       context: ../../
-      dockerfile: docker/kwaainet_slim/DockerFile
-    image: kwaainet-slim
+      dockerfile: docker/kwaainet_server/DockerFile
+    image: kwaainet-server
     ports:
-      - "8000:8000"
+      - "8080:8080"
  # Run with GPUs only if available
     runtime: nvidia
     environment:

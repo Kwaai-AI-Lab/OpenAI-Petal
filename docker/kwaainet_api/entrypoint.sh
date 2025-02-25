@@ -19,7 +19,23 @@ fi
 
 echo "Starting API server..."
 cd /kwaainet/api
-uvicorn app_openai_json:app --host 0.0.0.0 --port 8000 &
+exec uvicorn app_openai_json:app --host 0.0.0.0 --port 8000 
 
-echo "Starting Petals server..."
-exec python3 -m petals.cli.run_server "$KWAAINET_MODEL" --num_blocks "$KWAAINET_BLOCKS"
+#echo "Starting Petals server..."
+#CMD="python3 -m petals.cli.run_server $KWAAINET_MODEL --num_blocks $KWAAINET_BLOCKS"
+
+#if [ -n "$ANNOUNCE_ADDR" ]; then
+#    CMD+=" --announce_maddrs $ANNOUNCE_ADDR"
+#else
+#    CMD+=" --port 8080"  # Only add port if ANNOUNCE_ADDR is not set
+#fi
+
+#if [ -z "$ANNOUNCE_ADDR" ] && [ -n "$PUBLIC_IP" ]; then
+#    CMD+=" --public_ip $PUBLIC_IP"
+#fi
+
+#if [ -n "$INITIAL_PEERS" ]; then
+#    CMD+=" --initial_peers $INITIAL_PEERS"
+#fi
+
+#exec $CMD

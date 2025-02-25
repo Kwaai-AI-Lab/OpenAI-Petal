@@ -55,7 +55,7 @@ RUN pip uninstall -y bitsandbytes
 RUN pip install bitsandbytes
 
 # Expose port 8000
-EXPOSE 8000
+EXPOSE 8000 
 
 # Set the environment variable with a default value of 1 if not provided
 
@@ -63,7 +63,7 @@ ENV KWAAINET_BLOCKS=${KWAAINET_BLOCKS:-1}
 ENV KWAAINET_MODEL=${KWAAINET_MODEL:-"deepseek-ai/DeepSeek-R1-Distill-Llama-8B"}
 
 # Copy and set up entrypoint
-COPY docker/kwaainet_slim/entrypoint.sh /entrypoint.sh
+COPY docker/kwaainet_api/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Entrypoint now fully manages starting all processes
