@@ -63,7 +63,7 @@ ENV KWAAINET_BLOCKS=${KWAAINET_BLOCKS:-1}
 ENV KWAAINET_MODEL=${KWAAINET_MODEL:-"deepseek-ai/DeepSeek-R1-Distill-Llama-8B"}
 
 # Copy and set up entrypoint
-COPY docker/kwaainet_server/entrypoint.sh /entrypoint.sh
+COPY docker/kwaainet_node/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Entrypoint now fully manages starting all processes

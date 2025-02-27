@@ -1,10 +1,10 @@
 services:
   web:
-    container_name: kwaainet-server
+    container_name: kwaainet-node
     build:
       context: ../../
-      dockerfile: docker/kwaainet_server/DockerFile
-    image: kwaainet-server
+      dockerfile: docker/kwaainet_node/DockerFile
+    image: kwaainet-node
     ports:
       - "8080:8080"
  # Run with GPUs only if available

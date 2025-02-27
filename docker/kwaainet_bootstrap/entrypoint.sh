@@ -8,15 +8,6 @@ fi
 
 echo "✅ Retrieving private key from secret..."
 
-# Extract public key from the secret
-#PUBLIC_KEY=$(python3 /app/check_identity.py get-public-secret "$KWAAI_SECRET_KEY")
-#if [ $? -ne 0 ]; then
-#    echo "ERROR: Failed to extract public key from secret"
-#    exit 1
-#fi
-
-#echo "✅ Multihash Public Key (Base58): $PUBLIC_KEY"
-
 # Decode the private key from Base64 and write to a temporary file
 echo "$KWAAI_SECRET_KEY" | base64 -d > /tmp/private_key.bin
 chmod 400 /tmp/private_key.bin

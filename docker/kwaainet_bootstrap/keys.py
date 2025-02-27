@@ -1,9 +1,9 @@
 import os
 import base64
 import base58
-import multihash
 import hashlib
-from hivemind.proto import crypto_pb2 
+import multihash
+from hivemind.proto import crypto_pb2   
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
@@ -45,7 +45,7 @@ class RSAPublicKey:
             encoding=serialization.Encoding.DER,
             format=serialization.PublicFormat.SubjectPublicKeyInfo,
         )
-    
+
     def to_multihash_base58(self) -> str:
         """Returns the public key as a Multihash Base58-encoded string (Libp2p Peer ID format)."""
         encoded_public_key = self.to_bytes()
@@ -65,27 +65,38 @@ class RSAPublicKey:
         return base58.b58encode(encoded_digest).decode()
 
 
-def encode_private_key(identity_path: str) -> str:
-    """Encodes a binary protobuf private key file into Base64 for cloud storage."""
+def generate_identity(identity_path: str) -> None:
+    """Generates an RSA private key, stores it in a protobuf format, and prints Base64-encoded key."""
+    private_key = RSAPrivateKey()
+    
+    # Create protobuf object
+    protobuf = crypto_pb2.PrivateKey(
+        key_type=crypto_pb2.KeyType.RSA,
+        data=private_key.to_bytes()
+    )
+
+    try:
+        with open(identity_path, "wb") as f:
+            serialized_data = protobuf.SerializeToString()
+            f.write(serialized_data)
+
+        # Secure the file permissions (readable only by owner)
+        os.chmod(identity_path, 0o400)
+        print(f"Private key successfully saved to {identity_path} in protobuf format")
+
+        # Print Base64-encoded key
+        base64_key = base64.b64encode(serialized_data).decode()
+        print(f"Base64-encoded private key: {base64_key}")
+
+    except IOError as e:
+        raise IOError(f"Failed to write private key to `{identity_path}`: {e}")
+
+
+def get_public_key(identity_path: str) -> str:
+    """Loads a private key from a protobuf file and returns the public key as a string."""
     try:
         with open(identity_path, "rb") as f:
             private_key_data = f.read()
-
-        return base64.b64encode(private_key_data).decode()
-
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Private key file `{identity_path}` not found.")
-
-
-def decode_private_key(base64_key: str) -> bytes:
-    """Decodes a Base64-encoded protobuf private key back into binary format."""
-    return base64.b64decode(base64_key)
-
-
-def get_public_key_from_secret(secret_value: str) -> str:
-    """Loads a Base64-encoded private key from a secret and extracts the public key."""
-    try:
-        private_key_data = decode_private_key(secret_value)
 
         # Parse the protobuf
         protobuf = crypto_pb2.PrivateKey()
@@ -99,25 +110,27 @@ def get_public_key_from_secret(secret_value: str) -> str:
         public_key = private_key.get_public_key()
 
         # Get public key as a Multihash Base58-encoded string
-        return public_key.to_multihash_base58()
+        multihash_b58 = public_key.to_multihash_base58()
 
+        return multihash_b58
+
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Private key file `{identity_path}` not found.")
     except ValueError as e:
-        raise ValueError(f"Failed to load private key from secret: {e}")
+        raise ValueError(f"Failed to load private key from protobuf: {e}")
 
 
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Handle protobuf-encoded private keys securely in cloud secrets.")
-    parser.add_argument("action", choices=["encode", "get-public-secret"], help="Action to perform")
-    parser.add_argument("data", help="Path to private key file or Base64 secret value")
+    parser = argparse.ArgumentParser(description="Generate and retrieve RSA keys in protobuf format with Multihash.")
+    parser.add_argument("action", choices=["generate", "get-public"], help="Action to perform")
+    parser.add_argument("path", help="Path to the private key file")
 
     args = parser.parse_args()
 
-    if args.action == "encode":
-        result = encode_private_key(args.data)        
-        print(result)
-
-    elif args.action == "get-public-secret":
-        result = get_public_key_from_secret(args.data)        
+    if args.action == "generate":
+        generate_identity(args.path)
+    elif args.action == "get-public":
+        result = get_public_key(args.path)
         print(result)

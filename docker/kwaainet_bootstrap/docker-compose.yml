@@ -3,7 +3,7 @@ services:
     container_name: kwaainet-bootstrap
     build:
       context: ../../
-      dockerfile: docker/kwaainet_bootstrap_peers/DockerFile
+      dockerfile: docker/kwaainet_bootstrap/DockerFile
     image: kwaainet-bootstrap
     ports:
       - "8000:8000"

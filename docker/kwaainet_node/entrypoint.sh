@@ -17,10 +17,6 @@ else
     echo "Model already exists. Skipping download."
 fi
 
-#echo "Starting API server..."
-#cd /kwaainet/api
-#exec uvicorn app_openai_json:app --host 0.0.0.0 --port 8000 
-
 echo "Starting Petals server..."
 CMD="python3 -m petals.cli.run_server $KWAAINET_MODEL --num_blocks $KWAAINET_BLOCKS"
 

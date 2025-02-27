@@ -10,11 +10,8 @@ RUN apt-get update && apt-get install -y git && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
    
-# Copy Python script for handling keys
-COPY docker/kwaainet_bootstrap_peers/check_identity.py /app/check_identity.py
-
 # Copy entrypoint script
-COPY docker/kwaainet_bootstrap_peers/entrypoint.sh /app/entrypoint.sh
+COPY docker/kwaainet_bootstrap/entrypoint.sh /app/entrypoint.sh
 
 # Ensure entrypoint.sh is executable
 RUN chmod +x /app/entrypoint.sh
