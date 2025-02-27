@@ -190,7 +190,7 @@
         var intervalId;
 
         function fetchAndUpdateMarkers() {
-            fetch('http://192.168.7.55:5000/api/v1/state')  // Replace with correct API
+            fetch('http://localhost:5000/api/v1/state')  
                 .then(response => response.json())
                 .then(data => {
                     markers.clearLayers();

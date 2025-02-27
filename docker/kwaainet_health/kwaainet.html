@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KwaaiNet</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+    
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> <!-- Include marked.js for Markdown rendering -->
+    
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+            display: flex;
+            flex-direction: row;
+            height: 100vh;
+        }
+
+        #map-container {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header styling */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: #fff;
+            border-bottom: 1px solid #ddd;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.4rem;
+        }
+
+        .refresh-interval {
+            display: flex;
+            align-items: center;
+        }
+
+        .refresh-interval label {
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        /* Adjust the popup size */
+        .leaflet-popup-content {
+            font-size: 1.5rem; /* Increase the font size */
+            line-height: 1.6;
+            width: 400px; /* Increase width */
+        }
+
+        .leaflet-popup-content-wrapper {
+            padding: 20px;
+        }
+
+        /* Style for chat container */
+        #chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            padding: 20px;
+            border-left: 1px solid #ddd;
+            box-shadow: -2px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .chat-box {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+
+        .chat-box .message {
+            margin-bottom: 10px;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 1.2rem;
+        }
+
+        .chat-box .user {
+            background-color: #e0f7fa;
+            text-align: right;
+        }
+
+        .chat-box .bot {
+            background-color: #f0f0f0;
+            text-align: left;
+        }
+
+        .chat-input {
+            display: flex;              /* Make the container a flexbox */
+            align-items: center;        /* Vertically align input and button */
+            padding-top: 10px;
+        }
+
+        .chat-input textarea {
+            flex: 1;                    /* Let the input box take up remaining space */
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-right: 10px;
+            font-size: 1.2rem;
+            height: 40px;               /* Set a fixed height */
+            resize: none;               /* Disable resizing */
+        }
+
+        .chat-input button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 40px;               /* Match the height with the textarea */
+        }
+
+        /* Slow blink effect */
+        .blinking {
+            animation: blink-animation 2s infinite ease-in-out;  /* Slow blink every 2 seconds */
+        }
+
+        @keyframes blink-animation {
+            0% { background-color: #f0f0f0; }
+            50% { background-color: #e0e0e0; }
+            100% { background-color: #f0f0f0; }
+        }
+
+        .loading-status {
+            display: none;
+            color: #333;
+            font-weight: bold;
+            font-size: 1.2rem;
+            padding-top: 10px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map-container">
+        <!-- Improved header layout -->
+        <div class="header">
+            <h1>KwaaiNet</h1>
+            <div class="refresh-interval">
+                <label for="interval-select">Refresh Interval:</label>
+                <select id="interval-select">
+                    <option value="1000">1 second</option>
+                    <option value="2000">2 seconds</option>
+                    <option value="5000" selected>5 seconds</option>
+                    <option value="30000">30 seconds</option>
+                </select>
+            </div>
+        </div>
+        <div id="map"></div>
+    </div>
+
+     
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+
+    <script>
+        // Map and Marker logic
+        var map = L.map('map').setView([34.0522, -118.2437], 2); // Default view
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+        }).addTo(map);
+
+        var markers = L.markerClusterGroup();
+        var intervalId;
+        var openPopups = {}; // To track open popups
+
+        function fetchAndUpdateMarkers() {
+            // Save current map state
+            var openPopupContent = {};
+            var currentZoom = map.getZoom();
+            var currentCenter = map.getCenter();
+            
+            // Check for open popups and save their content and location
+            map.eachLayer(function(layer) {
+                if (layer instanceof L.Marker && layer.isPopupOpen()) {
+                    var popup = layer.getPopup();
+                    var latLng = layer.getLatLng();
+                    var key = latLng.lat + "," + latLng.lng;
+                    openPopupContent[key] = {
+                        content: popup.getContent(),
+                        latLng: latLng
+                    };
+                }
+            });
+
+            fetch('api/v1/state')  
+                .then(response => response.json())
+                .then(data => {
+                    markers.clearLayers();
+                    const modelReports = data.model_reports;
+                    modelReports.forEach(report => {
+                        report.server_rows.forEach(server => {
+                            const location = server.peer_ip_info.location;
+                            const blocks = server.span? server.span.start + "-" + server.span.end: "N/A";
+                            let lat = 34.0522;
+                            let lon = -118.2437;
+                            let locationInfo = "Location Unknown";
+                            if (location && location.status === "success") {
+                                lat = location.lat;
+                                lon = location.lon;
+                                locationInfo = `${location.city}, ${location.country}`;
+                            }
+
+                            // Color markers based on status
+                            let markerColor = server.state === "online" ? 'green' : 'red';
+                            let markerIcon = L.icon({
+                                iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-${markerColor}.png`,
+                                iconSize: [25, 41],
+                                iconAnchor: [12, 41],
+                                popupAnchor: [1, -34],
+                                shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+                                shadowSize: [41, 41]
+                            });
+
+                            // Get throughput and determine its color
+                            const throughput = server.span.server_info.throughput;
+                            let throughputColor = "#FF0000"; // Default to red
+                            if (throughput > 500) {
+                                throughputColor = "#00FF00"; // Green for high throughput
+                            } else if (throughput > 100) {
+                                throughputColor = "#FFFF00"; // Yellow for medium throughput
+                            }
+
+                            let publicName = server.span.server_info.public_name || "N/A";
+
+                            let marker = L.marker([lat, lon], { icon: markerIcon });
+                            let popupContent = `
+                                <b>Model:</b> ${report.name}<br>
+                                <b>Location:</b> ${locationInfo}<br>
+                                <b>Public Name:</b> ${publicName}<br>
+                                <b>Blocks:</b> ${blocks}<br>
+                                <b>Throughput (tok/sec):</b>                                 
+                                <span style="color:${throughputColor}">${throughput.toFixed(2)}</span>                                
+                            `;
+                            
+                            marker.bindPopup(popupContent);
+                            markers.addLayer(marker);
+                            
+                            // Check if this marker was previously open
+                            let key = lat + "," + lon;
+                            if (openPopupContent[key]) {
+                                // Store this marker to open its popup later
+                                openPopups[key] = marker;
+                            }
+                        });
+                    });
+                    
+                    map.addLayer(markers);
+                    
+                    // Reopen popups that were open before
+                    for (let key in openPopupContent) {
+                        if (openPopups[key]) {
+                            openPopups[key].openPopup();
+                        }
+                    }
+                    
+                    // Clear the tracking objects for the next refresh
+                    openPopups = {};
+                })
+                .catch(error => console.error('Error fetching data:', error));
+        }
+
+        function startUpdatingMarkers(interval) {
+            if (intervalId) clearInterval(intervalId);
+            intervalId = setInterval(fetchAndUpdateMarkers, interval);
+        }
+
+        document.getElementById('interval-select').addEventListener('change', function() {
+            var selectedInterval = parseInt(this.value);
+            startUpdatingMarkers(selectedInterval);
+        });
+
+        fetchAndUpdateMarkers();
+        startUpdatingMarkers(5000); // Default interval 5 seconds
+    </script>
+</body>
+</html>

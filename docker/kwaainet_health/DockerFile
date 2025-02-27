@@ -1,31 +1,41 @@
 # Use a minimal Python image
 FROM python:3.10-slim
 
+LABEL org.opencontainers.image.title="KwaaiNet Health Check Website" \
+      org.opencontainers.image.description="KwaaiNet Health Check Website" \      
+      org.opencontainers.image.authors="contact@kwaai.ai" 
+
+LABEL maintainer="Kwaai Labs<contact@kwaai.ai>"  
+
 # Set the working directory
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y git && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt update && apt install -y libopenblas-dev ninja-build build-essential wget git
+RUN python -m pip install --upgrade pip pytest cmake scikit-build setuptools
+
 
 # Clone health service repository
 RUN git clone https://github.com/petals-infra/health.petals.dev /app/health_service
 
+# Copy your custom requirements file with pinned versions
+COPY docker/kwaainet_health/requirements.txt /app/health_service/requirements.txt
+
 # Install dependencies from health service
 WORKDIR /app/health_service
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy Python script for handling keys
-COPY docker/kwaainet_health/check_identity.py /app/check_identity.py
+RUN pip install --no-cache-dir -r requirements.txt --upgrade pip
 
 # Copy entrypoint script
 COPY docker/kwaainet_health/entrypoint.sh /app/entrypoint.sh
+# Patch p2p utils for async timeout call.
+COPY docker/kwaainet_health/p2p_utils.py /app/health_service/p2p_utils.py
+COPY docker/kwaainet_health/kwaainet.html /app/health_service/templates/index.html
 
 # Ensure script is executable
 RUN chmod +x /app/entrypoint.sh
 
 # Expose Health API port
 EXPOSE 8000
-
+ENV PETALS_IGNORE_DEPENDENCY_VERSION=1
 # Set the entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]

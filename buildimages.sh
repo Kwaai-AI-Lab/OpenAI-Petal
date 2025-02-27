@@ -13,13 +13,12 @@ docker_check() {
     fi
 }
 
-# Function to check if an image has changed
 docker_image_changed() {
     local image=$1
-    local latest_digest=$(docker images --no-trunc --quiet $REPO/$image:latest)
-    local version_digest=$(docker images --no-trunc --quiet $REPO/$image:$VERSION)
-    
-    if [ "$latest_digest" != "$version_digest" ]; then
+    local remote_digest=$(docker manifest inspect $REPO/$image:$VERSION | jq -r '.manifests[0].digest')
+    local local_digest=$(docker inspect --format='{{index .RepoDigests 0}}' $REPO/$image:latest 2>/dev/null | awk -F '@' '{print $2}')
+
+    if [ "$remote_digest" != "$local_digest" ]; then
         return 0  # Image has changed
     else
         return 1  # No change
@@ -32,6 +31,7 @@ echo "Building production images..."
 make build-production-server
 make build-production-api
 make build-production-bootstrap
+make build-production-health
 
 # Tag images
 echo "Tagging images..."
@@ -44,12 +44,15 @@ docker tag kwaainet-node $REPO/kwaainet-node:latest
 docker tag kwaainet-bootstrap $REPO/kwaainet-bootstrap:$VERSION
 docker tag kwaainet-bootstrap $REPO/kwaainet-bootstrap:latest
 
+docker tag kwaainet-health $REPO/kwaainet-health:$VERSION
+docker tag kwaainet-health $REPO/kwaainet-health:latest
+
 echo "Images tagged successfully."
 
 # Ask user for confirmation before pushing
 echo "Checking for changes in images..."
 images_to_push=()
-for image in kwaainet-api kwaainet-node kwaainet-bootstrap; do
+for image in kwaainet-api kwaainet-node kwaainet-bootstrap kwaainet-health; do
     if docker_image_changed "$image"; then
         images_to_push+=("$image")
     fi

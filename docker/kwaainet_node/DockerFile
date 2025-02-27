@@ -1,5 +1,11 @@
 FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04
 
+LABEL org.opencontainers.image.title="KwaaiNet Node" \
+      org.opencontainers.image.description="KwaaiNet Node for sharing compute/gpu" \      
+      org.opencontainers.image.authors="contact@kwaai.ai" 
+
+LABEL maintainer="Kwaai Labs<contact@kwaai.ai>" 
+
 # Set the working directory inside the container
 WORKDIR /kwaainet
 
