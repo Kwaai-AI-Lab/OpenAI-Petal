@@ -8,8 +8,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
-    
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> <!-- Include marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.2/d3.min.js"></script>
     
     <style>
         body {
@@ -19,14 +19,8 @@
             padding: 0;
             background-color: #f4f7f6;
             display: flex;
-            flex-direction: row;
-            height: 100vh;
-        }
-
-        #map-container {
-            flex: 2;
-            display: flex;
             flex-direction: column;
+            height: 100vh;
         }
 
         /* Header styling */
@@ -43,6 +37,31 @@
         .header h1 {
             margin: 0;
             font-size: 2.4rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        /* Bootstrap status dots */
+        .bootstrap-status {
+            display: flex;
+            margin-left: 15px;
+            align-items: center;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+            display: inline-block;
+        }
+        
+        .status-dot.online {
+            background-color: #00FF00;
+        }
+        
+        .status-dot.offline {
+            background-color: #FF0000;
         }
 
         .refresh-interval {
@@ -55,151 +74,281 @@
             font-weight: bold;
         }
 
+        /* Tab styling */
+        .tab-container {
+            width: 100%;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tabs {
+            display: flex;
+            background-color: #fff;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .tab {
+            padding: 15px 25px;
+            cursor: pointer;
+            font-weight: bold;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab.active {
+            border-bottom: 3px solid #007bff;
+            color: #007bff;
+        }
+
+        .tab-content {
+            flex: 1;
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            height: 100%;
+        }
+
+        /* Map view */
         #map {
             height: 100%;
             width: 100%;
         }
 
+        /* Table view */
+        #table-view {
+            height: 100%;
+            width: 100%;
+            padding: 20px;
+            overflow: auto;
+        }
+        
+        /* Custom table styling */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background-color: white;
+            font-size: 14px;
+        }
+        
+        .data-table th {
+            background-color: #f2f2f2;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 2px solid #ddd;
+            position: sticky;
+            top: 0;
+            cursor: pointer;
+        }
+        
+        .data-table th:hover {
+            background-color: #e6e6e6;
+        }
+        
+        .data-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #ddd;
+            vertical-align: middle;
+        }
+        
+        .data-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .data-table tr:hover {
+            background-color: #f1f1f1;
+        }
+        
+        /* Search filter */
+        .table-controls {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .table-controls input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            flex: 1;
+            max-width: 300px;
+            margin-right: 10px;
+        }
+        
+        .table-controls label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+            align-items: center;
+        }
+        
+        .pagination button {
+            background-color: #f2f2f2;
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            margin: 0 5px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        
+        .pagination button:hover {
+            background-color: #e6e6e6;
+        }
+        
+        .pagination button:disabled {
+            background-color: #f9f9f9;
+            color: #aaa;
+            cursor: not-allowed;
+        }
+        
+        .pagination span {
+            margin: 0 10px;
+        }
+        
+        /* Sort indicators */
+        .sort-indicator {
+            margin-left: 5px;
+        }
+
         /* Adjust the popup size */
         .leaflet-popup-content {
-            font-size: 1.5rem; /* Increase the font size */
+            font-size: 1.5rem;
             line-height: 1.6;
-            width: 400px; /* Increase width */
+            width: 400px;
         }
 
         .leaflet-popup-content-wrapper {
             padding: 20px;
         }
 
-        /* Style for chat container */
-        #chat-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: #fff;
-            padding: 20px;
-            border-left: 1px solid #ddd;
-            box-shadow: -2px 0px 10px rgba(0, 0, 0, 0.1);
-        }
-
-        .chat-box {
-            flex: 1;
-            overflow-y: auto;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            margin-bottom: 10px;
-        }
-
-        .chat-box .message {
-            margin-bottom: 10px;
-            padding: 10px 15px;
-            border-radius: 5px;
-            font-size: 1.2rem;
-        }
-
-        .chat-box .user {
-            background-color: #e0f7fa;
-            text-align: right;
-        }
-
-        .chat-box .bot {
-            background-color: #f0f0f0;
-            text-align: left;
-        }
-
-        .chat-input {
-            display: flex;              /* Make the container a flexbox */
-            align-items: center;        /* Vertically align input and button */
-            padding-top: 10px;
-        }
-
-        .chat-input textarea {
-            flex: 1;                    /* Let the input box take up remaining space */
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            margin-right: 10px;
-            font-size: 1.2rem;
-            height: 40px;               /* Set a fixed height */
-            resize: none;               /* Disable resizing */
-        }
-
-        .chat-input button {
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1.2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 40px;               /* Match the height with the textarea */
-        }
-
-        /* Slow blink effect */
-        .blinking {
-            animation: blink-animation 2s infinite ease-in-out;  /* Slow blink every 2 seconds */
-        }
-
-        @keyframes blink-animation {
-            0% { background-color: #f0f0f0; }
-            50% { background-color: #e0e0e0; }
-            100% { background-color: #f0f0f0; }
-        }
-
-        .loading-status {
-            display: none;
-            color: #333;
+        /* Status indicators */
+        .status-online {
+            color: green;
             font-weight: bold;
-            font-size: 1.2rem;
-            padding-top: 10px;
         }
 
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-            display: inline-block;
-            margin-left: 10px;
+        .status-offline {
+            color: red;
+            font-weight: bold;
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        /* Throughput colors */
+        .throughput-high {
+            color: green;
+            font-weight: bold;
+        }
+
+        .throughput-medium {
+            color: orange;
+            font-weight: bold;
+        }
+
+        .throughput-low {
+            color: red;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
-
-    <div id="map-container">
-        <!-- Improved header layout -->
-        <div class="header">
-            <h1>KwaaiNet</h1>
-            <div class="refresh-interval">
-                <label for="interval-select">Refresh Interval:</label>
-                <select id="interval-select">
-                    <option value="1000">1 second</option>
-                    <option value="2000">2 seconds</option>
-                    <option value="5000" selected>5 seconds</option>
-                    <option value="30000">30 seconds</option>
-                </select>
+    <!-- Improved header layout -->
+    <div class="header">
+        <h1>
+            KwaaiNet
+            <div class="bootstrap-status" id="bootstrap-status">
+                <!-- Bootstrap status dots will be inserted here -->
             </div>
+        </h1>
+        <div class="refresh-interval">
+            <label for="interval-select">Refresh Interval:</label>
+            <select id="interval-select">
+                <option value="1000">1 second</option>
+                <option value="2000">2 seconds</option>
+                <option value="5000" selected>5 seconds</option>
+                <option value="30000">30 seconds</option>
+            </select>
         </div>
-        <div id="map"></div>
     </div>
 
-     
+    <div class="tab-container">
+        <!-- Tab navigation -->
+        <div class="tabs">
+            <div class="tab active" data-tab="map-tab">Map View</div>
+            <div class="tab" data-tab="table-tab">Table View</div>
+        </div>
+
+        <!-- Tab content -->
+        <div id="map-tab" class="tab-content active">
+            <div id="map"></div>
+        </div>
+
+        <div id="table-tab" class="tab-content">
+            <div id="table-view">
+                <div class="table-controls">
+                    <label for="table-search">Search:</label>
+                    <input type="text" id="table-search" placeholder="Filter table...">
+                </div>
+                <table id="model-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th data-sort="model">Model <span class="sort-indicator"></span></th>
+                            <th data-sort="state">Status <span class="sort-indicator"></span></th>
+                            <th data-sort="location">Location <span class="sort-indicator"></span></th>
+                            <th data-sort="publicName">Public Name <span class="sort-indicator"></span></th>
+                            <th data-sort="blocks">Blocks <span class="sort-indicator"></span></th>
+                            <th data-sort="throughput">Throughput (tok/sec) <span class="sort-indicator"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Table data will be inserted here -->
+                    </tbody>
+                </table>
+                <div class="pagination">
+                    <button id="prev-page" disabled>Previous</button>
+                    <span id="page-info">Page 1 of 1</span>
+                    <button id="next-page" disabled>Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 
     <script>
-        // Map and Marker logic
+        // Tab switching logic
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Remove active class from all tabs and content
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Add active class to clicked tab
+                this.classList.add('active');
+                
+                // Show the corresponding content
+                const tabId = this.getAttribute('data-tab');
+                document.getElementById(tabId).classList.add('active');
+                
+                // Special handling for map to ensure it renders correctly when shown
+                if (tabId === 'map-tab' && map) {
+                    setTimeout(() => {
+                        map.invalidateSize();
+                    }, 100);
+                }
+            });
+        });
+
+        // Global variables
         var map = L.map('map').setView([34.0522, -118.2437], 2); // Default view
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 18,
@@ -208,115 +357,571 @@
         var markers = L.markerClusterGroup();
         var intervalId;
         var openPopups = {}; // To track open popups
+        var currentData = []; // Store current data for all views
+        var bubbleChart; // Reference to bubble chart
 
-        function fetchAndUpdateMarkers() {
-            // Save current map state
-            var openPopupContent = {};
-            var currentZoom = map.getZoom();
-            var currentCenter = map.getCenter();
+        // Map View Logic
+        function updateMapView(data) {
+            markers.clearLayers();
             
-            // Check for open popups and save their content and location
-            map.eachLayer(function(layer) {
-                if (layer instanceof L.Marker && layer.isPopupOpen()) {
-                    var popup = layer.getPopup();
-                    var latLng = layer.getLatLng();
-                    var key = latLng.lat + "," + latLng.lng;
-                    openPopupContent[key] = {
-                        content: popup.getContent(),
-                        latLng: latLng
+            data.model_reports.forEach(report => {
+                report.server_rows.forEach(server => {
+                    const location = server.peer_ip_info.location;
+                    const blocks = server.span ? server.span.start + "-" + server.span.end : "N/A";
+                    let lat = 34.0522;
+                    let lon = -118.2437;
+                    let locationInfo = "Location Unknown";
+                    
+                    if (location && location.status === "success") {
+                        lat = location.lat;
+                        lon = location.lon;
+                        locationInfo = `${location.city}, ${location.country}`;
+                    }
+
+                    // Color markers based on status
+                    let markerColor = server.state === "online" ? 'green' : 'red';
+                    let markerIcon = L.icon({
+                        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-${markerColor}.png`,
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+                        shadowSize: [41, 41]
+                    });
+
+                    // Get throughput and determine its color
+                    const throughput = server.span && server.span.server_info ? server.span.server_info.throughput : 0;
+                    let throughputColor = "#FF0000"; // Default to red
+                    if (throughput > 500) {
+                        throughputColor = "#00FF00"; // Green for high throughput
+                    } else if (throughput > 100) {
+                        throughputColor = "#FFFF00"; // Yellow for medium throughput
+                    }
+
+                    let publicName = server.span && server.span.server_info ? (server.span.server_info.public_name || "N/A") : "N/A";
+
+                    let marker = L.marker([lat, lon], { icon: markerIcon });
+                    let popupContent = `
+                        <b>Model:</b> ${report.name}<br>
+                        <b>Location:</b> ${locationInfo}<br>
+                        <b>Public Name:</b> ${publicName}<br>
+                        <b>Blocks:</b> ${blocks}<br>
+                        <b>Throughput (tok/sec):</b>                                 
+                        <span style="color:${throughputColor}">${throughput ? throughput.toFixed(2) : "N/A"}</span>                                
+                    `;
+                    
+                    marker.bindPopup(popupContent);
+                    markers.addLayer(marker);
+                    
+                    // Check if this marker was previously open
+                    let key = lat + "," + lon;
+                    if (openPopups[key]) {
+                        // Store this marker to open its popup later
+                        openPopups[key] = marker;
+                    }
+                });
+            });
+            
+            map.addLayer(markers);
+        }
+
+        // Bubble View Logic
+        function updateBubbleView(data) {
+            const bubbleContainer = document.getElementById('bubble-view');
+            bubbleContainer.innerHTML = '';
+            
+            // Remove any existing tooltips first
+            document.querySelectorAll('.bubble-tooltip').forEach(el => {
+                el.remove();
+            });
+            
+            // Prepare hierarchical data structure for bubble chart
+            const bubbleData = {
+                name: "KwaaiNet",
+                children: data.model_reports.map(report => {
+                    return {
+                        name: report.name,
+                        children: report.server_rows.map(server => {
+                            const throughput = server.span && server.span.server_info ? server.span.server_info.throughput : 0;
+                            const blocks = server.span ? `${server.span.start}-${server.span.end}` : "N/A";
+                            const location = server.peer_ip_info.location;
+                            const locationInfo = location && location.status === "success" ? 
+                                `${location.city}, ${location.country}` : "Location Unknown";
+                            
+                            return {
+                                name: blocks,
+                                value: throughput ? Math.max(throughput, 10) : 10, // Minimum size for visibility
+                                server: {
+                                    model: report.name,
+                                    state: server.state,
+                                    location: locationInfo,
+                                    blocks: blocks,
+                                    throughput: throughput ? throughput.toFixed(2) : "N/A",
+                                    publicName: server.span && server.span.server_info ? 
+                                        (server.span.server_info.public_name || "N/A") : "N/A"
+                                }
+                            };
+                        })
                     };
+                })
+            };
+
+            // Set up dimensions
+            const width = bubbleContainer.clientWidth;
+            const height = bubbleContainer.clientHeight;
+            
+            // Create tooltip
+            const tooltip = d3.select("body")
+                .append("div")
+                .attr("class", "bubble-tooltip")
+                .style("opacity", 0);
+            
+            // Create SVG
+            const svg = d3.select("#bubble-view")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .attr("viewBox", [0, 0, width, height])
+                .attr("style", "max-width: 100%; height: auto;");
+            
+            // Create hierarchical data
+            const hierarchy = d3.hierarchy(bubbleData)
+                .sum(d => d.value)
+                .sort((a, b) => b.value - a.value);
+            
+            // Create a pack layout
+            const packLayout = d3.pack()
+                .size([width - 20, height - 20])
+                .padding(3);
+            
+            // Apply the pack layout to our data
+            const root = packLayout(hierarchy);
+            
+            // Color scale for models
+            const modelNames = [...new Set(data.model_reports.map(r => r.name))];
+            const colorScale = d3.scaleOrdinal()
+                .domain(modelNames)
+                .range(d3.schemeCategory10);
+            
+            // Create a group for each bubble
+            const node = svg.append("g")
+                .selectAll("g")
+                .data(root.descendants().slice(1)) // Skip the root
+                .join("g")
+                .attr("transform", d => `translate(${d.x},${d.y})`);
+            
+            // Add circles with different colors based on the model
+            node.append("circle")
+                .attr("r", d => d.r)
+                .attr("fill", d => {
+                    if (d.depth === 1) { // Models (parent)
+                        return colorScale(d.data.name);
+                    } else { // Server blocks (children)
+                        const state = d.data.server ? d.data.server.state : "unknown";
+                        const throughput = d.data.server ? parseFloat(d.data.server.throughput) : 0;
+                        
+                        // Base color from parent model
+                        let baseColor = colorScale(d.parent.data.name);
+                        
+                        // Adjust opacity based on state and throughput
+                        if (state === "offline") {
+                            return d3.color(baseColor).darker(1).toString(); // Darker for offline
+                        } else {
+                            // Brightness based on throughput
+                            if (throughput > 500) {
+                                return d3.color(baseColor).brighter(0.5).toString();
+                            } else if (throughput > 100) {
+                                return baseColor;
+                            } else {
+                                return d3.color(baseColor).darker(0.5).toString();
+                            }
+                        }
+                    }
+                })
+                .attr("stroke", d => d.depth === 1 ? "#fff" : d3.color(colorScale(d.parent.data.name)).darker(0.5))
+                .attr("stroke-width", d => d.depth === 1 ? 2 : 1)
+                .style("cursor", "pointer")
+                .on("mouseover", function(event, d) {
+                    // Show tooltip with info
+                    tooltip.transition()
+                        .duration(200)
+                        .style("opacity", .9);
+                    
+                    let tooltipContent = "";
+                    
+                    if (d.depth === 1) {
+                        // Model level tooltip
+                        tooltipContent = `
+                            <strong>Model:</strong> ${d.data.name}<br>
+                            <strong>Servers:</strong> ${d.children ? d.children.length : 0}
+                        `;
+                    } else {
+                        // Server level tooltip
+                        const server = d.data.server;
+                        tooltipContent = `
+                            <strong>Model:</strong> ${server.model}<br>
+                            <strong>Blocks:</strong> ${server.blocks}<br>
+                            <strong>State:</strong> <span class="${server.state === 'online' ? 'status-online' : 'status-offline'}">${server.state}</span><br>
+                            <strong>Location:</strong> ${server.location}<br>
+                            <strong>Public Name:</strong> ${server.publicName}<br>
+                            <strong>Throughput:</strong> ${getThroughputWithColor(server.throughput)}
+                        `;
+                    }
+                    
+                    tooltip.html(tooltipContent)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                    
+                    // Highlight the bubble
+                    d3.select(this)
+                        .attr("stroke", "#000")
+                        .attr("stroke-width", 2);
+                })
+                .on("mouseout", function() {
+                    // Hide tooltip
+                    tooltip.transition()
+                        .duration(500)
+                        .style("opacity", 0);
+                    
+                    // After transition completes, remove the tooltip if tab has changed
+                    setTimeout(() => {
+                        const activeTab = document.querySelector('.tab.active').getAttribute('data-tab');
+                        if (activeTab !== 'bubble-tab') {
+                            tooltip.remove();
+                        }
+                    }, 500);
+                    
+                    // Restore original appearance
+                    d3.select(this)
+                        .attr("stroke", d => d.depth === 1 ? "#fff" : d3.color(colorScale(d.parent.data.name)).darker(0.5))
+                        .attr("stroke-width", d => d.depth === 1 ? 2 : 1);
+                });
+            
+            // Add labels for the model groups only
+            node.filter(d => d.depth === 1)
+                .append("text")
+                .attr("dy", ".35em")
+                .attr("text-anchor", "middle")
+                .attr("font-size", d => Math.min(d.r / 3, 16))
+                .text(d => d.data.name)
+                .attr("fill", "#fff")
+                .style("pointer-events", "none");
+            
+            // Save a reference to the bubble chart
+            bubbleChart = svg;
+        }
+
+        // Table View Logic
+        let tableData = []; // Store the table data
+        let currentPage = 1;
+        let rowsPerPage = 15;
+        let sortField = 'model';
+        let sortDirection = 'asc';
+        let filteredData = [];
+        
+        // Sort function for table data
+        function sortTableData(data, field, direction) {
+            return [...data].sort((a, b) => {
+                let valueA = a[field];
+                let valueB = b[field];
+                
+                // Handle numeric values for throughput
+                if (field === 'throughput') {
+                    valueA = valueA === 'N/A' ? -1 : parseFloat(valueA);
+                    valueB = valueB === 'N/A' ? -1 : parseFloat(valueB);
+                }
+                
+                if (valueA < valueB) {
+                    return direction === 'asc' ? -1 : 1;
+                }
+                if (valueA > valueB) {
+                    return direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        
+        // Filter function for table data
+        function filterTableData(data, searchTerm) {
+            if (!searchTerm) return data;
+            
+            searchTerm = searchTerm.toLowerCase();
+            return data.filter(row => {
+                return Object.values(row).some(value => {
+                    return String(value).toLowerCase().includes(searchTerm);
+                });
+            });
+        }
+        
+        // Update table with pagination
+        function renderTable() {
+            // Apply filter
+            const searchTerm = document.getElementById('table-search').value;
+            filteredData = filterTableData(tableData, searchTerm);
+            
+            // Sort data
+            filteredData = sortTableData(filteredData, sortField, sortDirection);
+            
+            // Calculate pagination
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = Math.min(startIndex + rowsPerPage, filteredData.length);
+            const pageData = filteredData.slice(startIndex, endIndex);
+            
+            // Update page info
+            document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages || 1}`;
+            
+            // Update pagination buttons
+            document.getElementById('prev-page').disabled = currentPage <= 1;
+            document.getElementById('next-page').disabled = currentPage >= totalPages;
+            
+            // Render table rows
+            const tableBody = document.querySelector('#model-table tbody');
+            tableBody.innerHTML = '';
+            
+            if (pageData.length === 0) {
+                const row = document.createElement('tr');
+                const cell = document.createElement('td');
+                cell.colSpan = 6;
+                cell.textContent = 'No data found';
+                cell.style.textAlign = 'center';
+                row.appendChild(cell);
+                tableBody.appendChild(row);
+                return;
+            }
+            
+            pageData.forEach(rowData => {
+                const row = document.createElement('tr');
+                
+                // Model
+                const modelCell = document.createElement('td');
+                modelCell.textContent = rowData.model;
+                row.appendChild(modelCell);
+                
+                // Status
+                const stateCell = document.createElement('td');
+                stateCell.innerHTML = `<span class="${rowData.state === 'online' ? 'status-online' : 'status-offline'}">${rowData.state}</span>`;
+                row.appendChild(stateCell);
+                
+                // Location
+                const locationCell = document.createElement('td');
+                locationCell.textContent = rowData.location;
+                row.appendChild(locationCell);
+                
+                // Public Name
+                const publicNameCell = document.createElement('td');
+                publicNameCell.textContent = rowData.publicName;
+                row.appendChild(publicNameCell);
+                
+                // Blocks
+                const blocksCell = document.createElement('td');
+                blocksCell.textContent = rowData.blocks;
+                row.appendChild(blocksCell);
+                
+                // Throughput
+                const throughputCell = document.createElement('td');
+                throughputCell.innerHTML = getThroughputHtml(rowData.throughput);
+                row.appendChild(throughputCell);
+                
+                tableBody.appendChild(row);
+            });
+            
+            // Update sort indicators
+            document.querySelectorAll('.sort-indicator').forEach(indicator => {
+                indicator.textContent = '';
+            });
+            
+            const activeHeader = document.querySelector(`th[data-sort="${sortField}"] .sort-indicator`);
+            if (activeHeader) {
+                activeHeader.textContent = sortDirection === 'asc' ? ' ↑' : ' ↓';
+            }
+        }
+        
+        // Set up event handlers for table
+        function setupTableEventHandlers() {
+            // Sorting
+            document.querySelectorAll('th[data-sort]').forEach(th => {
+                th.addEventListener('click', () => {
+                    const field = th.getAttribute('data-sort');
+                    
+                    // Toggle direction if clicking the same field
+                    if (field === sortField) {
+                        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        sortField = field;
+                        sortDirection = 'asc';
+                    }
+                    
+                    currentPage = 1; // Reset to first page on sort
+                    renderTable();
+                });
+            });
+            
+            // Pagination
+            document.getElementById('prev-page').addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderTable();
                 }
             });
+            
+            document.getElementById('next-page').addEventListener('click', () => {
+                const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderTable();
+                }
+            });
+            
+            // Search filter
+            document.getElementById('table-search').addEventListener('input', () => {
+                currentPage = 1; // Reset to first page on filter change
+                renderTable();
+            });
+        }
+        
+        // Call setup once
+        setupTableEventHandlers();
+        
+        // Main function to update table data
+        function updateTableView(data) {
+            // Flatten data for tabular presentation
+            tableData = [];
+            
+            data.model_reports.forEach(report => {
+                report.server_rows.forEach(server => {
+                    const location = server.peer_ip_info.location;
+                    const locationInfo = location && location.status === "success" ? 
+                        `${location.city}, ${location.country}` : "Location Unknown";
+                    
+                    const blocks = server.span ? `${server.span.start}-${server.span.end}` : "N/A";
+                    const throughput = server.span && server.span.server_info ? server.span.server_info.throughput : 0;
+                    const publicName = server.span && server.span.server_info ? 
+                        (server.span.server_info.public_name || "N/A") : "N/A";
+                    
+                    tableData.push({
+                        model: report.name,
+                        location: locationInfo,
+                        publicName: publicName,
+                        blocks: blocks,
+                        throughput: throughput ? throughput.toFixed(2) : "N/A",
+                        state: server.state
+                    });
+                });
+            });
+            
+            // Update the view
+            renderTable();
+        }
 
+        // Helper function to return throughput with color
+        function getThroughputWithColor(throughput) {
+            if (throughput === "N/A") return throughput;
+            
+            const value = parseFloat(throughput);
+            if (value > 500) {
+                return `<span class="throughput-high">${throughput}</span>`;
+            } else if (value > 100) {
+                return `<span class="throughput-medium">${throughput}</span>`;
+            } else {
+                return `<span class="throughput-low">${throughput}</span>`;
+            }
+        }
+
+        // Helper function for throughput HTML
+        function getThroughputHtml(throughput) {
+            if (throughput === "N/A") return throughput;
+            
+            const value = parseFloat(throughput);
+            if (value > 500) {
+                return `<span class="throughput-high">${throughput}</span>`;
+            } else if (value > 100) {
+                return `<span class="throughput-medium">${throughput}</span>`;
+            } else {
+                return `<span class="throughput-low">${throughput}</span>`;
+            }
+        }
+
+        // Update bootstrap status dots
+        function updateBootstrapStatus(bootstrapStates) {
+            const statusContainer = document.getElementById('bootstrap-status');
+            statusContainer.innerHTML = '';
+            
+            if (bootstrapStates && Array.isArray(bootstrapStates)) {
+                bootstrapStates.forEach(state => {
+                    const dot = document.createElement('span');
+                    dot.className = `status-dot ${state === 'online' ? 'online' : 'offline'}`;
+                    dot.title = `Bootstrap node: ${state}`;
+                    statusContainer.appendChild(dot);
+                });
+            }
+        }
+        
+        // Main function to fetch and update all views
+        function fetchAndUpdateViews() {
             fetch('api/v1/state')  
                 .then(response => response.json())
                 .then(data => {
-                    markers.clearLayers();
-                    const modelReports = data.model_reports;
-                    modelReports.forEach(report => {
-                        report.server_rows.forEach(server => {
-                            const location = server.peer_ip_info.location;
-                            const blocks = server.span? server.span.start + "-" + server.span.end: "N/A";
-                            let lat = 34.0522;
-                            let lon = -118.2437;
-                            let locationInfo = "Location Unknown";
-                            if (location && location.status === "success") {
-                                lat = location.lat;
-                                lon = location.lon;
-                                locationInfo = `${location.city}, ${location.country}`;
-                            }
-
-                            // Color markers based on status
-                            let markerColor = server.state === "online" ? 'green' : 'red';
-                            let markerIcon = L.icon({
-                                iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-${markerColor}.png`,
-                                iconSize: [25, 41],
-                                iconAnchor: [12, 41],
-                                popupAnchor: [1, -34],
-                                shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-                                shadowSize: [41, 41]
-                            });
-
-                            // Get throughput and determine its color
-                            const throughput = server.span.server_info.throughput;
-                            let throughputColor = "#FF0000"; // Default to red
-                            if (throughput > 500) {
-                                throughputColor = "#00FF00"; // Green for high throughput
-                            } else if (throughput > 100) {
-                                throughputColor = "#FFFF00"; // Yellow for medium throughput
-                            }
-
-                            let publicName = server.span.server_info.public_name || "N/A";
-
-                            let marker = L.marker([lat, lon], { icon: markerIcon });
-                            let popupContent = `
-                                <b>Model:</b> ${report.name}<br>
-                                <b>Location:</b> ${locationInfo}<br>
-                                <b>Public Name:</b> ${publicName}<br>
-                                <b>Blocks:</b> ${blocks}<br>
-                                <b>Throughput (tok/sec):</b>                                 
-                                <span style="color:${throughputColor}">${throughput.toFixed(2)}</span>                                
-                            `;
-                            
-                            marker.bindPopup(popupContent);
-                            markers.addLayer(marker);
-                            
-                            // Check if this marker was previously open
-                            let key = lat + "," + lon;
-                            if (openPopupContent[key]) {
-                                // Store this marker to open its popup later
-                                openPopups[key] = marker;
-                            }
-                        });
-                    });
+                    currentData = data;
                     
-                    map.addLayer(markers);
+                    // Update bootstrap status
+                    updateBootstrapStatus(data.bootstrap_states);
                     
-                    // Reopen popups that were open before
-                    for (let key in openPopupContent) {
-                        if (openPopups[key]) {
-                            openPopups[key].openPopup();
-                        }
+                    // Update the active view
+                    const activeTab = document.querySelector('.tab.active').getAttribute('data-tab');
+                    
+                    if (activeTab === 'map-tab') {
+                        updateMapView(data);
+                    } else if (activeTab === 'table-tab') {
+                        updateTableView(data);
                     }
-                    
-                    // Clear the tracking objects for the next refresh
-                    openPopups = {};
                 })
                 .catch(error => console.error('Error fetching data:', error));
         }
 
-        function startUpdatingMarkers(interval) {
+        function startUpdatingViews(interval) {
             if (intervalId) clearInterval(intervalId);
-            intervalId = setInterval(fetchAndUpdateMarkers, interval);
+            intervalId = setInterval(fetchAndUpdateViews, interval);
         }
 
+        // Event listeners
         document.getElementById('interval-select').addEventListener('change', function() {
             var selectedInterval = parseInt(this.value);
-            startUpdatingMarkers(selectedInterval);
+            startUpdatingViews(selectedInterval);
         });
 
-        fetchAndUpdateMarkers();
-        startUpdatingMarkers(5000); // Default interval 5 seconds
+        // Also update when tabs are clicked to ensure data freshness
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                const tabId = this.getAttribute('data-tab');
+                
+                // If we already have data, update the view immediately
+                if (currentData.length !== 0) {
+                    if (tabId === 'map-tab') {
+                        updateMapView(currentData);
+                    } else if (tabId === 'bubble-tab') {
+                        updateBubbleView(currentData);
+                    } else if (tabId === 'table-tab') {
+                        updateTableView(currentData);
+                    }
+                }
+            });
+        });
+
+        // Initial fetch and setup
+        fetchAndUpdateViews();
+        startUpdatingViews(5000); // Default interval 5 seconds
+
+        // Handle window resize to update visualizations
+        window.addEventListener('resize', function() {
+            const activeTab = document.querySelector('.tab.active').getAttribute('data-tab');
+            
+            if (activeTab === 'map-tab' && map) {
+                map.invalidateSize();
+            } else if (activeTab === 'bubble-tab' && currentData.length !== 0) {
+                updateBubbleView(currentData);
+            }
+        });
     </script>
 </body>
 </html>
