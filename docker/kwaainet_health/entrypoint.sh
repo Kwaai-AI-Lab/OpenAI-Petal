@@ -1,12 +1,5 @@
 #!/bin/bash
 
-# Ensure INITIAL_PEERS is set
-if [ -z "$INITIAL_PEERS" ]; then
-    echo "ERROR: Environment variable INITIAL_PEERS is not set!"    
-    exit 0
-fi
-
-
 # Generate the config.py file dynamically with Pydantic v1 & v2 support
 cat <<EOF > /app/health_service/config.py
 # Set initial peers dynamically

@@ -40,6 +40,10 @@ if [ -n "$PUBLIC_NAME" ]; then
     CMD+=" --public_name $PUBLIC_NAME"
 fi
 
-CMD+=" --port 8080"  
+if [ -n "$PORT" ] && [[ "$PORT" =~ ^[0-9]+$ ]]; then
+    CMD+=" --port $PORT"
+else
+    CMD+=" --port 8080"
+fi
 
 exec $CMD

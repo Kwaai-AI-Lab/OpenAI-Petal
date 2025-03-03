@@ -37,5 +37,7 @@ RUN chmod +x /app/entrypoint.sh
 # Expose Health API port
 EXPOSE 8000
 ENV PETALS_IGNORE_DEPENDENCY_VERSION=1
+
+ENV INITIAL_PEERS=${INITIAL_PEERS:-"/dns/bootstrap-1.kwaai.ai/tcp/8000/p2p/QmQhRuheeCLEsVD3RsnknM75gPDDqxAb8DhnWgro7KhaJc,/dns/bootstrap-2.kwaai.ai/tcp/8000/p2p/Qmd3A8N5aQBATe2SYvNikaeCS9CAKN4E86jdCPacZ6RZJY"}
 # Set the entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]

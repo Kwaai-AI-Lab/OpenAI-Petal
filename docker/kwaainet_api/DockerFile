@@ -60,14 +60,22 @@ RUN pip uninstall -y bitsandbytes
 # Install bitsandbytes
 RUN pip install bitsandbytes
 
+# needs upgrade for tokenizers used by unsloth and others which are of later format.
+RUN pip install --upgrade transformers sentencepiece tokenizers
 # Expose port 8000
 EXPOSE 8000 
 
 # Set the environment variable with a default value of 1 if not provided
 
 ENV KWAAINET_BLOCKS=${KWAAINET_BLOCKS:-1}
-ENV KWAAINET_MODEL=${KWAAINET_MODEL:-"deepseek-ai/DeepSeek-R1-Distill-Llama-8B"}
 
+# set default model
+ENV KWAAINET_MODEL=${KWAAINET_MODEL:-"unsloth/Llama-3.1-8B-Instruct"}
+
+ENV INITIAL_PEERS=${INITIAL_PEERS:-"/dns/bootstrap-1.kwaai.ai/tcp/8000/p2p/QmQhRuheeCLEsVD3RsnknM75gPDDqxAb8DhnWgro7KhaJc,/dns/bootstrap-2.kwaai.ai/tcp/8000/p2p/Qmd3A8N5aQBATe2SYvNikaeCS9CAKN4E86jdCPacZ6RZJY"}
+
+# Ignore dependency check as we have upgraded transformers library
+ENV PETALS_IGNORE_DEPENDENCY_VERSION=1
 # Copy and set up entrypoint
 COPY docker/kwaainet_api/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

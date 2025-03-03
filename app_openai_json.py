@@ -89,7 +89,7 @@ def get_special_tokens(model_name: str):
     """
     try:
         # Load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
         
         # Special tokens set - initialize with our problematic token
         special_tokens = {"|begin_of_text|>"}
@@ -169,7 +169,7 @@ def get_stop_tokens(model_name: str):
     """
     try:
         # Load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
 
         # Stop tokens list
         stop_tokens = set()
@@ -226,6 +226,7 @@ def get_stop_tokens(model_name: str):
         return sorted(stop_tokens) if stop_tokens else None
 
     except Exception as e:
+        traceback.print_exc()
         print(f"Error detecting stop tokens for {model_name}: {str(e)}")
         return None
 
@@ -321,6 +322,7 @@ async def chat_completions(request: ChatCompletionRequest):
 
     except Exception as e:
         print(f"Error: {str(e)}")
+        traceback.print_exc()
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/v1/completions")
