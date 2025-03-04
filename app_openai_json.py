@@ -282,6 +282,9 @@ async def chat_completions(request: ChatCompletionRequest):
         input_ids = inputs["input_ids"].to(config.DEVICE)
         attention_mask = inputs["attention_mask"].to(config.DEVICE)
         max_length = input_ids.shape[1] + max_new_tokens
+        
+        # Store the prompt token count
+        prompt_tokens = input_ids.shape[1]
 
         # Get model-specific stop tokens
         detected_stop_tokens = get_stop_tokens(model_name)
@@ -307,17 +310,17 @@ async def chat_completions(request: ChatCompletionRequest):
                 stream_generate_chat(
                     input_ids, attention_mask, model, tokenizer, 
                     stop_sequences, True, temperature, top_p, top_k, 
-                    repetition_penalty, max_length, max_new_tokens
+                    repetition_penalty, max_length, max_new_tokens, prompt_tokens
                 ),
                 media_type='text/event-stream'
             )
         else:
-            output_text = await generate_text(
+            output_text, prompt_token_count, completion_token_count = await generate_text(
                 input_ids, attention_mask, model, tokenizer, 
                 stop_sequences, True, temperature, top_p, top_k, 
                 repetition_penalty, max_length, max_new_tokens
             )            
-            response = create_chat_completion_response(output_text, model_name)
+            response = create_chat_completion_response(output_text, model_name, prompt_token_count, completion_token_count)
             return JSONResponse(content=response)
 
     except Exception as e:
@@ -358,6 +361,11 @@ async def completions(request: CompletionRequest):
         input_ids = inputs["input_ids"].to(config.DEVICE)
         attention_mask = inputs["attention_mask"].to(config.DEVICE)
         max_length = input_ids.shape[1] + max_new_tokens
+        
+        # Store the prompt token count
+        prompt_tokens = input_ids.shape[1]
+        print(f"Token count methods - shape[1]: {input_ids.shape[1]}, numel: {input_ids.numel()}, encoded length: {len(tokenizer.encode(inputs))}")
+
 
         # Get model-specific stop tokens
         detected_stop_tokens = get_stop_tokens(model_name)
@@ -375,17 +383,17 @@ async def completions(request: CompletionRequest):
                 stream_generate(
                     input_ids, attention_mask, model, tokenizer, 
                     stop_sequences, True, temperature, top_p, top_k, 
-                    repetition_penalty, max_length, max_new_tokens
+                    repetition_penalty, max_length, max_new_tokens, prompt_tokens
                 ),
                 media_type='text/event-stream'
             )
         else:
-            output_text = await generate_text(
+            output_text, prompt_token_count, completion_token_count = await generate_text(
                 input_ids, attention_mask, model, tokenizer, 
                 stop_sequences, True, temperature, top_p, top_k, 
                 repetition_penalty, max_length, max_new_tokens
             )
-            response = create_completion_response(output_text, model_name)
+            response = create_completion_response(output_text, model_name, prompt_token_count, completion_token_count)
             return JSONResponse(content=response)
 
     except Exception as e:
@@ -394,7 +402,7 @@ async def completions(request: CompletionRequest):
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-def create_chat_completion_response(text: str, model_name: str) -> dict:
+def create_chat_completion_response(text: str, model_name: str, prompt_tokens: int, completion_tokens: int) -> dict:
     # Final cleanup of any XML tags that might still be present
     cleaned_text = clean_role_markers(text)
     
@@ -414,14 +422,14 @@ def create_chat_completion_response(text: str, model_name: str) -> dict:
             }
         ],
         "usage": {
-            "prompt_tokens": 0,  # You may want to calculate this
-            "completion_tokens": 0,  # You may want to calculate this
-            "total_tokens": 0  # You may want to calculate this
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens
         }
     }
 
 
-def create_completion_response(text: str, model_name: str) -> dict:
+def create_completion_response(text: str, model_name: str, prompt_tokens: int, completion_tokens: int) -> dict:
     return {
         "id": f"cmpl-{int(time.time())}",
         "object": "text_completion",
@@ -436,13 +444,13 @@ def create_completion_response(text: str, model_name: str) -> dict:
             }
         ],
         "usage": {
-            "prompt_tokens": 0,  # You may want to calculate this
-            "completion_tokens": 0,  # You may want to calculate this
-            "total_tokens": 0  # You may want to calculate this
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens
         }
     }
 
-async def stream_generate(input_ids, attention_mask, model, tokenizer, stop_sequences, do_sample, temperature, top_p, top_k, repetition_penalty, max_length, max_new_tokens) -> Generator[str, None, None]:
+async def stream_generate(input_ids, attention_mask, model, tokenizer, stop_sequences, do_sample, temperature, top_p, top_k, repetition_penalty, max_length, max_new_tokens, prompt_tokens) -> Generator[str, None, None]:
     n_input_tokens = input_ids.shape[1]
     
     # Get special tokens to remove - just the ones we want to hide from users
@@ -555,6 +563,15 @@ async def stream_generate(input_ids, attention_mask, model, tokenizer, stop_sequ
                     
                     # Only send if there's actual content
                     if first_cleaned_token:
+                        # Add usage statistics only on the final message
+                        usage = None
+                        if stop and not token_buffer:
+                            usage = {
+                                "prompt_tokens": prompt_tokens,
+                                "completion_tokens": generated_tokens,
+                                "total_tokens": prompt_tokens + generated_tokens
+                            }
+                        
                         response = {
                             "id": f"cmpl-{start_time}",
                             "object": "text_completion",
@@ -569,6 +586,10 @@ async def stream_generate(input_ids, attention_mask, model, tokenizer, stop_sequ
                                 }
                             ]
                         }
+                        
+                        # Add usage if this is the final message
+                        if usage:
+                            response["usage"] = usage
                         
                         yield f"data: {json.dumps(response)}\n\n"
                         await asyncio.sleep(0)
@@ -591,6 +612,7 @@ async def stream_generate(input_ids, attention_mask, model, tokenizer, stop_sequ
         if token_buffer and not stopped_due_to_sequence:
             _, _, last_cleaned_token = token_buffer[0]
             if last_cleaned_token:
+                # Include usage statistics in the final response
                 response = {
                     "id": f"cmpl-{start_time}",
                     "object": "text_completion",
@@ -603,7 +625,12 @@ async def stream_generate(input_ids, attention_mask, model, tokenizer, stop_sequ
                             "logprobs": None,
                             "finish_reason": "stop"
                         }
-                    ]
+                    ],
+                    "usage": {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": generated_tokens,
+                        "total_tokens": prompt_tokens + generated_tokens
+                    }
                 }
                 
                 yield f"data: {json.dumps(response)}\n\n"
@@ -611,7 +638,7 @@ async def stream_generate(input_ids, attention_mask, model, tokenizer, stop_sequ
 
         yield "data: [DONE]\n\n"
 
-async def stream_generate_chat(input_ids, attention_mask, model, tokenizer, stop_sequences, do_sample, temperature, top_p, top_k, repetition_penalty, max_length, max_new_tokens) -> Generator[str, None, None]:
+async def stream_generate_chat(input_ids, attention_mask, model, tokenizer, stop_sequences, do_sample, temperature, top_p, top_k, repetition_penalty, max_length, max_new_tokens, prompt_tokens) -> Generator[str, None, None]:
     n_input_tokens = input_ids.shape[1]
     
     # Get special tokens to remove - just the ones we want to hide from users
@@ -732,6 +759,15 @@ async def stream_generate_chat(input_ids, attention_mask, model, tokenizer, stop
                     
                     # Only send if there's actual content
                     if first_cleaned_token:
+                        # Add usage statistics only on the final message
+                        usage = None
+                        if stop and not token_buffer:
+                            usage = {
+                                "prompt_tokens": prompt_tokens,
+                                "completion_tokens": generated_tokens,
+                                "total_tokens": prompt_tokens + generated_tokens
+                            }
+                        
                         # Adjust the response to match the chat completion format
                         response = {
                             "id": f"chatcmpl-{start_time}",
@@ -749,6 +785,10 @@ async def stream_generate_chat(input_ids, attention_mask, model, tokenizer, stop
                                 }
                             ]
                         }
+                        
+                        # Add usage if this is the final message
+                        if usage:
+                            response["usage"] = usage
                         
                         # Stream the response as event data
                         yield f"data: {json.dumps(response)}\n\n"
@@ -786,7 +826,12 @@ async def stream_generate_chat(input_ids, attention_mask, model, tokenizer, stop
                             "index": 0,
                             "finish_reason": "stop"
                         }
-                    ]
+                    ],
+                    "usage": {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": generated_tokens,
+                        "total_tokens": prompt_tokens + generated_tokens
+                    }
                 }
                 
                 yield f"data: {json.dumps(response)}\n\n"
@@ -795,7 +840,8 @@ async def stream_generate_chat(input_ids, attention_mask, model, tokenizer, stop
         # Signal end of streaming
         yield "data: [DONE]\n\n"
 
-async def generate_text(input_ids, attention_mask, model, tokenizer, stop_sequences, do_sample, temperature, top_p, top_k, repetition_penalty, max_length, max_new_tokens) -> str:
+async def generate_text(input_ids, attention_mask, model, tokenizer, stop_sequences, do_sample, temperature, top_p, top_k, repetition_penalty, max_length, max_new_tokens) -> tuple:
+    prompt_tokens = input_ids.shape[1]
     n_input_tokens = input_ids.shape[1]
     all_outputs = ""
     delta_q = []
@@ -868,7 +914,7 @@ async def generate_text(input_ids, attention_mask, model, tokenizer, stop_sequen
     # Clean special tokens before returning
     cleaned_output = clean_special_tokens(all_outputs, special_tokens)
     #print(f"Final output length before cleaning: {len(all_outputs)}, after cleaning: {len(cleaned_output)}")
-    return cleaned_output
+    return cleaned_output, prompt_tokens, generated_tokens
 
 
 @app.get("/v1/models")
