@@ -12,6 +12,8 @@ import traceback
 import os
 import signal
 import sys
+import re
+from functools import lru_cache
 
 from transformers import AutoTokenizer, StoppingCriteria, StoppingCriteriaList
 from utils import safe_decode
@@ -80,16 +82,22 @@ class StopTokenCriteria(StoppingCriteria):
     def __call__(self, input_ids, scores):
         return any(input_ids[0][-1] == stop_token for stop_token in self.stop_tokens)
     
+@lru_cache(maxsize=100)
 def get_special_tokens(model_name: str):
     """
     Gets all special tokens for a Hugging Face model.
+    Uses LRU caching to avoid repeated computation.
     
     :param model_name: The name or path of the model to load the tokenizer.
     :return: A set of special tokens for the model.
     """
     try:
-        # Load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
+        # Use existing tokenizer if available
+        if model_name in models:
+            _, tokenizer, _ = models[model_name]
+        else:
+            # This should rarely happen in production
+            tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
         
         # Special tokens set - initialize with our problematic token
         special_tokens = {"|begin_of_text|>"}
@@ -104,34 +112,50 @@ def get_special_tokens(model_name: str):
         # Return at least our problematic token if we can't get others
         return {"|begin_of_text|>"}
 
+
+# Pre-compile the replacement patterns
+TOKENS_TO_REMOVE = ["|begin_of_text|>"]
+
+@lru_cache(maxsize=1)
+def get_cleanup_regex(special_tokens):
+    """Create a compiled regex for all tokens to remove."""
+    if not isinstance(special_tokens, frozenset):
+        special_tokens = frozenset(special_tokens)
+    
+    all_tokens = set(special_tokens).union(TOKENS_TO_REMOVE)
+    
+    # Filter out empty tokens
+    all_tokens = [re.escape(token) for token in all_tokens if token and token.strip()]
+    
+    if not all_tokens:
+        return None
+    
+    # Sort by length (longest first) to avoid substring issues
+    all_tokens.sort(key=len, reverse=True)
+    
+    # Create a regex pattern that matches any of the tokens
+    pattern = '|'.join(all_tokens)
+    return re.compile(pattern)
+
 def clean_special_tokens(text: str, special_tokens: set) -> str:
     """
-    Removes specified special tokens from the generated text.
+    Removes specified special tokens from the generated text using regex.
     
     :param text: The text to clean.
     :param special_tokens: Set of special tokens to remove.
     :return: Cleaned text.
     """
-    if not special_tokens:
+    if not special_tokens and not TOKENS_TO_REMOVE:
         return text
     
-    # Define tokens that should be removed from output
-    tokens_to_remove = ["|begin_of_text|>"]
+    # Get compiled regex
+    regex = get_cleanup_regex(frozenset(special_tokens))
     
-    # Add them to the special tokens set
-    special_tokens.update(tokens_to_remove)
+    if not regex:
+        return text
     
-    cleaned = text
-    # Sort tokens by length (longest first) to avoid substring issues
-    for token in sorted(special_tokens, key=len, reverse=True):
-        if token and token.strip():  # Avoid empty tokens
-            cleaned = cleaned.replace(token, "")
-    
-    # Log token cleaning for debugging
-    #if cleaned != text:
-    #    print(f"Cleaned special tokens. Original length: {len(text)}, New length: {len(cleaned)}")
-    
-    return cleaned
+    # Replace all tokens in one pass
+    return regex.sub('', text)
 
 def clean_role_markers(text: str) -> str:
     """
@@ -160,17 +184,25 @@ def clean_role_markers(text: str) -> str:
     
     return cleaned_text
 
+
+
+@lru_cache(maxsize=100)
 def get_stop_tokens(model_name: str):
     """
     Detects stop sequences (EOS tokens, BOS tokens, and chat formatting rules) for a Hugging Face model.
+    Uses LRU caching to avoid repeated computation.
 
-    :param model_name: The name or path of the model to load the tokenizer.
+    :param model_name: The name or path of the model.
     :return: A list of stop tokens for the model.
     """
     try:
-        # Load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
-
+        # Use existing tokenizer if available
+        if model_name in models:
+            _, tokenizer, _ = models[model_name]
+        else:
+            # This path should rarely be taken in production
+            tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
+        
         # Stop tokens list
         stop_tokens = set()
 
@@ -178,7 +210,7 @@ def get_stop_tokens(model_name: str):
         if tokenizer.eos_token:
             stop_tokens.add(tokenizer.eos_token)
 
-        # Detect BOS token (not necessarily a stop token but useful for parsing)
+        # Detect BOS token
         if tokenizer.bos_token:
             stop_tokens.add(tokenizer.bos_token)
 
@@ -328,8 +360,12 @@ async def chat_completions(request: ChatCompletionRequest):
         traceback.print_exc()
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
+
 @app.post("/v1/completions")
 async def completions(request: CompletionRequest):
+    # Start total request timer
+    request_start_time = time.time()
+    
     try:
         model_name = request.model
         inputs = request.prompt
@@ -357,18 +393,27 @@ async def completions(request: CompletionRequest):
         if tokenizer.pad_token is None or tokenizer.pad_token == tokenizer.eos_token:
             tokenizer.add_special_tokens({'pad_token': '<PAD>'})
 
+        # Time the actual tokenization call
+        tokenize_op_start = time.time()
         inputs = tokenizer(inputs, return_tensors="pt", padding=True, truncation=True)
+        
+
+        
         input_ids = inputs["input_ids"].to(config.DEVICE)
         attention_mask = inputs["attention_mask"].to(config.DEVICE)
+        
+        
         max_length = input_ids.shape[1] + max_new_tokens
         
         # Store the prompt token count
         prompt_tokens = input_ids.shape[1]
-        print(f"Token count methods - shape[1]: {input_ids.shape[1]}, numel: {input_ids.numel()}, encoded length: {len(tokenizer.encode(inputs))}")
+        #print(f"Token count methods - shape[1]: {input_ids.shape[1]}, numel: {input_ids.numel()}, encoded length: {len(tokenizer.encode(inputs))}")
 
 
         # Get model-specific stop tokens
         detected_stop_tokens = get_stop_tokens(model_name)
+        tokenize_op_time = time.time() - tokenize_op_start
+        #print(f"Core device transfer operation: {tokenize_op_time:.4f} seconds")
 
         # Merge user-provided stop tokens if any
         stop_sequences = detected_stop_tokens or []
@@ -388,15 +433,35 @@ async def completions(request: CompletionRequest):
                 media_type='text/event-stream'
             )
         else:
+            # Time until generate_text is called
+            pre_generate_time = time.time() - request_start_time
+            #print(f"Time until generate_text called: {pre_generate_time:.4f} seconds")
+            
+            # Start generate_text timer
+            generate_start_time = time.time()
+            
             output_text, prompt_token_count, completion_token_count = await generate_text(
                 input_ids, attention_mask, model, tokenizer, 
                 stop_sequences, True, temperature, top_p, top_k, 
                 repetition_penalty, max_length, max_new_tokens
             )
+            
+            # Calculate generate_text execution time
+            generate_time = time.time() - generate_start_time
+            #print(f"Time taken for generate_text: {generate_time:.4f} seconds")
+            
+            # Calculate total request time
+            total_time = time.time() - request_start_time
+            print(f"Total request time: {total_time:.4f} seconds")
+            
             response = create_completion_response(output_text, model_name, prompt_token_count, completion_token_count)
             return JSONResponse(content=response)
 
     except Exception as e:
+        # Calculate total time for errors
+        error_time = time.time() - request_start_time
+        print(f"Error occurred after {error_time:.4f} seconds")
+        
         print(f"Error: {str(e)}")
         traceback.print_exc()
         return JSONResponse(content={"error": str(e)}, status_code=500)
@@ -486,7 +551,8 @@ async def stream_generate(input_ids, attention_mask, model, tokenizer, stop_sequ
                 repetition_penalty=repetition_penalty,
                 max_new_tokens=1,
                 session=session,
-                pad_token_id=tokenizer.pad_token_id
+                pad_token_id=tokenizer.pad_token_id,
+                use_cache=True  # Enable KV caching
             )
 
             delta = outputs[0, n_input_tokens:].tolist()
@@ -677,7 +743,8 @@ async def stream_generate_chat(input_ids, attention_mask, model, tokenizer, stop
                 repetition_penalty=repetition_penalty,
                 max_new_tokens=1,
                 session=session,
-                pad_token_id=tokenizer.pad_token_id
+                pad_token_id=tokenizer.pad_token_id,
+                use_cache=True  # Enable KV caching
             )
 
             delta = outputs[0, n_input_tokens:].tolist()
@@ -841,19 +908,40 @@ async def stream_generate_chat(input_ids, attention_mask, model, tokenizer, stop
         yield "data: [DONE]\n\n"
 
 async def generate_text(input_ids, attention_mask, model, tokenizer, stop_sequences, do_sample, temperature, top_p, top_k, repetition_penalty, max_length, max_new_tokens) -> tuple:
+    generate_start_time = time.time()
+    
     prompt_tokens = input_ids.shape[1]
     n_input_tokens = input_ids.shape[1]
     all_outputs = ""
+    cleaned_all_outputs = ""  # Track the cleaned version in parallel
     delta_q = []
     stop = False
     first_step = True
     generated_tokens = 0
     
+    # Track cumulative times for different operations
+    total_model_generate_time = 0
+    total_decode_time = 0
+    total_stop_check_time = 0
+    
     # Get special tokens to remove - just the ones we want to hide from users
+    special_tokens_start = time.time()
     special_tokens = get_special_tokens(tokenizer.name_or_path)
+    special_tokens_time = time.time() - special_tokens_start
+    #print(f"Time to get special tokens: {special_tokens_time:.4f} seconds")
+    
+    session_start_time = time.time()
+    #print(f"Time before inference session: {session_start_time - generate_start_time:.4f} seconds")
     
     with model.inference_session(max_length=max_length) as session:
+        session_created_time = time.time()
+        session_setup_time = session_created_time - session_start_time
+        #print(f"Time to create inference session: {session_setup_time:.4f} seconds")
+        
         while not stop:
+            # Time for model.generate
+            token_gen_start_time = time.time()
+            
             outputs = model.generate(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
@@ -864,16 +952,34 @@ async def generate_text(input_ids, attention_mask, model, tokenizer, stop_sequen
                 repetition_penalty=repetition_penalty,
                 max_new_tokens=1,
                 session=session,
-                pad_token_id=tokenizer.pad_token_id
+                pad_token_id=tokenizer.pad_token_id,
+                use_cache=True  # Enable KV caching
             )
             
+            token_gen_time = time.time() - token_gen_start_time
+            total_model_generate_time += token_gen_time
+            
+            if first_step:
+                first_token_time = time.time() - generate_start_time
+                print(f"Time to first token: {first_token_time:.4f} seconds")
+            
             delta = outputs[0, n_input_tokens:].tolist()
+            
+            # Time for decode
+            decode_start_time = time.time()
             token_text = safe_decode(tokenizer, delta_q + delta)
+            decode_time = time.time() - decode_start_time
+            total_decode_time += decode_time
+            
             generated_tokens += 1
-            #print(f"Generated token: {token_text!r}")
-
-            # Clean the token for comparison with stop sequences
-            cleaned_token = clean_special_tokens(token_text, special_tokens)
+            
+            # Log every token with cumulative times
+            #if generated_tokens % 5 == 0 or generated_tokens == 1:
+            #    print(f"Token #{generated_tokens}, gen time: {token_gen_time:.4f}s, decode: {decode_time:.4f}s")
+            #    print(f"Cumulative - model: {total_model_generate_time:.4f}s, decode: {total_decode_time:.4f}s")
+            
+            # Time for stop sequence checking and token processing
+            stop_check_start = time.time()
             
             # Check if adding this token would create a stop sequence
             potential_text = all_outputs + token_text
@@ -887,7 +993,8 @@ async def generate_text(input_ids, attention_mask, model, tokenizer, stop_sequen
                     stop_idx = cleaned_potential.find(stop_seq)
                     # Only keep text before the stop sequence
                     all_outputs = potential_text[:len(potential_text) - len(token_text) + (stop_idx - len(cleaned_potential) + len(token_text))]
-                    print(f"Got stop seq: {stop_seq!r}, truncating output")
+                    cleaned_all_outputs = cleaned_potential[:stop_idx]  # Update cleaned version too
+                    print(f"Got stop seq: {stop_seq!r}, truncating output at token #{generated_tokens}")
                     stop_found = True
                     stop = True
                     break
@@ -900,6 +1007,10 @@ async def generate_text(input_ids, attention_mask, model, tokenizer, stop_sequen
                 
                 delta_q = []
                 all_outputs += token_text
+                cleaned_all_outputs = cleaned_potential  # Keep track of the cleaned version
+            
+            stop_check_time = time.time() - stop_check_start
+            total_stop_check_time += stop_check_time
             
             if first_step:
                 input_ids = None
@@ -909,13 +1020,24 @@ async def generate_text(input_ids, attention_mask, model, tokenizer, stop_sequen
             
             if generated_tokens == max_new_tokens: 
                 stop = True
-                print("Reached max tokens")                
+                print(f"Reached max tokens ({max_new_tokens})")                
     
-    # Clean special tokens before returning
-    cleaned_output = clean_special_tokens(all_outputs, special_tokens)
-    #print(f"Final output length before cleaning: {len(all_outputs)}, after cleaning: {len(cleaned_output)}")
-    return cleaned_output, prompt_tokens, generated_tokens
-
+    # Final timing breakdown
+    other_time = time.time() - generate_start_time - total_model_generate_time - total_decode_time - total_stop_check_time - special_tokens_time - session_setup_time
+    
+    print(f"Timing breakdown:")
+    print(f"  Model generation: {total_model_generate_time:.4f}s ({total_model_generate_time/generated_tokens:.4f}s per token)")
+    print(f"  Token decoding: {total_decode_time:.4f}s ({total_decode_time/generated_tokens:.4f}s per token)")
+    print(f"  Stop sequence checking: {total_stop_check_time:.4f}s ({total_stop_check_time/generated_tokens:.4f}s per token)")
+    print(f"  Special tokens lookup: {special_tokens_time:.4f}s")
+    print(f"  Session setup: {session_setup_time:.4f}s")
+    print(f"  Other operations: {other_time:.4f}s")
+    print(f"Total generation time: {time.time() - generate_start_time:.4f} seconds")
+    print(f"Tokens generated: {generated_tokens}")
+    print(f"Generation speed: {generated_tokens / (time.time() - generate_start_time):.2f} tokens/second")
+    
+    # No need for final cleaning, using the already-cleaned version
+    return cleaned_all_outputs, prompt_tokens, generated_tokens
 
 @app.get("/v1/models")
 async def list_models():
