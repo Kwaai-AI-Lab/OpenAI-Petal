@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -10,6 +9,9 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.2/d3.min.js"></script>
+    <!-- Add vis.js for Network Topology -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" />
     
     <style>
         body {
@@ -64,6 +66,11 @@
             background-color: #FF0000;
         }
 
+        .refresh-controls {
+            display: flex;
+            align-items: center;
+        }
+        
         .refresh-interval {
             display: flex;
             align-items: center;
@@ -122,6 +129,93 @@
             width: 100%;
             padding: 20px;
             overflow: auto;
+        }
+        
+        /* Network Topology view */
+        #topology-view {
+            height: 100%;
+            width: 100%;
+            position: relative;
+            overflow: hidden; /* Prevent overflow */
+        }
+        
+        #topology-network {
+            width: 100%;
+            height: 100%;
+            border: 1px solid #ddd;
+            background-color: white;
+            position: absolute; /* Fix position */
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+        
+        /* Topology controls */
+        .topology-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            width: 250px;
+        }
+        
+        .topology-controls h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 16px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        
+        .control-group {
+            margin-bottom: 12px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .control-group select, 
+        .control-group input {
+            width: 100%;
+            padding: 6px;
+            margin-bottom: 8px;
+        }
+        
+        .control-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 5px;
+        }
+        
+        .control-group .checkbox-label {
+            display: inline-block;
+            font-weight: normal;
+        }
+        
+        .control-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 12px;
+        }
+        
+        .control-actions button {
+            padding: 6px 12px;
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .control-actions button:hover {
+            background-color: #e9e9e9;
         }
         
         /* Custom table styling */
@@ -279,14 +373,19 @@
                 <!-- Bootstrap status dots will be inserted here -->
             </div>
         </h1>
-        <div class="refresh-interval">
-            <label for="interval-select">Refresh Interval:</label>
-            <select id="interval-select">
-                <option value="1000">1 second</option>
-                <option value="2000">2 seconds</option>
-                <option value="5000" selected>5 seconds</option>
-                <option value="30000">30 seconds</option>
-            </select>
+        <div class="refresh-controls">
+            <label for="refresh-enabled" style="margin-right: 15px;">
+                <input type="checkbox" id="refresh-enabled" checked> Auto Refresh
+            </label>
+            <div class="refresh-interval">
+                <label for="interval-select">Interval:</label>
+                <select id="interval-select">
+                    <option value="1000">1 second</option>
+                    <option value="2000">2 seconds</option>
+                    <option value="5000" selected>5 seconds</option>
+                    <option value="30000">30 seconds</option>
+                </select>
+            </div>
         </div>
     </div>
 
@@ -295,6 +394,7 @@
         <div class="tabs">
             <div class="tab active" data-tab="map-tab">Map View</div>
             <div class="tab" data-tab="table-tab">Table View</div>
+            <div class="tab" data-tab="topology-tab">Network Topology</div>
         </div>
 
         <!-- Tab content -->
@@ -331,6 +431,13 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Network Topology Tab Content -->
+        <div id="topology-tab" class="tab-content">
+            <div id="topology-view">
+                <div id="topology-network"></div>
+            </div>
+        </div>
     </div>
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -338,39 +445,294 @@
 
     <script>
         // Tab switching logic
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', function() {
-                // Remove active class from all tabs and content
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                
-                // Add active class to clicked tab
-                this.classList.add('active');
-                
-                // Show the corresponding content
-                const tabId = this.getAttribute('data-tab');
-                document.getElementById(tabId).classList.add('active');
-                
-                // Special handling for map to ensure it renders correctly when shown
-                if (tabId === 'map-tab' && map) {
-                    setTimeout(() => {
-                        map.invalidateSize();
-                    }, 100);
-                }
+        // Tab switching logic with immediate data refresh
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    // Remove active class from all tabs and content
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    
+                    // Add active class to clicked tab
+                    this.classList.add('active');
+                    
+                    // Show the corresponding content
+                    const tabId = this.getAttribute('data-tab');
+                    document.getElementById(tabId).classList.add('active');
+                    
+                    // If we have current data, immediately update the view
+                    if (currentData && Object.keys(currentData).length > 0) {
+                        if (tabId === 'map-tab' && map) {
+                            // First resize the map container
+                            setTimeout(() => {
+                                map.invalidateSize();
+                                // Then immediately update with current data
+                                updateMapView(currentData);
+                            }, 100);
+                        } 
+                        else if (tabId === 'table-tab') {
+                            // Immediately update table with current data
+                            updateTableView(currentData);
+                        }
+                        else if (tabId === 'topology-tab') {
+                            // Ensure network is initialized and update with current data
+                            setTimeout(() => {
+                                if (!networkInitialized) {
+                                    networkContainer = document.getElementById('topology-network');
+                                    if (networkContainer) {
+                                        initializeNetwork();
+                                        updateNetworkView(currentData);
+                                    }
+                                } else if (network) {
+                                    updateNetworkView(currentData);
+                                    network.fit();
+                                }
+                            }, 100);
+                        }
+                    }
+                });
             });
         });
 
-        // Global variables
-        var map = L.map('map').setView([34.0522, -118.2437], 2); // Default view
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 18,
-        }).addTo(map);
-
-        var markers = L.markerClusterGroup();
+        // Global variables for network visualization
+        var map;
+        var markers;
         var intervalId;
         var openPopups = {}; // To track open popups
         var currentData = []; // Store current data for all views
-        var bubbleChart; // Reference to bubble chart
+        
+        // Network Topology variables
+        var network = null;
+        var nodes = new vis.DataSet();
+        var edges = new vis.DataSet();
+        var networkContainer;
+        var networkInitialized = false;
+        var networkData = {
+            nodes: nodes,
+            edges: edges
+        };
+        var modelGroups = {}; // Track model groupings
+        var networkOptions = {
+            groups: {},
+            nodes: {
+                shape: 'dot',
+                size: 25,
+                font: {
+                    size: 14
+                },
+                fixed: {
+                    y: false,
+                    x: false
+                }
+            },
+            edges: {
+                width: 2,
+                smooth: {
+                    type: 'continuous'
+                }
+            },
+            physics: {
+                enabled: true,
+                stabilization: {
+                    iterations: 200,
+                    updateInterval: 25,
+                    fit: true
+                },
+                barnesHut: {
+                    gravitationalConstant: -2000,
+                    centralGravity: 0.1,
+                    springLength: 150,
+                    springConstant: 0.04,
+                    damping: 0.09,
+                    avoidOverlap: 0.5
+                },
+                solver: 'barnesHut',
+                timestep: 0.5
+            },
+            layout: {
+                improvedLayout: true,
+                hierarchical: {
+                    enabled: false
+                }
+            },
+            interaction: {
+                hover: true,
+                tooltipDelay: 300,
+                navigationButtons: true,
+                keyboard: true
+            },
+            // Add clustering configuration
+            clusters: {},
+            clusterNodeProperties: {
+                borderWidth: 3,
+                shape: 'box',
+                font: { size: 15 }
+            }
+        };
+
+        // Initialize network
+        function initializeNetwork() {
+            // Clean up existing network if it exists
+            if (network) {
+                network.destroy();
+                network = null;
+            }
+            
+            // Clear the container to ensure no residual canvas elements
+            if (networkContainer) {
+                while (networkContainer.firstChild) {
+                    networkContainer.removeChild(networkContainer.firstChild);
+                }
+            }
+            
+            // Create network instance with clean state
+            network = new vis.Network(networkContainer, networkData, networkOptions);
+            networkInitialized = true;
+            
+            // Set up event listeners for the network
+            network.on("click", function (params) {
+                if (params.nodes.length > 0) {
+                    var nodeId = params.nodes[0];
+                    var node = nodes.get(nodeId);
+                    alert(`Node: ${node.label}\nModel: ${node.group || 'N/A'}\nStatus: ${node.status || 'N/A'}\nLocation: ${node.location || 'N/A'}`);
+                }
+            });
+            
+            // Set up afterDrawing event for group boxes
+            network.on("afterDrawing", function(ctx) {
+                drawModelGroupBoxes(ctx);
+            });
+            
+            // Stabilize the network once it's loaded
+            network.once("stabilizationIterationsDone", function() {
+                // Fix all node positions after initial stabilization
+                network.storePositions();
+                console.log("Network stabilized");
+            });
+            
+            // Apply hierarchical layout by default
+            setHierarchicalLayout();
+        }
+        
+        // Setup simplified network controls
+        function setupLayoutControls() {
+            // Nothing needed here now - just left as a placeholder
+        }
+        
+        // Function to set hierarchical layout
+        function setHierarchicalLayout() {
+            if (!network) return;
+            
+            // Apply hierarchical layout with default settings
+            network.setOptions({
+                layout: {
+                    hierarchical: {
+                        enabled: true,
+                        direction: 'UD', // Top to bottom
+                        nodeSpacing: 150,
+                        levelSeparation: 200,
+                        sortMethod: 'directed'
+                    }
+                },
+                physics: {
+                    enabled: true,
+                    hierarchicalRepulsion: {
+                        nodeDistance: 150
+                    }
+                }
+            });
+            
+            // Give time for the layout to update, then fit
+            setTimeout(() => {
+                if (network) network.fit();
+            }, 100);
+        }
+        
+        // Function to draw background boxes for model groups
+        function drawModelGroupBoxes(ctx) {
+            // Draw boxes around model groups
+            for (const modelName in modelGroups) {
+                const group = modelGroups[modelName];
+                if (!group || !group.nodes || group.nodes.length === 0) continue;
+                
+                // Find the bounding box of all nodes in this group
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                
+                group.nodes.forEach(nodeId => {
+                    const nodePosition = network.getPositions([nodeId])[nodeId];
+                    if (nodePosition) {
+                        minX = Math.min(minX, nodePosition.x);
+                        minY = Math.min(minY, nodePosition.y);
+                        maxX = Math.max(maxX, nodePosition.x);
+                        maxY = Math.max(maxY, nodePosition.y);
+                    }
+                });
+                
+                // Add padding
+                const padding = 50;
+                minX -= padding;
+                minY -= padding;
+                maxX += padding;
+                maxY += padding;
+                
+                // Draw the background box with the model color
+                const baseColor = group.color || '#dddddd';
+                
+                // Draw with translucent fill and border
+                ctx.fillStyle = hexToRgba(baseColor, 0.2);
+                ctx.strokeStyle = hexToRgba(baseColor, 0.8);
+                ctx.lineWidth = 2;
+                
+                // Draw rounded rectangle
+                const radius = 20;
+                ctx.beginPath();
+                ctx.moveTo(minX + radius, minY);
+                ctx.lineTo(maxX - radius, minY);
+                ctx.quadraticCurveTo(maxX, minY, maxX, minY + radius);
+                ctx.lineTo(maxX, maxY - radius);
+                ctx.quadraticCurveTo(maxX, maxY, maxX - radius, maxY);
+                ctx.lineTo(minX + radius, maxY);
+                ctx.quadraticCurveTo(minX, maxY, minX, maxY - radius);
+                ctx.lineTo(minX, minY + radius);
+                ctx.quadraticCurveTo(minX, minY, minX + radius, minY);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                
+                // Add the model name in the top left of the box
+                ctx.fillStyle = '#000000';
+                ctx.font = "14px Arial";
+                ctx.fillText(modelName + " Group", minX + 15, minY + 25);
+            }
+        }
+        
+        // Helper function to convert hex color to rgba
+        function hexToRgba(hex, alpha) {
+            // Default to gray if color is invalid
+            if (!hex || typeof hex !== 'string') {
+                return `rgba(200, 200, 200, ${alpha})`;
+            }
+            
+            // Clean up the hex value
+            hex = hex.replace('#', '');
+            
+            // Handle shorthand hex
+            if (hex.length === 3) {
+                hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+            }
+            
+            // Ensure we have a valid hex color
+            if (hex.length !== 6) {
+                return `rgba(200, 200, 200, ${alpha})`;
+            }
+            
+            // Convert to RGB
+            const r = parseInt(hex.substring(0, 2), 16);
+            const g = parseInt(hex.substring(2, 4), 16);
+            const b = parseInt(hex.substring(4, 6), 16);
+            
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
 
         // Helper function to get connection type
         function getConnectionType(server) {
@@ -592,6 +954,303 @@
             }
         }
         
+        // Network Topology View Logic
+        function updateNetworkView(data) {
+            // Check if network container exists and initialize network if not done yet
+            if (!networkInitialized) {
+                networkContainer = document.getElementById('topology-network');
+                if (networkContainer) {
+                    initializeNetwork();
+                } else {
+                    console.error("Network container not found!");
+                    return;
+                }
+            }
+            
+            // Define color scheme for different models
+            const modelColors = {};
+            const colorPalette = [
+                '#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f',
+                '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab'
+            ];
+            
+            // Store existing positions before clearing
+            const existingPositions = {};
+            const existingNodeIds = nodes.getIds();
+            
+            existingNodeIds.forEach(id => {
+                const node = nodes.get(id);
+                if (node && node.x !== undefined && node.y !== undefined) {
+                    existingPositions[id] = { x: node.x, y: node.y };
+                }
+            });
+            
+            // Reset the model groups
+            modelGroups = {};
+            
+            // Clear previous network data
+            nodes.clear();
+            edges.clear();
+            
+            // Add tier -1: bootstrap nodes
+            nodes.add([
+                {
+                    id: 'bootstrap-1',
+                    label: 'Bootstrap-1',
+                    shape: 'diamond',
+                    size: 35,
+                    color: {
+                        background: '#8A2BE2',
+                        border: '#4B0082'
+                    },
+                    font: { size: 14, color: '#000000' },
+                    level: -1,
+                    fixed: true
+                },
+                {
+                    id: 'bootstrap-2',
+                    label: 'Bootstrap-2',
+                    shape: 'diamond',
+                    size: 35,
+                    color: {
+                        background: '#8A2BE2',
+                        border: '#4B0082'
+                    },
+                    font: { size: 14, color: '#000000' },
+                    level: -1,
+                    fixed: true
+                }
+            ]);
+            
+            // Extract unique model names
+            const modelNames = [...new Set(data.model_reports.map(report => report.name))];
+            
+            // Add tier 2: API servers for each model
+            const apiNodes = [];
+            modelNames.forEach((modelName, index) => {
+                const colorIndex = index % colorPalette.length;
+                const modelColor = colorPalette[colorIndex];
+                modelColors[modelName] = modelColor;
+                
+                // Add API nodes for this model
+                const api1Id = `api-1-${modelName}`;
+                const api2Id = `api-2-${modelName}`;
+                
+                apiNodes.push({
+                    id: api1Id,
+                    label: `API-1 (${modelName})`,
+                    shape: 'hexagon',
+                    size: 30,
+                    color: {
+                        background: modelColor,
+                        border: '#000000'
+                    },
+                    font: { size: 12 },
+                    modelName: modelName,
+                    level: 0
+                });
+                
+                apiNodes.push({
+                    id: api2Id,
+                    label: `API-2 (${modelName})`,
+                    shape: 'hexagon',
+                    size: 30,
+                    color: {
+                        background: modelColor,
+                        border: '#000000'
+                    },
+                    font: { size: 12 },
+                    modelName: modelName,
+                    level: 0
+                });
+                
+                // Connect API nodes to bootstrap nodes
+                edges.add([
+                    { from: 'bootstrap-1', to: api1Id, width: 2, length: 200, arrows: 'to' },
+                    { from: 'bootstrap-1', to: api2Id, width: 2, length: 200, arrows: 'to' },
+                    { from: 'bootstrap-2', to: api1Id, width: 2, length: 200, arrows: 'to' },
+                    { from: 'bootstrap-2', to: api2Id, width: 2, length: 200, arrows: 'to' }
+                ]);
+            });
+            
+            // Add the API nodes
+            nodes.add(apiNodes);
+            
+            // Add network options for models
+            modelNames.forEach(modelName => {
+                networkOptions.groups[modelName] = {
+                    color: modelColors[modelName],
+                    borderWidth: 2,
+                    shadow: true
+                };
+            });
+            
+            // Add model group nodes
+            modelNames.forEach(modelName => {
+                const modelNodeId = `model-${modelName}`;
+                
+                // Create a group object to track nodes in this model group
+                modelGroups[modelName] = {
+                    nodes: [],
+                    color: modelColors[modelName]
+                };
+                
+                nodes.add({
+                    id: modelNodeId,
+                    label: modelName,
+                    group: modelName,
+                    shape: 'dot',
+                    size: 35,
+                    font: { size: 14 },
+                    level: 1
+                });
+                
+                // Add model node to its group
+                modelGroups[modelName].nodes.push(modelNodeId);
+                
+                // Connect model node to its API servers
+                edges.add([
+                    { from: `api-1-${modelName}`, to: modelNodeId, width: 2.5, length: 150, arrows: 'to' },
+                    { from: `api-2-${modelName}`, to: modelNodeId, width: 2.5, length: 150, arrows: 'to' }
+                ]);
+                
+                // Add API nodes to the model group
+                modelGroups[modelName].nodes.push(`api-1-${modelName}`);
+                modelGroups[modelName].nodes.push(`api-2-${modelName}`);
+            });
+            
+            // Now add server nodes
+            data.model_reports.forEach(report => {
+                const modelName = report.name;
+                const modelNodeId = `model-${modelName}`;
+                
+                report.server_rows.forEach((server, serverIndex) => {
+                    // Create a unique ID for this server
+                    const serverId = `${modelName}-server-${serverIndex}`;
+                    
+                    // Extract location info
+                    const location = server.peer_ip_info.location;
+                    let locationInfo = "Location Unknown";
+                    
+                    if (location && location.status === "success") {
+                        locationInfo = `${location.city}, ${location.country}`;
+                    }
+                    
+                    // Get additional server info
+                    const blocks = server.span ? `${server.span.start}-${server.span.end}` : "N/A";
+                    const publicName = server.span && server.span.server_info ? 
+                        (server.span.server_info.public_name || "N/A") : "N/A";
+                    const connectionType = getConnectionType(server);
+                    const throughput = server.span && server.span.server_info ? 
+                        server.span.server_info.throughput : 0;
+                    
+                    // Create a label for this node
+                    let nodeLabel = publicName !== "N/A" ? publicName : `Server ${serverIndex+1}`;
+                    
+                    // Add the server node
+                    nodes.add({
+                        id: serverId,
+                        label: nodeLabel,
+                        group: modelName,
+                        status: server.state,
+                        location: locationInfo,
+                        throughput: throughput ? throughput.toFixed(2) : "N/A",
+                        connectionType: connectionType,
+                        blocks: blocks,
+                        title: `Model: ${modelName}<br>Status: ${server.state}<br>Location: ${locationInfo}<br>Blocks: ${blocks}`,
+                        borderWidth: 2,
+                        level: 2,
+                        // Different shape based on connection type
+                        shape: connectionType === "Direct" ? "dot" : "diamond",
+                        // Different color shade based on status
+                        color: {
+                            background: server.state === 'online' ? modelColors[modelName] : '#d3d3d3',
+                            border: server.state === 'online' ? modelColors[modelName] : '#a9a9a9'
+                        },
+                        // Size based on throughput
+                        size: throughput ? Math.min(20 + (throughput / 50), 40) : 20
+                    });
+                    
+                    // Connect server node to its model group node
+                    edges.add({
+                        from: modelNodeId,
+                        to: serverId,
+                        length: 100,
+                        arrows: 'to'
+                    });
+                    
+                    // Connect server node directly to bootstrap nodes with dotted lines
+                    edges.add([
+                        { 
+                            from: 'bootstrap-1', 
+                            to: serverId, 
+                            width: 1.5, 
+                            length: 300, 
+                            dashes: [5, 5],
+                            arrows: 'to',
+                            color: { color: '#aaaaaa', opacity: 0.7 }
+                        },
+                        { 
+                            from: 'bootstrap-2', 
+                            to: serverId, 
+                            width: 1.5, 
+                            length: 300, 
+                            dashes: [5, 5],
+                            arrows: 'to',
+                            color: { color: '#aaaaaa', opacity: 0.7 }
+                        }
+                    ]);
+                });
+            });
+            
+            // Apply saved positions to nodes
+            const allNodeIds = nodes.getIds();
+            const updatedNodes = [];
+            
+            allNodeIds.forEach(id => {
+                if (existingPositions[id]) {
+                    updatedNodes.push({
+                        id: id,
+                        x: existingPositions[id].x,
+                        y: existingPositions[id].y,
+                        fixed: true
+                    });
+                }
+            });
+            
+            // Only update positions if we have saved positions
+            if (updatedNodes.length > 0) {
+                nodes.update(updatedNodes);
+            }
+            
+            // Apply hierarchical layout by default
+            setHierarchicalLayout();
+            
+            // Only fit on first load or if network was reinitialized
+            if (updatedNodes.length === 0 && network) {
+                // Temporarily disable physics for stable display
+                const wasPhysicsEnabled = networkOptions.physics.enabled;
+                network.setOptions({ physics: { enabled: false } });
+                
+                setTimeout(() => {
+                    if (network) {
+                        network.fit();
+                        
+                        // Re-enable physics if it was enabled before
+                        setTimeout(() => {
+                            if (network) {
+                                network.setOptions({ physics: { enabled: wasPhysicsEnabled } });
+                                // Store positions after stabilization
+                                setTimeout(() => {
+                                    if (network) network.storePositions();
+                                }, 1000);
+                            }
+                        }, 500);
+                    }
+                }, 100);
+            }
+        }
+        
         // Set up event handlers for table
         function setupTableEventHandlers() {
             // Sorting
@@ -634,9 +1293,6 @@
                 renderTable();
             });
         }
-        
-        // Call setup once
-        setupTableEventHandlers();
         
         // Main function to update table data
         function updateTableView(data) {
@@ -731,6 +1387,15 @@
                         updateMapView(data);
                     } else if (activeTab === 'table-tab') {
                         updateTableView(data);
+                    } else if (activeTab === 'topology-tab') {
+                        // Check if the network exists before updating
+                        if (!networkInitialized || !network) {
+                            networkContainer = document.getElementById('topology-network');
+                            if (networkContainer) {
+                                initializeNetwork();
+                            }
+                        }
+                        updateNetworkView(data);
                     }
                 })
                 .catch(error => console.error('Error fetching data:', error));
@@ -740,32 +1405,54 @@
             if (intervalId) clearInterval(intervalId);
             intervalId = setInterval(fetchAndUpdateViews, interval);
         }
+        
+        function stopUpdatingViews() {
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+        }
 
-        // Event listeners
-        document.getElementById('interval-select').addEventListener('change', function() {
-            var selectedInterval = parseInt(this.value);
-            startUpdatingViews(selectedInterval);
-        });
-
-        // Also update when tabs are clicked to ensure data freshness
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', function() {
-                const tabId = this.getAttribute('data-tab');
-                
-                // If we already have data, update the view immediately
-                if (currentData.length !== 0) {
-                    if (tabId === 'map-tab') {
-                        updateMapView(currentData);
-                    } else if (tabId === 'table-tab') {
-                        updateTableView(currentData);
+        // Initialize map on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            map = L.map('map').setView([34.0522, -118.2437], 3); // Default view
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+            }).addTo(map);
+            
+            markers = L.markerClusterGroup();
+            
+            // Setup refresh controls
+            const refreshCheckbox = document.getElementById('refresh-enabled');
+            const intervalSelect = document.getElementById('interval-select');
+            
+            if (refreshCheckbox) {
+                refreshCheckbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        const selectedInterval = parseInt(intervalSelect.value);
+                        startUpdatingViews(selectedInterval);
+                    } else {
+                        stopUpdatingViews();
                     }
-                }
-            });
+                });
+            }
+            
+            if (intervalSelect) {
+                intervalSelect.addEventListener('change', function() {
+                    if (refreshCheckbox.checked) {
+                        var selectedInterval = parseInt(this.value);
+                        startUpdatingViews(selectedInterval);
+                    }
+                });
+            }
+            
+            // Set up table event handlers
+            setupTableEventHandlers();
+            
+            // Initial fetch and setup
+            fetchAndUpdateViews();
+            startUpdatingViews(5000); // Default interval 5 seconds
         });
-
-        // Initial fetch and setup
-        fetchAndUpdateViews();
-        startUpdatingViews(5000); // Default interval 5 seconds
 
         // Handle window resize to update visualizations
         window.addEventListener('resize', function() {
@@ -773,8 +1460,11 @@
             
             if (activeTab === 'map-tab' && map) {
                 map.invalidateSize();
+            } else if (activeTab === 'topology-tab' && network) {
+                network.fit();
             }
         });
     </script>
 </body>
 </html>
+        
