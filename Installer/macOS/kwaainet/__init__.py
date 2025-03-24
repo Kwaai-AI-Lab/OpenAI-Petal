@@ -1,6 +1,5 @@
 ## 3. kwaainet/__init__.py
 
-```python
 """
 KwaaiNet for Mac
 ================
