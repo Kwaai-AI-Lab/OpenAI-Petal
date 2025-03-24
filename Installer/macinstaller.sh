@@ -102,7 +102,7 @@ conda activate kwaainet || source activate kwaainet
 
 # Install the package directly from your URL
 echo "Installing KwaaiNet for Mac..."
-pip install --no-cache-dir https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.2.0.tar.gz
+pip install --no-cache-dir https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.3.0.tar.gz
 
 # Run initial setup
 echo "Running initial setup..."
