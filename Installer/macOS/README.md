@@ -21,7 +21,7 @@ This package is specifically designed for Mac users who cannot use Docker for GP
 To install KwaaiNet for macOS, run:
 
 ```bash
-pip install https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.4.0.tar.gz
+pip install https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.5.0.tar.gz
 ```
 
 > ⚠️ Make sure you are using **Python 3.10+** and `pip` is from the correct environment (virtualenv, conda, or system Python).
@@ -72,7 +72,7 @@ kwaainet start
 Or with custom settings:
 
 ```bash
-kwaainet start --model "unsloth/Llama-3.1-8B-Instruct" --blocks 2 --port 8080
+kwaainet start --model "unsloth/Llama-3.1-8B-Instruct" --blocks 2 --port 8080 --public-name "anon@kwaai"
 ```
 
 ### Configuration
@@ -88,7 +88,19 @@ Update configuration:
 ```bash
 kwaainet config --set model "unsloth/Llama-3.1-8B-Instruct"
 kwaainet config --set blocks 2
+kwaainet config --set public_name "anon@kwaai"
 ```
+Available Command-line Options
+The kwaainet start command supports the following options:
+
+--model: Model to use (default: "unsloth/Llama-3.1-8B-Instruct")
+--blocks: Number of blocks to share (default: 1)
+--port: Port to listen on (default: 8080)
+--no-gpu: Disable GPU acceleration
+--public-name: Public name for your node
+--public-ip: Explicitly set the public IP address
+--announce-addr: Custom announce address for P2P networking
+--no-relay: Disable automatic relay
 
 ## Python API
 

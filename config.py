@@ -111,7 +111,7 @@ except ImportError:
 if DEVICE == "cuda":
     TORCH_DTYPE = "auto"
 elif has_avx512:
-    TORCH_DTYPE = torch.bfloat16
+    TORCH_DTYPE = torch.float16
 else:
     TORCH_DTYPE = torch.float32  # You can use bfloat16 in this case too, but it will be slow
 

@@ -1,0 +1,49 @@
+# In install.sh
+# After installing the package...
+
+# Create launcher script for one-step execution
+LAUNCHER_PATH="/usr/local/bin/kwaainet-launcher"
+echo "Creating launcher script at $LAUNCHER_PATH..."
+
+cat > /tmp/kwaainet-launcher << 'EOF'
+#!/bin/bash
+# Find conda
+if [ -f "$HOME/miniconda/etc/profile.d/conda.sh" ]; then
+    CONDA_PATH="$HOME/miniconda"
+elif [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then
+    CONDA_PATH="$HOME/anaconda3"
+elif [ -f "/opt/anaconda3/etc/profile.d/conda.sh" ]; then
+    CONDA_PATH="/opt/anaconda3"
+elif [ -f "/opt/miniconda3/etc/profile.d/conda.sh" ]; then
+    CONDA_PATH="/opt/miniconda3"
+else
+    echo "Error: Could not find conda installation. Please install conda first."
+    exit 1
+fi
+
+# Source conda without changing the prompt
+source "$CONDA_PATH/etc/profile.d/conda.sh"
+
+# Activate the environment and run the command
+conda activate kwaainet && kwaainet "$@"
+EOF
+
+# Install with sudo if needed
+if [ -w "/usr/local/bin" ]; then
+    # We have write permission
+    cp /tmp/kwaainet-launcher "$LAUNCHER_PATH"
+    chmod +x "$LAUNCHER_PATH"
+else
+    # Need sudo
+    echo "Installing launcher script (requires sudo)..."
+    sudo cp /tmp/kwaainet-launcher "$LAUNCHER_PATH"
+    sudo chmod +x "$LAUNCHER_PATH"
+fi
+
+rm /tmp/kwaainet-launcher
+
+# Create symlink with standard name
+ln -sf "$LAUNCHER_PATH" /usr/local/bin/kwaainet-mac
+
+echo "Installation complete! You can now start KwaaiNet with a single command:"
+echo "kwaainet-mac start"
