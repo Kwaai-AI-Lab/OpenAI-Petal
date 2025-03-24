@@ -1,0 +1,8 @@
+torch>=1.12
+peft==0.6.0
+petals@ git+https://github.com/bigscience-workshop/petals
+pyarrow
+requests
+tqdm
+pyyaml
+psutil

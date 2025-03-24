@@ -1,0 +1,28 @@
+Metadata-Version: 2.4
+Name: kwaainet-mac
+Version: 0.1.0
+Summary: KwaaiNet Node for Mac systems to share compute/GPU resources
+Home-page: https://github.com/yourusername/kwaainet-mac
+Author: Kwaai Labs
+Author-email: contact@kwaai.ai
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Operating System :: MacOS
+Requires-Python: >=3.10,<3.11
+Requires-Dist: torch>=1.12
+Requires-Dist: peft==0.6.0
+Requires-Dist: petals@ git+https://github.com/bigscience-workshop/petals
+Requires-Dist: pyarrow
+Requires-Dist: requests
+Requires-Dist: tqdm
+Requires-Dist: pyyaml
+Requires-Dist: psutil
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
