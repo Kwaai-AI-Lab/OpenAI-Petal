@@ -119,7 +119,7 @@ rm -rf /tmp/pip-* 2>/dev/null || true
 
 # Install the package directly from your URL
 echo "📦 Installing KwaaiNet for Mac..."
-pip install --no-cache-dir https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.1.0.tar.gz
+pip install --no-cache-dir https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.5.0.tar.gz
 
 # Create launcher script for one-step execution
 echo "🚀 Creating launcher script..."
