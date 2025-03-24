@@ -37,7 +37,7 @@ This will:
 If you prefer to handle the environment yourself, you can install directly:
 
 ```bash
-pip install https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.5.0.tar.gz
+pip install https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.6.0.tar.gz
 ```
 
 > ⚠️ Make sure you are using **Python 3.10+** and `pip` is from the correct environment (virtualenv, conda, or system Python).

@@ -192,7 +192,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="KwaaiNet for Mac")
     
     # Command subparsers
-    subparsers = parser.add_subparsers(dest="command")
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
     
     # Start command
     start_parser = subparsers.add_parser("start", help="Start KwaaiNet node")
@@ -219,7 +219,11 @@ def parse_args():
     config_parser.add_argument("--view", action="store_true", help="View current configuration")
     config_parser.add_argument("--set", nargs=2, metavar=("KEY", "VALUE"), help="Set configuration value")
     
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+    return args
 
 def main():
     """Main entry point"""
@@ -240,6 +244,14 @@ def main():
             update_kwargs["port"] = args.port
         if args.no_gpu:
             update_kwargs["use_gpu"] = False
+        if getattr(args, 'public_name', None):
+            update_kwargs["public_name"] = args.public_name
+        if getattr(args, 'public_ip', None):
+            update_kwargs["public_ip"] = args.public_ip
+        if getattr(args, 'announce_addr', None):
+            update_kwargs["announce_addr"] = args.announce_addr
+        if getattr(args, 'no_relay', False):
+            update_kwargs["no_relay"] = True
             
         if update_kwargs:
             runner.config.update(**update_kwargs)
@@ -277,9 +289,9 @@ def main():
                 
             runner.config.set(key, value)
             logger.info(f"Set {key} = {value}")
-    else:
-        # No command provided, show help
-        parse_args()
+        else:
+            logger.error("No action specified for config command")
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()
