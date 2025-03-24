@@ -23,10 +23,10 @@ if platform.system() == "Darwin":
     # Check if M1/M2 Mac for specific optimizations
     if platform.processor() == 'arm':
         # For Apple Silicon Macs - use specific bitsandbytes version
-        dependencies.append("bitsandbytes-apple-silicon")
+        dependencies.append("bitsandbytes")
     else:
         # For Intel Macs
-        dependencies.append("bitsandbytes-x86")
+        dependencies.append("bitsandbytes")
 
 setup(
     name="kwaainet-mac",
