@@ -188,4 +188,44 @@ def main():
             update_kwargs["use_gpu"] = False
             
         if update_kwargs:
-            runner.config.update(**
+            runner.config.update(**update_kwargs)
+            
+        # Start the node
+        if not runner.start():
+            sys.exit(1)
+            
+    elif args.command == "stop":
+        if not runner.stop():
+            sys.exit(1)
+            
+    elif args.command == "setup":
+        if not runner.setup():
+            sys.exit(1)
+            
+    elif args.command == "status":
+        # Implementation pending
+        logger.info("Status command not yet implemented")
+        
+    elif args.command == "config":
+        if args.view:
+            config = runner.config.as_dict()
+            for key, value in config.items():
+                print(f"{key}: {value}")
+        elif args.set:
+            key, value = args.set
+            # Convert value type if needed
+            if value.isdigit():
+                value = int(value)
+            elif value.lower() == "true":
+                value = True
+            elif value.lower() == "false":
+                value = False
+                
+            runner.config.set(key, value)
+            logger.info(f"Set {key} = {value}")
+    else:
+        # No command provided, show help
+        parse_args()
+
+if __name__ == "__main__":
+    main()
