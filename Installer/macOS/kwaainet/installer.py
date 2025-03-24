@@ -244,13 +244,13 @@ class MacInstaller:
                 # For M1/M2/M3 Macs
                 subprocess.check_call([
                     sys.executable, "-m", "pip", "install", 
-                    "bitsandbytes-apple-silicon", "--no-cache-dir"
+                    "bitsandbytes", "--no-cache-dir"
                 ])
             else:
                 # For Intel Macs
                 subprocess.check_call([
                     sys.executable, "-m", "pip", "install", 
-                    "bitsandbytes-x86", "--no-cache-dir"
+                    "bitsandbytes", "--no-cache-dir"
                 ])
                 
             return True
