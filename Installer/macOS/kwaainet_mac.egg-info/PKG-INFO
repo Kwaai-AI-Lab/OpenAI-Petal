@@ -12,7 +12,7 @@ Classifier: Programming Language :: Python :: 3.10
 Classifier: Operating System :: MacOS
 Requires-Python: >=3.10,<3.11
 Requires-Dist: torch>=1.12
-Requires-Dist: peft==0.6.0
+Requires-Dist: peft>=0.6.0
 Requires-Dist: petals@ git+https://github.com/bigscience-workshop/petals
 Requires-Dist: pyarrow
 Requires-Dist: requests

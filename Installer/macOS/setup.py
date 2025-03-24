@@ -9,7 +9,7 @@ if platform.system() != "Darwin":
 # Define dependencies - no CUDA packages as they're not needed on macOS
 dependencies = [
     "torch>=1.12",  # Match the Docker version requirement
-    "peft==0.6.0",  # Match the Docker version (--no-deps)
+    "peft>=0.6.0",  # Match the Docker version (--no-deps)
     "petals @ git+https://github.com/bigscience-workshop/petals",
     "pyarrow",  # Often needed for data handling
     "requests",
