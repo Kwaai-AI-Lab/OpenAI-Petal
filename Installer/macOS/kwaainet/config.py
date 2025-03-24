@@ -30,7 +30,12 @@ class KwaaiNetConfig:
             "use_gpu": True,  # Default to using GPU if available
             "log_level": os.environ.get("KWAAINET_LOG_LEVEL", "INFO"),
             "max_memory": os.environ.get("KWAAINET_MAX_MEMORY", None),
+            "public_name": os.environ.get("PUBLIC_NAME", None),  # Add this line
+            "public_ip": os.environ.get("PUBLIC_IP", None),      # Add this line
+            "announce_addr": os.environ.get("ANNOUNCE_ADDR", None),  # Add this line
+            "no_relay": bool(os.environ.get("NORELAY", False)),  # Add this line
         }
+                
         
         if os.path.exists(self.config_file):
             try:
@@ -73,11 +78,8 @@ class KwaaiNetConfig:
     def update(self, **kwargs):
         """Update configuration with new values"""
         for key, value in kwargs.items():
-            # Make sure we update the config if the key exists
-            if key in self.config:
-                self.config[key] = value
-            else:
-                logger.warning(f"Ignoring unknown config key: {key}")
+            # Allow adding new keys that weren't in the default config
+            self.config[key] = value
         return self.save()
     
     def get(self, key, default=None):
@@ -105,5 +107,17 @@ class KwaaiNetConfig:
         
         if self.config.get("max_memory"):
             env_dict["KWAAINET_MAX_MEMORY"] = str(self.config.get("max_memory"))
+            
+        if self.config.get("public_name"):
+            env_dict["PUBLIC_NAME"] = self.config.get("public_name")
+            
+        if self.config.get("public_ip"):
+            env_dict["PUBLIC_IP"] = self.config.get("public_ip")
+            
+        if self.config.get("announce_addr"):
+            env_dict["ANNOUNCE_ADDR"] = self.config.get("announce_addr")
+            
+        if self.config.get("no_relay"):
+            env_dict["NORELAY"] = "1"
             
         return env_dict

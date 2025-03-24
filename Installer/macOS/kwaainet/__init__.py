@@ -35,7 +35,7 @@ from .config import KwaaiNetConfig
 from .runner import KwaaiNetRunner
 from .installer import setup_mac
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 __author__ = "Kwaai Labs"
 __email__ = "contact@kwaai.ai"
 
