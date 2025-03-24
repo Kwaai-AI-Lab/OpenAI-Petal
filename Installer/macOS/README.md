@@ -21,7 +21,7 @@ This package is specifically designed for Mac users who cannot use Docker for GP
 To install KwaaiNet for macOS, run:
 
 ```bash
-pip install https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.1.0.tar.gz
+pip install https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.2.0.tar.gz
 ```
 
 > ⚠️ Make sure you are using **Python 3.10+** and `pip` is from the correct environment (virtualenv, conda, or system Python).
