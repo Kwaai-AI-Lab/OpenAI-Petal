@@ -73,8 +73,11 @@ class KwaaiNetConfig:
     def update(self, **kwargs):
         """Update configuration with new values"""
         for key, value in kwargs.items():
+            # Make sure we update the config if the key exists
             if key in self.config:
                 self.config[key] = value
+            else:
+                logger.warning(f"Ignoring unknown config key: {key}")
         return self.save()
     
     def get(self, key, default=None):

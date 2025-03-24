@@ -67,20 +67,8 @@ class KwaaiNetRunner:
         logger.info(f"Sharing {self.config.get('blocks')} blocks")
         logger.info(f"Using GPU: {self.config.get('use_gpu')}")
         
-        # Check if model is already downloaded
-        model_path = os.path.expanduser(f"~/.cache/huggingface/hub/models--{self.config.get('model').replace('/', '--')}")
-        if not os.path.exists(model_path):
-            logger.info(f"Model not found at {model_path}. Downloading...")
-            try:
-                subprocess.check_call([
-                    sys.executable, "-m", "huggingface_hub.cli.cli", "download",
-                    self.config.get("model"), "--cache-dir", 
-                    os.path.expanduser("~/.cache/huggingface")
-                ])
-            except Exception as e:
-                logger.warning(f"Pre-download failed: {e}. Will download during server start.")
-        else:
-            logger.info("Model already exists. Skipping download.")
+        if self.config.get('public_name'):
+            logger.info(f"Public name: {self.config.get('public_name')}")
         
         try:
             # Construct command similar to entrypoint.sh
@@ -124,9 +112,11 @@ class KwaaiNetRunner:
                     command.extend(["--device", "cpu"])  # Intel Macs typically use CPU
             else:
                 command.extend(["--device", "cpu"])
-                
-            # Start the process
+            
+            # Log the full command for debugging
             logger.info(f"Running command: {' '.join(command)}")
+            
+            # Start the process
             process = subprocess.Popen(command, env=env)
             
             # Wait for process to complete
@@ -196,14 +186,15 @@ def parse_args():
     
     # Start command
     start_parser = subparsers.add_parser("start", help="Start KwaaiNet node")
-    start_parser.add_argument("--model", help="Model to use")
+    start_parser.add_argument("--model", type=str, help="Model to use")
     start_parser.add_argument("--blocks", type=int, help="Number of blocks to share")
     start_parser.add_argument("--port", type=int, help="Port to listen on")
     start_parser.add_argument("--no-gpu", action="store_true", help="Disable GPU acceleration")
-    start_parser.add_argument("--public-name", dest="public_name", help="Public name for your node")
-    start_parser.add_argument("--public-ip", dest="public_ip", help="Explicitly set the public IP address")
-    start_parser.add_argument("--announce-addr", dest="announce_addr", help="Custom announce address for P2P networking")
-    start_parser.add_argument("--no-relay", dest="no_relay", action="store_true", help="Disable automatic relay")
+    start_parser.add_argument("--public-name", type=str, help="Public name for your node")
+    start_parser.add_argument("--public-ip", type=str, help="Explicitly set the public IP address")
+    start_parser.add_argument("--announce-addr", type=str, help="Custom announce address for P2P networking")
+    start_parser.add_argument("--no-relay", action="store_true", help="Disable automatic relay")
+    
     
     # Stop command
     subparsers.add_parser("stop", help="Stop KwaaiNet node")
