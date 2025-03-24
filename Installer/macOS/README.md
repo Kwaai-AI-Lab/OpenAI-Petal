@@ -23,7 +23,7 @@ This package is specifically designed for Mac users who cannot use Docker for GP
 For a complete one-step installation that handles Python, dependencies, and environment setup:
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macOS/install.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macinstaller.sh)"
 ```
 
 This will:
@@ -47,7 +47,7 @@ pip install https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macO
 To completely remove KwaaiNet and its environment:
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macOS/uninstall.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macuninstaller.sh"
 ```
 
 ## Requirements
