@@ -200,6 +200,10 @@ def parse_args():
     start_parser.add_argument("--blocks", type=int, help="Number of blocks to share")
     start_parser.add_argument("--port", type=int, help="Port to listen on")
     start_parser.add_argument("--no-gpu", action="store_true", help="Disable GPU acceleration")
+    start_parser.add_argument("--public-name", dest="public_name", help="Public name for your node")
+    start_parser.add_argument("--public-ip", dest="public_ip", help="Explicitly set the public IP address")
+    start_parser.add_argument("--announce-addr", dest="announce_addr", help="Custom announce address for P2P networking")
+    start_parser.add_argument("--no-relay", dest="no_relay", action="store_true", help="Disable automatic relay")
     
     # Stop command
     subparsers.add_parser("stop", help="Stop KwaaiNet node")
