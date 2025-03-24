@@ -67,14 +67,52 @@ class KwaaiNetRunner:
         logger.info(f"Sharing {self.config.get('blocks')} blocks")
         logger.info(f"Using GPU: {self.config.get('use_gpu')}")
         
+        # Check if model is already downloaded
+        model_path = os.path.expanduser(f"~/.cache/huggingface/hub/models--{self.config.get('model').replace('/', '--')}")
+        if not os.path.exists(model_path):
+            logger.info(f"Model not found at {model_path}. Downloading...")
+            try:
+                subprocess.check_call([
+                    sys.executable, "-m", "huggingface_hub.cli.cli", "download",
+                    self.config.get("model"), "--cache-dir", 
+                    os.path.expanduser("~/.cache/huggingface")
+                ])
+            except Exception as e:
+                logger.warning(f"Pre-download failed: {e}. Will download during server start.")
+        else:
+            logger.info("Model already exists. Skipping download.")
+        
         try:
-            # Start petals server
+            # Construct command similar to entrypoint.sh
             command = [
                 sys.executable, "-m", "petals.cli.run_server",
-                "--model", self.config.get("model"),
-                "--num_blocks", str(self.config.get("blocks")),
-                "--port", str(self.config.get("port")),
-                "--initial_peers"] + self.config.get("initial_peers")
+                self.config.get("model"),
+                "--num_blocks", str(self.config.get("blocks"))
+            ]
+            
+            # Add port
+            port = self.config.get("port", 8080)
+            command.extend(["--port", str(port)])
+            
+            # Add initial peers if configured
+            if self.config.get("initial_peers"):
+                command.extend(["--initial_peers"] + self.config.get("initial_peers"))
+            
+            # Add public name if configured
+            if self.config.get("public_name"):
+                command.extend(["--public_name", self.config.get("public_name")])
+            
+            # Add public IP if configured
+            if self.config.get("public_ip"):
+                command.extend(["--public_ip", self.config.get("public_ip")])
+            
+            # Add announce address if configured
+            if self.config.get("announce_addr"):
+                command.extend(["--announce_maddrs", self.config.get("announce_addr")])
+            
+            # Add no_auto_relay if configured
+            if self.config.get("no_relay", False):
+                command.append("--no_auto_relay")
             
             # Add device flag based on GPU availability
             if self.config.get("use_gpu"):
@@ -105,14 +143,26 @@ class KwaaiNetRunner:
             logger.info("Falling back to CPU mode...")
             
             try:
-                # Retry with CPU mode
+                # Retry with CPU mode, keeping all other parameters the same
                 command = [
                     sys.executable, "-m", "petals.cli.run_server",
-                    "--model", self.config.get("model"),
+                    self.config.get("model"),
                     "--num_blocks", str(self.config.get("blocks")),
-                    "--port", str(self.config.get("port")),
-                    "--device", "cpu",
-                    "--initial_peers"] + self.config.get("initial_peers")
+                    "--port", str(self.config.get("port", 8080)),
+                    "--device", "cpu"
+                ]
+                
+                # Add other parameters as above
+                if self.config.get("initial_peers"):
+                    command.extend(["--initial_peers"] + self.config.get("initial_peers"))
+                if self.config.get("public_name"):
+                    command.extend(["--public_name", self.config.get("public_name")])
+                if self.config.get("public_ip"):
+                    command.extend(["--public_ip", self.config.get("public_ip")])
+                if self.config.get("announce_addr"):
+                    command.extend(["--announce_maddrs", self.config.get("announce_addr")])
+                if self.config.get("no_relay", False):
+                    command.append("--no_auto_relay")
                 
                 logger.info(f"Running command (CPU fallback): {' '.join(command)}")
                 process = subprocess.Popen(command, env=env)

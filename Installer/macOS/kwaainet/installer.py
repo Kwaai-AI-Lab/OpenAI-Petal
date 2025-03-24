@@ -56,27 +56,12 @@ def patch_petals_server():
             content = f.read()
             
         # Check if already patched
-        if 'patch_torch_mps()' in content:
+        if 'def patch_torch_mps():' in content:
             logger.info("Petals server.py already patched for MPS")
             return True
             
-        # Find the __init__ method
-        init_start = content.find('def __init__(')
-        if init_start == -1:
-            logger.error("Could not find __init__ method in server.py")
-            return False
-            
-        # Find the first line of the method body (usually indented)
-        method_body_start = content.find(':', init_start)
-        next_line_start = content.find('\n', method_body_start) + 1
-        next_line_indent = len(content[next_line_start:content.find('self', next_line_start)]) - 1
-        
-        # Create the patch line with proper indentation
-        patch_line = " " * next_line_indent + "patch_torch_mps()\n"
-        
-        # Add import at the top
-        if 'def patch_torch_mps():' not in content:
-            import_patch = """
+        # Add the self-executing patch function at the top
+        import_patch = """
 def patch_torch_mps():
     \"\"\"Add missing methods to torch.mps to improve compatibility with Petals\"\"\"
     import torch
@@ -103,18 +88,13 @@ def patch_torch_mps():
     
     return True
 
+# Execute the patch immediately
+patch_torch_mps()
+
 """
-            # Find the imports section
-            imports_end = content.find('\n\n', content.find('import'))
-            content = content[:imports_end+2] + import_patch + content[imports_end+2:]
-            
-            # Recalculate position after adding import
-            init_start = content.find('def __init__(')
-            method_body_start = content.find(':', init_start)
-            next_line_start = content.find('\n', method_body_start) + 1
-        
-        # Insert the patch call at the beginning of __init__
-        patched_content = content[:next_line_start] + patch_line + content[next_line_start:]
+        # Find the imports section
+        imports_end = content.find('\n\n', content.find('import'))
+        patched_content = content[:imports_end+2] + import_patch + content[imports_end+2:]
         
         # Write the patched file
         with open(server_path, 'w') as f:
@@ -126,7 +106,6 @@ def patch_torch_mps():
     except Exception as e:
         logger.error(f"Failed to patch Petals server.py: {e}")
         return False
-
 
 class MacInstaller:
     """Handles Mac-specific setup for KwaaiNet"""
