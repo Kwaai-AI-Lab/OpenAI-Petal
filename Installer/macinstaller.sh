@@ -43,21 +43,18 @@ install_homebrew() {
 # Function to install Miniconda
 install_miniconda() {
     echo "🐍 Installing Miniconda..."
-    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-$(uname -m).sh"
-    MINICONDA_INSTALLER="/tmp/miniconda.sh"
     
-    curl -fsSL $MINICONDA_URL -o $MINICONDA_INSTALLER
-    bash $MINICONDA_INSTALLER -b -p $HOME/miniconda
-    rm $MINICONDA_INSTALLER
-    
-    # Add Miniconda to PATH
-    if [[ -z "${CONDA_PREFIX}" ]]; then
-        echo 'export PATH="$HOME/miniconda/bin:$PATH"' >> ~/.zprofile
-        export PATH="$HOME/miniconda/bin:$PATH"
-    fi
+    # Install via Homebrew
+    brew install --cask miniconda
     
     # Initialize conda for shell
-    $HOME/miniconda/bin/conda init "$(basename "${SHELL}")"
+    if [[ "$(uname -m)" == "arm64" ]]; then
+        CONDA_PATH="/opt/homebrew/Caskroom/miniconda/base"
+    else
+        CONDA_PATH="/usr/local/Caskroom/miniconda/base"
+    fi
+    
+    $CONDA_PATH/bin/conda init "$(basename "${SHELL}")"
     
     echo "✅ Miniconda installed successfully"
 }
@@ -87,15 +84,24 @@ if ! command_exists conda; then
     install_miniconda
     
     # Source conda after installing
-    if [[ -f "$HOME/miniconda/etc/profile.d/conda.sh" ]]; then
-        . "$HOME/miniconda/etc/profile.d/conda.sh"
+    if [[ "$(uname -m)" == "arm64" ]]; then
+        CONDA_PATH="/opt/homebrew/Caskroom/miniconda/base"
+    else
+        CONDA_PATH="/usr/local/Caskroom/miniconda/base"
+    fi
+    
+    if [[ -f "$CONDA_PATH/etc/profile.d/conda.sh" ]]; then
+        . "$CONDA_PATH/etc/profile.d/conda.sh"
     fi
 else
     echo "✅ Conda already installed"
     
-    # Source conda
-    if [[ -f "$(conda info --base)/etc/profile.d/conda.sh" ]]; then
-        . "$(conda info --base)/etc/profile.d/conda.sh"
+    # Try to locate conda installation
+    if command -v conda >/dev/null 2>&1; then
+        CONDA_PATH=$(dirname $(dirname $(which conda)))
+        if [[ -f "$CONDA_PATH/etc/profile.d/conda.sh" ]]; then
+            . "$CONDA_PATH/etc/profile.d/conda.sh"
+        fi
     fi
 fi
 
@@ -130,25 +136,31 @@ cat > "$LAUNCHER_PATH" << 'EOF'
 #!/bin/bash
 # KwaaiNet Launcher - Run KwaaiNet without having to activate conda first
 
-# Find conda
-if [ -f "$HOME/miniconda/etc/profile.d/conda.sh" ]; then
+# Find conda installation
+if command -v conda >/dev/null 2>&1; then
+    CONDA_PATH=$(dirname $(dirname $(which conda)))
+elif [ -f "/opt/homebrew/Caskroom/miniconda/base/etc/profile.d/conda.sh" ]; then
+    CONDA_PATH="/opt/homebrew/Caskroom/miniconda/base"
+elif [ -f "/usr/local/Caskroom/miniconda/base/etc/profile.d/conda.sh" ]; then
+    CONDA_PATH="/usr/local/Caskroom/miniconda/base"
+elif [ -f "$HOME/miniconda/etc/profile.d/conda.sh" ]; then
     CONDA_PATH="$HOME/miniconda"
 elif [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then
     CONDA_PATH="$HOME/anaconda3"
-elif [ -f "/opt/anaconda3/etc/profile.d/conda.sh" ]; then
-    CONDA_PATH="/opt/anaconda3"
-elif [ -f "/opt/miniconda3/etc/profile.d/conda.sh" ]; then
-    CONDA_PATH="/opt/miniconda3"
 else
     echo "❌ Error: Could not find conda installation."
     exit 1
 fi
 
 # Source conda without changing the prompt
-source "$CONDA_PATH/etc/profile.d/conda.sh"
+if [ -f "$CONDA_PATH/etc/profile.d/conda.sh" ]; then
+    source "$CONDA_PATH/etc/profile.d/conda.sh"
+else
+    echo "❌ Error: Could not find conda.sh in $CONDA_PATH"
+    exit 1
+fi
 
 # Activate the environment and run the command
-# Use a different name for the command inside conda to avoid potential recursion
 conda activate kwaainet && python -m kwaainet.runner "$@"
 EOF
 

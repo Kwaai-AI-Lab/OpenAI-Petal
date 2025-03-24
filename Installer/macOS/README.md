@@ -1,6 +1,6 @@
-Sure! Here's the complete `README.md` file you asked for, wrapped in a single markdown code block:
+I'll update the README.md with the information about the one-step installation process. Here's the revised version:
 
-````markdown
+```markdown
 # KwaaiNet for Mac
 
 A package to run KwaaiNet node on macOS systems, providing GPU acceleration through Apple's Metal Performance Shaders (MPS).
@@ -18,13 +18,37 @@ This package is specifically designed for Mac users who cannot use Docker for GP
 
 ## Installation
 
-To install KwaaiNet for macOS, run:
+### One-Step Installation (Recommended)
+
+For a complete one-step installation that handles Python, dependencies, and environment setup:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macOS/install.sh)"
+```
+
+This will:
+- Install Python and required tools
+- Set up the conda environment
+- Install KwaaiNet
+- Create a launcher for easy usage
+
+### Manual Installation
+
+If you prefer to handle the environment yourself, you can install directly:
 
 ```bash
 pip install https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.5.0.tar.gz
 ```
 
 > ⚠️ Make sure you are using **Python 3.10+** and `pip` is from the correct environment (virtualenv, conda, or system Python).
+
+## Uninstallation
+
+To completely remove KwaaiNet and its environment:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macOS/uninstall.sh)"
+```
 
 ## Requirements
 
@@ -48,7 +72,9 @@ If you encounter any issues with MPS compatibility, the package will automatical
 
 ### Initial Setup
 
-First, run the setup command to configure your environment:
+If you installed using the one-step installer, you can immediately start using KwaaiNet.
+
+If you installed manually, first run the setup command to configure your environment:
 
 ```bash
 kwaainet setup
@@ -90,17 +116,19 @@ kwaainet config --set model "unsloth/Llama-3.1-8B-Instruct"
 kwaainet config --set blocks 2
 kwaainet config --set public_name "anon@kwaai"
 ```
-Available Command-line Options
+
+## Available Command-line Options
+
 The kwaainet start command supports the following options:
 
---model: Model to use (default: "unsloth/Llama-3.1-8B-Instruct")
---blocks: Number of blocks to share (default: 1)
---port: Port to listen on (default: 8080)
---no-gpu: Disable GPU acceleration
---public-name: Public name for your node
---public-ip: Explicitly set the public IP address
---announce-addr: Custom announce address for P2P networking
---no-relay: Disable automatic relay
+- `--model`: Model to use (default: "unsloth/Llama-3.1-8B-Instruct")
+- `--blocks`: Number of blocks to share (default: 1)
+- `--port`: Port to listen on (default: 8080)
+- `--no-gpu`: Disable GPU acceleration
+- `--public-name`: Public name for your node
+- `--public-ip`: Explicitly set the public IP address
+- `--announce-addr`: Custom announce address for P2P networking
+- `--no-relay`: Disable automatic relay
 
 ## Python API
 
@@ -130,6 +158,10 @@ KwaaiNet respects the following environment variables:
 - `INITIAL_PEERS`: Initial peers for connecting to the network  
 - `KWAAINET_LOG_LEVEL`: Logging level (default: `"INFO"`)  
 - `KWAAINET_MAX_MEMORY`: Maximum memory to use (in GB)
+- `PUBLIC_NAME`: Public name for your node
+- `PUBLIC_IP`: Explicitly set the public IP address
+- `ANNOUNCE_ADDR`: Custom announce address for P2P networking
+- `NORELAY`: Set to any value to disable automatic relay
 
 ## Performance Considerations
 
@@ -167,6 +199,4 @@ This package is specifically designed for macOS and does not include any CUDA de
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-````
-
-Let me know if you want a downloadable version or want it published somewhere automatically.
+```
