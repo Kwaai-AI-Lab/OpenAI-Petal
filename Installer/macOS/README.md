@@ -1,6 +1,3 @@
-I'll update the README.md with the information about the one-step installation process. Here's the revised version:
-
-```markdown
 # KwaaiNet for Mac
 
 A package to run KwaaiNet node on macOS systems, providing GPU acceleration through Apple's Metal Performance Shaders (MPS).
@@ -37,7 +34,7 @@ This will:
 If you prefer to handle the environment yourself, you can install directly:
 
 ```bash
-pip install https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.6.0.tar.gz
+pip install https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.8.0.tar.gz
 ```
 
 > ⚠️ Make sure you are using **Python 3.10+** and `pip` is from the correct environment (virtualenv, conda, or system Python).
@@ -165,7 +162,7 @@ KwaaiNet respects the following environment variables:
 
 ## Performance Considerations
 
-### Apple Silicon (M1/M2/M3) Macs
+### Apple Silicon (M1/M2/M3/M4) Macs
 
 On Apple Silicon Macs, GPU acceleration via Metal Performance Shaders (MPS) is used automatically if available. This provides significantly better performance than CPU-only mode.
 
@@ -199,4 +196,3 @@ This package is specifically designed for macOS and does not include any CUDA de
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-```
