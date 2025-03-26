@@ -59,6 +59,40 @@ install_miniconda() {
     echo "✅ Miniconda installed successfully"
 }
 
+# Function to ensure shell configuration file exists
+ensure_shell_config() {
+    local shell_name="$(basename "${SHELL}")"
+    local rc_file="$HOME/.${shell_name}rc"
+    
+    # Create the rc file if it doesn't exist
+    if [[ ! -f "$rc_file" ]]; then
+        echo "Creating shell config file: $rc_file"
+        touch "$rc_file"
+    fi
+    
+    echo "$rc_file"
+}
+
+# Function to check if a line exists in a file and add it if not
+add_line_if_not_exists() {
+    local file="$1"
+    local line="$2"
+    local comment="$3"
+    
+    # Escape the line for grep
+    local escaped_line=$(echo "$line" | sed 's/[]\/$*.^|[]/\\&/g')
+    
+    if ! grep -q "$escaped_line" "$file"; then
+        if [ -n "$comment" ]; then
+            echo "" >> "$file"
+            echo "$comment" >> "$file"
+        fi
+        echo "$line" >> "$file"
+        return 0
+    fi
+    return 1
+}
+
 # Install Xcode Command Line Tools if needed
 if ! xcode-select -p &>/dev/null; then
     echo "🛠 Installing Xcode Command Line Tools..."
@@ -115,7 +149,51 @@ else
 fi
 
 # Activate the environment
-conda activate kwaainet || source activate kwaainet
+# First make sure conda is initialized for this session
+if command_exists conda; then
+    echo "🔄 Initializing conda for current session..."
+    # Get conda path
+    CONDA_EXEC=$(which conda)
+    CONDA_PATH=$(dirname $(dirname $CONDA_EXEC))
+    
+    # Source conda.sh to allow conda activate in the current shell
+    if [ -f "$CONDA_PATH/etc/profile.d/conda.sh" ]; then
+        . "$CONDA_PATH/etc/profile.d/conda.sh"
+    elif [ -f "/opt/homebrew/Caskroom/miniconda/base/etc/profile.d/conda.sh" ]; then
+        . "/opt/homebrew/Caskroom/miniconda/base/etc/profile.d/conda.sh"
+    elif [ -f "/usr/local/Caskroom/miniconda/base/etc/profile.d/conda.sh" ]; then
+        . "/usr/local/Caskroom/miniconda/base/etc/profile.d/conda.sh"
+    else
+        echo "⚠️ Could not find conda.sh, trying alternative activation method..."
+    fi
+fi
+
+# Now try to activate
+if ! conda activate kwaainet 2>/dev/null; then
+    if ! source activate kwaainet 2>/dev/null; then
+        echo "⚠️ Could not activate conda environment. Using direct Python path..."
+        # Try direct approach with explicit path
+        if [[ "$(uname -m)" == "arm64" ]]; then
+            PYTHON_PATH="/opt/homebrew/Caskroom/miniconda/base/envs/kwaainet/bin/python"
+        else
+            PYTHON_PATH="/usr/local/Caskroom/miniconda/base/envs/kwaainet/bin/python"
+        fi
+        
+        if [ -f "$PYTHON_PATH" ]; then
+            # Use this Python directly for the pip install
+            echo "✅ Found Python at $PYTHON_PATH"
+            alias python="$PYTHON_PATH"
+        else
+            echo "❌ Error: Could not find Python in the kwaainet environment."
+            echo "Please manually run: conda activate kwaainet"
+            exit 1
+        fi
+    else
+        echo "✅ Environment activated using source activate"
+    fi
+else
+    echo "✅ Environment activated using conda activate"
+fi
 
 # Clear cached versions of the package
 echo "🧹 Clearing any cached versions of KwaaiNet..."
@@ -166,10 +244,91 @@ EOF
 
 chmod +x "$LAUNCHER_PATH"
 
+# Get the shell configuration file path
+SHELL_RC=$(ensure_shell_config)
+
 # Add to PATH if not already there
-if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.$(basename $SHELL)rc
-    export PATH="$HOME/.local/bin:$PATH"
+echo "📝 Ensuring ~/.local/bin is in PATH..."
+
+# Check and update common shell configuration files
+SHELL_FILES=(
+    "$HOME/.zshrc"
+    "$HOME/.bashrc"
+    "$HOME/.bash_profile"
+    "$HOME/.profile"
+)
+
+PATH_UPDATED=false
+for rc_file in "${SHELL_FILES[@]}"; do
+    if [ -f "$rc_file" ]; then
+        if ! grep -q "export PATH=\"\$HOME/.local/bin:\$PATH\"" "$rc_file"; then
+            echo "📝 Adding ~/.local/bin to PATH in $rc_file"
+            echo "" >> "$rc_file"
+            echo "# Added by KwaaiNet installer" >> "$rc_file"
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc_file"
+            PATH_UPDATED=true
+        else
+            echo "✅ PATH already configured in $rc_file"
+        fi
+    fi
+done
+
+# Also update conda's activate.d to ensure PATH is set when conda is activated
+if command_exists conda; then
+    CONDA_BASE=$(conda info --base 2>/dev/null)
+    if [ -n "$CONDA_BASE" ]; then
+        CONDA_ACTIVATE_DIR="$CONDA_BASE/etc/conda/activate.d"
+        mkdir -p "$CONDA_ACTIVATE_DIR"
+        if [ ! -f "$CONDA_ACTIVATE_DIR/kwaainet_path.sh" ]; then
+            echo "📝 Adding PATH configuration for conda environments"
+            echo '#!/bin/bash' > "$CONDA_ACTIVATE_DIR/kwaainet_path.sh"
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$CONDA_ACTIVATE_DIR/kwaainet_path.sh"
+            chmod +x "$CONDA_ACTIVATE_DIR/kwaainet_path.sh"
+            PATH_UPDATED=true
+        fi
+    fi
+fi
+
+# If path wasn't in any existing file, create/update the default for current shell
+if [ "$PATH_UPDATED" = false ]; then
+    SHELL_RC=$(ensure_shell_config)
+    echo "📝 Adding ~/.local/bin to PATH in $SHELL_RC (default)"
+    echo "" >> "$SHELL_RC"
+    echo "# Added by KwaaiNet installer" >> "$SHELL_RC"
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"
+fi
+
+# Update current session PATH
+export PATH="$HOME/.local/bin:$PATH"
+
+# Ensure conda initialization in shell config if needed
+if ! grep -q "conda initialize" "$SHELL_RC"; then
+    echo "📝 Adding conda initialization to $SHELL_RC"
+    # Find conda path first
+    if [[ "$(uname -m)" == "arm64" ]]; then
+        CONDA_FULL_PATH="/opt/homebrew/Caskroom/miniconda/base"
+    else
+        CONDA_FULL_PATH="/usr/local/Caskroom/miniconda/base"
+    fi
+    
+    if [ -f "$CONDA_FULL_PATH/bin/conda" ]; then
+        echo "✅ Found conda at $CONDA_FULL_PATH"
+        # Run conda init and capture its output
+        "$CONDA_FULL_PATH/bin/conda" init "$(basename "${SHELL}")" > /dev/null
+        echo "✅ Added conda initialization to $SHELL_RC"
+    else
+        # Try alternative approach if path is not as expected
+        if command_exists conda; then
+            echo "✅ Using existing conda command"
+            conda init "$(basename "${SHELL}")" > /dev/null
+            echo "✅ Added conda initialization to $SHELL_RC"
+        else
+            echo "⚠️ Could not automatically add conda initialization to $SHELL_RC"
+            echo "⚠️ You may need to run 'conda init' manually after installation"
+        fi
+    fi
+else
+    echo "✅ Conda initialization already in $SHELL_RC"
 fi
 
 # Try to create system-wide symlink if possible
@@ -180,7 +339,22 @@ fi
 
 # Run initial setup
 echo "⚙️ Running initial setup..."
-"$LAUNCHER_PATH" setup
+# Use the direct PATH to kwaainet if available, otherwise use the launcher script
+if command_exists conda; then
+    # Try to activate conda and run directly
+    if [ -f "$CONDA_PATH/etc/profile.d/conda.sh" ]; then
+        . "$CONDA_PATH/etc/profile.d/conda.sh"
+        if conda activate kwaainet 2>/dev/null; then
+            python -m kwaainet.runner setup
+        else
+            "$LAUNCHER_PATH" setup
+        fi
+    else
+        "$LAUNCHER_PATH" setup
+    fi
+else
+    "$LAUNCHER_PATH" setup
+fi
 
 # Display success message
 echo ""
@@ -201,6 +375,6 @@ echo "=========================================================="
 
 # Notify about shell restart
 echo ""
-echo "Note: You may need to restart your terminal or run 'source ~/.$(basename $SHELL)rc'"
+echo "Note: You may need to restart your terminal or run 'source \"$SHELL_RC\"'"
 echo "for the 'kwaainet' command to be available in your PATH."
 echo ""
