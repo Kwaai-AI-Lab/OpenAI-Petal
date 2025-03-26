@@ -162,6 +162,19 @@ if command_exists brew && brew list --cask | grep -q miniconda; then
     fi
 fi
 
+# Ask if the user wants to uninstall Homebrew
+if command_exists brew; then
+    echo ""
+    echo "Homebrew may have been installed by KwaaiNet setup."
+    read -p "Would you like to uninstall Homebrew completely? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "🗑️ Uninstalling Homebrew..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)"
+        echo "  ✓ Homebrew uninstall script completed"
+    fi
+fi
+
 echo ""
 echo "=========================================================="
 echo "✅ KwaaiNet has been successfully uninstalled from your system!"
