@@ -1,0 +1,76 @@
+FROM intel/oneapi-basekit:2025.0.1-0-devel-ubuntu22.04
+
+LABEL org.opencontainers.image.title="KwaaiNet Node" \
+      org.opencontainers.image.description="KwaaiNet Node for sharing compute/gpu" \
+      org.opencontainers.image.authors="contact@kwaai.ai"
+
+LABEL maintainer="Kwaai Labs<contact@kwaai.ai>"
+
+WORKDIR /kwaainet
+
+# Cache & HuggingFace-related environment variables
+ENV HF_HOME=/root/.cache/huggingface \
+    HF_HUB_CACHE=/root/.cache/huggingface/hub \
+    HUGGINGFACE_HUB_CACHE=/root/.cache/huggingface/hub \
+    PETALS_CACHE=/root/.cache/huggingface \
+    TRANSFORMERS_CACHE=/root/.cache/huggingface \
+    SENTENCE_TRANSFORMERS_HOME=/root/.cache/tf-cache \
+    LLAMA_INDEX_CACHE_DIR=/root/.cache/llama-index-cache \
+    NLTK_DATA=/root/.cache/nltk-cache \
+    TIKTOKEN_CACHE_DIR=/root/.cache/tiktoken-cache \
+    TMPDIR=/root/.cache/temp
+
+# Install system packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    software-properties-common \
+    wget \
+    git \
+    curl \
+    clinfo \
+    gcc-12 g++-12 g++-13 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Miniconda
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O install_miniconda.sh && \
+    bash install_miniconda.sh -b -p /opt/conda && rm install_miniconda.sh
+ENV PATH="/opt/conda/bin:${PATH}"
+
+# Set up Python 3.10 and pip
+RUN conda install python=3.10.12 pip && \
+    conda clean --all && rm -rf ~/.cache/pip
+
+# Install PyTorch with XPU support
+RUN pip install --upgrade pip
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/xpu
+
+# Petals + Hugging Face setup
+RUN pip install --upgrade git+https://github.com/bigscience-workshop/petals
+RUN pip install peft==0.6.0 --no-deps
+
+# bitsandbytes skipped (CUDA-only) — can be re-added if needed later
+# RUN pip uninstall -y bitsandbytes || true
+
+# Optional: Add back if compatible later
+# RUN pip install bitsandbytes
+
+RUN mkdir -p /root/.cache/temp
+WORKDIR /kwaainet/petals/
+
+# Expose port
+EXPOSE 8080
+
+# KwaaiNet runtime environment
+ENV KWAAINET_BLOCKS=${KWAAINET_BLOCKS:-1}
+ENV KWAAINET_MODEL=${KWAAINET_MODEL:-"unsloth/Llama-3.1-8B-Instruct"}
+ENV INITIAL_PEERS=${INITIAL_PEERS:-"/dns/bootstrap-1.kwaai.ai/tcp/8000/p2p/QmQhRuheeCLEsVD3RsnknM75gPDDqxAb8DhnWgro7KhaJc /dns/bootstrap-2.kwaai.ai/tcp/8000/p2p/Qmd3A8N5aQBATe2SYvNikaeCS9CAKN4E86jdCPacZ6RZJY"}
+# Ensure correct stdlib is used for GLIBCXX_3.4.30
+ENV LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6
+# Copy entrypoint
+COPY docker/kwaainet_node_intel/entrypoint.sh /entrypoint.sh
+COPY docker/kwaainet_node_intel/patch_xpu_support.py /patch_xpu_support.py
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+
+

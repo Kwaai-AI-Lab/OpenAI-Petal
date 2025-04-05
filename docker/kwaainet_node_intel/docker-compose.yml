@@ -1,0 +1,13 @@
+services:
+  web:
+    container_name: kwaainet-node-intel
+    build:
+      context: ../../
+      dockerfile: docker/kwaainet_node_intel/DockerFile
+    image: kwaainet-node-intel
+    ports:
+      - "8080:8080"
+    devices:
+      - /dev/dri:/dev/dri  # Intel GPU access
+    group_add:
+      - "video"            # Required to access GPU device

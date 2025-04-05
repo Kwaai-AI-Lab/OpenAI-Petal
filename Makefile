@@ -13,3 +13,7 @@ build-production-bootstrap: ## Build the production docker image.
 .PHONY: build-production-health
 build-production-health: ## Build the production docker image.
 	docker compose -f docker/kwaainet_health/docker-compose.yml build
+
+.PHONY: build-production-server-intel
+build-production-server-intel: ## Build the production docker image.
+	docker compose -f docker/kwaainet_node_intel/docker-compose.yml build
