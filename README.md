@@ -32,30 +32,167 @@ The steps below can be used to setup the enviroment for this project. The instal
 
 
 ### Installation process.
-- Clone this repository using git clone command.
-- Install requirements
+### One-Step Installation (Recommended)
+
+For a complete one-step installation that handles Python, dependencies, and environment setup:
+
 ```bash
-    pip install -r requirements.txt
-    pip install peft==0.6.0 --no-deps
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macinstaller.sh)"
 ```
 
+This will:
+- Install Python and required tools
+- Set up the conda environment
+- Install KwaaiNet
+- Create a launcher for easy usage
 
-### Run api server using public peers at health.petals.dev
+### Manual Installation
+
+If you prefer to handle the environment yourself, you can install directly:
+
 ```bash
-    cd OpenAI-Petal
-    export PETALS_IGNORE_DEPENDENCY_VERSION=1
-    uvicorn app_openai_json:app --host 0.0.0.0 --port 8000
+pip install https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.8.0.tar.gz
 ```
 
-### Launching private swarm
+> ⚠️ Make sure you are using **Python 3.10+** and `pip` is from the correct environment (virtualenv, conda, or system Python).
 
-- Follow steps at [Petal Swarm](https://github.com/bigscience-workshop/petals/wiki/Launch-your-own-swarm)
-- Set INITIAL_PEERS  to point to your private swarm.
+## Uninstallation
 
-#### Demo and tests
-1. http://localhost:8000/docs in chrome browser to see the FastAPI api documentation and try out.
-2. Use provided test/Petal_inference_webpage.html to test web access using chrome.
-3. Use provided test/Petal-inference-Langchain-openai.py using python to test langchain supported methods using OpenAI and ChatOpenAI
+To completely remove KwaaiNet and its environment:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macuninstaller.sh"
+```
+
+### Initial Setup
+
+If you installed using the one-step installer, you can immediately start using KwaaiNet.
+
+If you installed manually, first run the setup command to configure your environment:
+
+```bash
+kwaainet setup
+```
+
+This will:
+
+- Set up required environment variables  
+- Create cache directories  
+- Install or verify dependencies  
+- Check GPU compatibility
+
+### Starting a Node
+
+To start a KwaaiNet node with default settings:
+
+```bash
+kwaainet start
+```
+
+Or with custom settings:
+
+```bash
+kwaainet start --model "unsloth/Llama-3.1-8B-Instruct" --blocks 2 --port 8080 --public-name "anon@kwaai"
+```
+
+### Configuration
+
+View current configuration:
+
+```bash
+kwaainet config --view
+```
+
+Update configuration:
+
+```bash
+kwaainet config --set model "unsloth/Llama-3.1-8B-Instruct"
+kwaainet config --set blocks 2
+kwaainet config --set public_name "anon@kwaai"
+```
+
+## Available Command-line Options
+
+The kwaainet start command supports the following options:
+
+- `--model`: Model to use (default: "unsloth/Llama-3.1-8B-Instruct")
+- `--blocks`: Number of blocks to share (default: 1)
+- `--port`: Port to listen on (default: 8080)
+- `--no-gpu`: Disable GPU acceleration
+- `--public-name`: Public name for your node
+- `--public-ip`: Explicitly set the public IP address
+- `--announce-addr`: Custom announce address for P2P networking
+- `--no-relay`: Disable automatic relay
+
+## Python API
+
+You can also use KwaaiNet programmatically in your Python code:
+
+```python
+import kwaainet
+
+# Setup environment
+kwaainet.setup()
+
+# Start a node
+kwaainet.start_node(
+    model="unsloth/Llama-3.1-8B-Instruct",
+    blocks=2,
+    port=8080
+)
+```
+
+## Environment Variables
+
+KwaaiNet respects the following environment variables:
+
+- `KWAAINET_MODEL`: Model to use (default: `"unsloth/Llama-3.1-8B-Instruct"`)  
+- `KWAAINET_BLOCKS`: Number of blocks to share (default: `1`)  
+- `KWAAINET_PORT`: Port to listen on (default: `8080`)  
+- `INITIAL_PEERS`: Initial peers for connecting to the network  
+- `KWAAINET_LOG_LEVEL`: Logging level (default: `"INFO"`)  
+- `KWAAINET_MAX_MEMORY`: Maximum memory to use (in GB)
+- `PUBLIC_NAME`: Public name for your node
+- `PUBLIC_IP`: Explicitly set the public IP address
+- `ANNOUNCE_ADDR`: Custom announce address for P2P networking
+- `NORELAY`: Set to any value to disable automatic relay
+
+## Performance Considerations
+
+### Apple Silicon (M1/M2/M3/M4) Macs
+
+On Apple Silicon Macs, GPU acceleration via Metal Performance Shaders (MPS) is used automatically if available. This provides significantly better performance than CPU-only mode.
+
+### Intel Macs
+
+Intel Macs will primarily use CPU for computation as Metal support for PyTorch on Intel is limited.
+
+### Note on CUDA
+
+This package is specifically designed for macOS and does not include any CUDA dependencies or NVIDIA-specific packages, which are not needed on Mac systems. If you're looking to use KwaaiNet with CUDA on Linux or Windows, please use the Docker-based deployment method instead.
+
+## Troubleshooting
+
+### Common Issues
+
+**"MPS is not available" error:**
+
+- Ensure you have macOS 12.3 or later  
+- Make sure PyTorch 2.0+ is installed
+
+**High memory usage:**
+
+- Reduce the number of blocks being shared  
+- Set a lower `KWAAINET_MAX_MEMORY` value
+
+**Node doesn't connect to network:**
+
+- Check your network connection  
+- Verify the initial peers configuration
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📝 License
 
