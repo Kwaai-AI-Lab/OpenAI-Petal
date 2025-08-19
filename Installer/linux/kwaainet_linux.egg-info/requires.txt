@@ -1,0 +1,14 @@
+PyYAML>=6.0
+petals>=2.2.0
+torch>=2.0.0
+transformers>=4.25.0
+accelerate>=0.20.0
+
+[cuda]
+nvidia-cublas-cu12
+nvidia-cuda-runtime-cu12
+
+[dev]
+pytest>=7.0
+black>=23.0
+flake8>=6.0

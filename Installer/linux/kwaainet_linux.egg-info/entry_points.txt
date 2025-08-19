@@ -1,0 +1,2 @@
+[console_scripts]
+kwaainet-linux = kwaainet.runner:main
