@@ -17,6 +17,22 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Function to show a spinner while a command runs
+show_spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='|/-\'
+    echo -n " "
+    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
+        local temp=${spinstr#?}
+        printf " [%c]  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
+}
+
 # Function to detect Linux distribution
 detect_distro() {
     if [ -f /etc/os-release ]; then
@@ -377,18 +393,29 @@ $PIP_EXEC install pyyaml &>/dev/null || {
 
 # Install updated petals with rope_scaling support
 echo "📦 Installing Petals 2.3.0.dev2 with rope_scaling support..."
-$PIP_EXEC install git+https://github.com/bigscience-workshop/petals.git &>/dev/null || {
+echo "   This may take several minutes as it builds from source..."
+
+# Try to install with progress bar, fallback to verbose if progress bar not supported
+if $PIP_EXEC install git+https://github.com/bigscience-workshop/petals.git --progress-bar ascii 2>/dev/null; then
+    echo "✅ Petals installed successfully from git"
+elif $PIP_EXEC install git+https://github.com/bigscience-workshop/petals.git -v 2>/dev/null; then
+    echo "✅ Petals installed successfully from git (verbose mode)"
+else
     echo "⚠️ Failed to install petals from git. Trying fallback installation..."
-    $PIP_EXEC install petals &>/dev/null || {
+    if $PIP_EXEC install petals --progress-bar ascii 2>/dev/null || $PIP_EXEC install petals -v; then
+        echo "✅ Petals installed from PyPI"
+    else
         echo "⚠️ Failed to install petals. Continuing with local installation..."
-    }
-}
+    fi
+fi
 
 # Upgrade transformers and huggingface_hub for compatibility
 echo "📦 Upgrading transformers and huggingface_hub for Llama 3.1 rope_scaling support..."
-$PIP_EXEC install --upgrade "transformers>=4.43.1" "huggingface_hub>=0.20.0" &>/dev/null || {
+if $PIP_EXEC install --upgrade "transformers>=4.43.1" "huggingface_hub>=0.20.0" --progress-bar ascii; then
+    echo "✅ Successfully upgraded transformers and huggingface_hub"
+else
     echo "⚠️ Failed to upgrade transformers/huggingface_hub. May have compatibility issues with Llama 3.1 models..."
-}
+fi
 
 # Install from the local development version
 INSTALLER_DIR="$(dirname "$0")"
@@ -396,15 +423,22 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
     echo "📦 Installing from local development version..."
     if ! $PIP_EXEC install -e "$INSTALLER_DIR/linux/" 2>/dev/null; then
         echo "⚠️ Failed to install local development version. Installing dependencies only..."
-        $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu || {
+        echo "📦 Installing PyTorch (CPU version)..."
+        echo "   This may take a few minutes to download..."
+        if $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu --progress-bar ascii; then
+            echo "✅ PyTorch installed successfully"
+        else
             echo "❌ Failed to install PyTorch. Please check your internet connection."
             exit 1
-        }
+        fi
     fi
 else
     echo "⚠️ Local development version not found. Please build the Linux package first."
-    echo "For now, installing dependencies only..."
-    if ! $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
+    echo "📦 Installing PyTorch dependencies..."
+    echo "   This may take a few minutes to download..."
+    if $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu --progress-bar ascii; then
+        echo "✅ PyTorch installed successfully"
+    else
         echo "❌ Failed to install PyTorch. Please check your internet connection."
         exit 1
     fi

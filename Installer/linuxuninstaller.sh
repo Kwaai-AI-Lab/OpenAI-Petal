@@ -55,21 +55,31 @@ fi
 if command_exists conda; then
     echo "🗑️ Checking for kwaainet conda environment..."
     
-    # Source conda
-    if [[ -f "$(conda info --base 2>/dev/null)/etc/profile.d/conda.sh" ]]; then
-        . "$(conda info --base)/etc/profile.d/conda.sh"
+    # Source conda with better error handling
+    CONDA_BASE=""
+    if conda info --base >/dev/null 2>&1; then
+        CONDA_BASE="$(conda info --base 2>/dev/null)"
+    fi
+    
+    if [[ -n "$CONDA_BASE" && -f "$CONDA_BASE/etc/profile.d/conda.sh" ]]; then
+        . "$CONDA_BASE/etc/profile.d/conda.sh"
     elif [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
         . "$HOME/miniconda3/etc/profile.d/conda.sh"
     elif [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then
         . "$HOME/anaconda3/etc/profile.d/conda.sh"
+    else
+        echo "  ⚠️ Could not source conda environment. Trying direct removal..."
     fi
     
     # Remove conda environment if it exists
     if conda info --envs 2>/dev/null | grep -q kwaainet; then
         echo "🗑️ Removing kwaainet conda environment..."
         conda deactivate 2>/dev/null || true
-        conda env remove -n kwaainet -y
-        echo "  ✓ Environment removed"
+        if conda env remove -n kwaainet -y 2>/dev/null; then
+            echo "  ✓ Environment removed"
+        else
+            echo "  ⚠️ Failed to remove environment automatically. You may need to run: conda env remove -n kwaainet -y"
+        fi
     else
         echo "  ✓ No kwaainet environment found"
     fi
@@ -90,13 +100,19 @@ fi
 # Remove installed packages using pip
 echo "🧹 Removing kwaainet packages..."
 if command_exists pip; then
-    pip uninstall kwaainet-linux kwaainet_linux -y 2>/dev/null || true
-    echo "  ✓ Removed kwaainet packages"
+    if pip uninstall kwaainet-linux kwaainet_linux -y 2>/dev/null; then
+        echo "  ✓ Removed kwaainet packages with pip"
+    else
+        echo "  ✓ No kwaainet packages found with pip"
+    fi
 fi
 
 if command_exists pip3; then
-    pip3 uninstall kwaainet-linux kwaainet_linux -y 2>/dev/null || true
-    echo "  ✓ Checked pip3 for kwaainet packages"
+    if pip3 uninstall kwaainet-linux kwaainet_linux -y 2>/dev/null; then
+        echo "  ✓ Removed kwaainet packages with pip3"
+    else
+        echo "  ✓ No kwaainet packages found with pip3"
+    fi
 fi
 
 # Remove cache directories
@@ -136,10 +152,10 @@ fi
 # Clean pip cache
 if command_exists pip; then
     echo "🧹 Cleaning pip cache..."
-    pip cache remove kwaainet-linux 2>/dev/null || true
-    pip cache remove kwaainet_linux 2>/dev/null || true
-    pip cache remove petals 2>/dev/null || true
-    echo "  ✓ Cleaned pip cache"
+    pip cache remove kwaainet-linux 2>/dev/null || echo "  ✓ No kwaainet-linux cache found"
+    pip cache remove kwaainet_linux 2>/dev/null || echo "  ✓ No kwaainet_linux cache found"
+    pip cache remove petals 2>/dev/null || echo "  ✓ No petals cache found"
+    echo "  ✓ Pip cache cleanup completed"
 fi
 
 # Clean up shell configuration files
@@ -190,21 +206,34 @@ if command_exists conda; then
     read -p "Would you like to remove conda initialization as well? (y/n) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
+        CONDA_REMOVED=false
         for rc_file in "${SHELL_FILES[@]}"; do
             if [ -f "$rc_file" ] && grep -q "# >>> conda initialize >>>" "$rc_file"; then
                 # Create a backup before modifying
-                cp "$rc_file" "$rc_file.conda.bak"
-                
-                # Remove conda initialization block
-                sed -i.bak '/# >>> conda initialize >>>/,/# <<< conda initialize <<</d' "$rc_file"
-                echo "  ✓ Removed conda initialization from $rc_file"
-                
-                # If backup was created successfully, remove it
-                if [ -f "$rc_file.bak" ]; then
-                    rm "$rc_file.bak"
+                if cp "$rc_file" "$rc_file.conda.bak" 2>/dev/null; then
+                    # Remove conda initialization block
+                    if sed -i.bak '/# >>> conda initialize >>>/,/# <<< conda initialize <<</d' "$rc_file" 2>/dev/null; then
+                        echo "  ✓ Removed conda initialization from $rc_file"
+                        CONDA_REMOVED=true
+                    else
+                        echo "  ⚠️ Failed to remove conda initialization from $rc_file"
+                        # Restore from backup if sed failed
+                        cp "$rc_file.conda.bak" "$rc_file" 2>/dev/null || true
+                    fi
+                    
+                    # If backup was created successfully, remove it
+                    if [ -f "$rc_file.bak" ]; then
+                        rm "$rc_file.bak" 2>/dev/null || true
+                    fi
+                else
+                    echo "  ⚠️ Could not create backup for $rc_file, skipping conda removal"
                 fi
             fi
         done
+        
+        if [ "$CONDA_REMOVED" = false ]; then
+            echo "  ✓ No conda initialization found in shell files"
+        fi
     fi
 fi
 
