@@ -396,13 +396,13 @@ echo "📦 Installing Petals 2.3.0.dev2 with rope_scaling support..."
 echo "   This may take several minutes as it builds from source..."
 
 # Try to install with progress bar, fallback to verbose if progress bar not supported
-if $PIP_EXEC install git+https://github.com/bigscience-workshop/petals.git --progress-bar ascii 2>/dev/null; then
+if $PIP_EXEC install git+https://github.com/bigscience-workshop/petals.git 2>/dev/null; then
     echo "✅ Petals installed successfully from git"
 elif $PIP_EXEC install git+https://github.com/bigscience-workshop/petals.git -v 2>/dev/null; then
     echo "✅ Petals installed successfully from git (verbose mode)"
 else
     echo "⚠️ Failed to install petals from git. Trying fallback installation..."
-    if $PIP_EXEC install petals --progress-bar ascii 2>/dev/null || $PIP_EXEC install petals -v; then
+    if $PIP_EXEC install petals 2>/dev/null || $PIP_EXEC install petals -v; then
         echo "✅ Petals installed from PyPI"
     else
         echo "⚠️ Failed to install petals. Continuing with local installation..."
@@ -411,7 +411,7 @@ fi
 
 # Upgrade transformers and huggingface_hub for compatibility
 echo "📦 Upgrading transformers and huggingface_hub for Llama 3.1 rope_scaling support..."
-if $PIP_EXEC install --upgrade "transformers>=4.43.1" "huggingface_hub>=0.20.0" --progress-bar ascii; then
+if $PIP_EXEC install --upgrade "transformers>=4.43.1" "huggingface_hub>=0.20.0"; then
     echo "✅ Successfully upgraded transformers and huggingface_hub"
 else
     echo "⚠️ Failed to upgrade transformers/huggingface_hub. May have compatibility issues with Llama 3.1 models..."
@@ -425,7 +425,7 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
         echo "⚠️ Failed to install local development version. Installing dependencies only..."
         echo "📦 Installing PyTorch (CPU version)..."
         echo "   This may take a few minutes to download..."
-        if $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu --progress-bar ascii; then
+        if $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
             echo "✅ PyTorch installed successfully"
         else
             echo "❌ Failed to install PyTorch. Please check your internet connection."
@@ -436,7 +436,7 @@ else
     echo "⚠️ Local development version not found. Please build the Linux package first."
     echo "📦 Installing PyTorch dependencies..."
     echo "   This may take a few minutes to download..."
-    if $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu --progress-bar ascii; then
+    if $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
         echo "✅ PyTorch installed successfully"
     else
         echo "❌ Failed to install PyTorch. Please check your internet connection."
