@@ -36,6 +36,12 @@ The steps below can be used to setup the enviroment for this project. The instal
 
 For a complete one-step installation that handles Python, dependencies, and environment setup:
 
+#### Linux
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxinstaller.sh)"
+```
+
+#### macOS
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macinstaller.sh)"
 ```
@@ -45,23 +51,36 @@ This will:
 - Set up the conda environment
 - Install KwaaiNet
 - Create a launcher for easy usage
+- Detect and configure GPU support (NVIDIA, AMD, Intel)
 
 ### Manual Installation
 
 If you prefer to handle the environment yourself, you can install directly:
 
+#### Linux
+```bash
+pip install -e ./Installer/linux/
+```
+
+#### macOS
 ```bash
 pip install https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.8.0.tar.gz
 ```
 
-> ⚠️ Make sure you are using **Python 3.10+** and `pip` is from the correct environment (virtualenv, conda, or system Python).
+> ⚠️ Make sure you are using **Python 3.8+** and `pip` is from the correct environment (virtualenv, conda, or system Python).
 
 ## Uninstallation
 
 To completely remove KwaaiNet and its environment:
 
+#### Linux
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macuninstaller.sh"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxuninstaller.sh)"
+```
+
+#### macOS
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macuninstaller.sh)"
 ```
 
 ### Initial Setup
@@ -159,6 +178,20 @@ KwaaiNet respects the following environment variables:
 
 ## Performance Considerations
 
+### Linux Systems
+
+#### NVIDIA GPUs
+Linux systems with NVIDIA GPUs will automatically use CUDA acceleration when available. The installer detects NVIDIA GPUs and configures the appropriate drivers and libraries.
+
+#### AMD GPUs
+Systems with AMD GPUs can use ROCm for acceleration. The installer will detect AMD GPUs and attempt to configure ROCm support.
+
+#### Intel GPUs
+Intel integrated and discrete GPUs are supported through Intel Extension for PyTorch on compatible systems.
+
+#### CPU-only
+On systems without dedicated GPUs, KwaaiNet will run in CPU-only mode with optimized PyTorch CPU libraries.
+
 ### Apple Silicon (M1/M2/M3/M4) Macs
 
 On Apple Silicon Macs, GPU acceleration via Metal Performance Shaders (MPS) is used automatically if available. This provides significantly better performance than CPU-only mode.
@@ -167,28 +200,41 @@ On Apple Silicon Macs, GPU acceleration via Metal Performance Shaders (MPS) is u
 
 Intel Macs will primarily use CPU for computation as Metal support for PyTorch on Intel is limited.
 
-### Note on CUDA
-
-This package is specifically designed for macOS and does not include any CUDA dependencies or NVIDIA-specific packages, which are not needed on Mac systems. If you're looking to use KwaaiNet with CUDA on Linux or Windows, please use the Docker-based deployment method instead.
-
 ## Troubleshooting
 
 ### Common Issues
 
-**"MPS is not available" error:**
+#### Linux-specific Issues
 
+**GPU not detected:**
+- Ensure proper GPU drivers are installed (NVIDIA, AMD, or Intel)
+- Run `lspci | grep -i vga` to verify GPU hardware detection
+- Check if `nvidia-smi`, `rocm-smi`, or Intel GPU tools are working
+
+**Installation fails with permission errors:**
+- The installer will automatically detect if `sudo` is needed
+- Ensure you have administrative privileges for system package installation
+
+**Python version issues:**
+- The installer supports Python 3.8+ and will set up conda if system Python is too old
+- Check your Python version with `python3 --version`
+
+#### macOS-specific Issues
+
+**"MPS is not available" error:**
 - Ensure you have macOS 12.3 or later  
 - Make sure PyTorch 2.0+ is installed
 
-**High memory usage:**
+#### General Issues
 
+**High memory usage:**
 - Reduce the number of blocks being shared  
 - Set a lower `KWAAINET_MAX_MEMORY` value
 
 **Node doesn't connect to network:**
-
 - Check your network connection  
 - Verify the initial peers configuration
+- Ensure firewall allows the configured port
 
 ## Contributing
 
