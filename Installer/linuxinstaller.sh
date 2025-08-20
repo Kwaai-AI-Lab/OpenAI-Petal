@@ -89,25 +89,25 @@ install_system_deps() {
     case $DISTRO_FAMILY in
         debian)
             $USE_SUDO $PKG_UPDATE
-            $USE_SUDO $PKG_INSTALL curl wget git build-essential python3 python3-pip python3-venv python3-dev
+            $USE_SUDO $PKG_INSTALL curl wget git build-essential python3 python3-pip python3-venv python3-dev pciutils
             # GPU support packages
-            $USE_SUDO $PKG_INSTALL mesa-utils nvidia-detect || true
+            $USE_SUDO $PKG_INSTALL mesa-utils || true
             ;;
         redhat)
             $USE_SUDO $PKG_UPDATE
-            $USE_SUDO $PKG_INSTALL curl wget git gcc gcc-c++ make python3 python3-pip python3-devel
+            $USE_SUDO $PKG_INSTALL curl wget git gcc gcc-c++ make python3 python3-pip python3-devel pciutils
             # GPU support packages
             $USE_SUDO $PKG_INSTALL mesa-dri-drivers || true
             ;;
         arch)
             $USE_SUDO $PKG_UPDATE
-            $USE_SUDO $PKG_INSTALL curl wget git base-devel python python-pip
+            $USE_SUDO $PKG_INSTALL curl wget git base-devel python python-pip pciutils
             # GPU support packages
             $USE_SUDO $PKG_INSTALL mesa || true
             ;;
         suse)
             $USE_SUDO $PKG_UPDATE
-            $USE_SUDO $PKG_INSTALL curl wget git gcc gcc-c++ make python3 python3-pip python3-devel
+            $USE_SUDO $PKG_INSTALL curl wget git gcc gcc-c++ make python3 python3-pip python3-devel pciutils
             # GPU support packages
             $USE_SUDO $PKG_INSTALL Mesa || true
             ;;
@@ -129,30 +129,36 @@ detect_gpu() {
     GPU_TYPE="none"
     GPU_INFO=""
     
+    # Check if lspci is available
+    if ! command_exists lspci; then
+        echo "⚠️ lspci command not available. Limited GPU detection."
+        return 0
+    fi
+    
     # Check for NVIDIA GPU
     if command_exists nvidia-smi; then
         GPU_TYPE="nvidia"
-        GPU_INFO=$(nvidia-smi --query-gpu=name --format=csv,noheader,nounits | head -1)
+        GPU_INFO=$(nvidia-smi --query-gpu=name --format=csv,noheader,nounits 2>/dev/null | head -1)
         echo "✅ NVIDIA GPU detected: $GPU_INFO"
-    elif lspci | grep -i nvidia >/dev/null 2>&1; then
+    elif lspci 2>/dev/null | grep -i nvidia >/dev/null 2>&1; then
         GPU_TYPE="nvidia"
-        GPU_INFO=$(lspci | grep -i nvidia | head -1)
+        GPU_INFO=$(lspci 2>/dev/null | grep -i nvidia | head -1)
         echo "✅ NVIDIA GPU detected: $GPU_INFO"
         echo "⚠️ NVIDIA drivers may not be installed. GPU acceleration might not work."
     # Check for AMD GPU
     elif command_exists rocm-smi; then
         GPU_TYPE="amd"
-        GPU_INFO=$(rocm-smi --showproductname | grep "Card series" | head -1)
+        GPU_INFO=$(rocm-smi --showproductname 2>/dev/null | grep "Card series" | head -1)
         echo "✅ AMD GPU detected: $GPU_INFO"
-    elif lspci | grep -i amd | grep -i vga >/dev/null 2>&1; then
+    elif lspci 2>/dev/null | grep -i amd | grep -i vga >/dev/null 2>&1; then
         GPU_TYPE="amd"
-        GPU_INFO=$(lspci | grep -i amd | grep -i vga | head -1)
+        GPU_INFO=$(lspci 2>/dev/null | grep -i amd | grep -i vga | head -1)
         echo "✅ AMD GPU detected: $GPU_INFO"
         echo "⚠️ ROCm may not be installed. GPU acceleration might not work."
     # Check for Intel GPU
-    elif lspci | grep -i intel | grep -i vga >/dev/null 2>&1; then
+    elif lspci 2>/dev/null | grep -i intel | grep -i vga >/dev/null 2>&1; then
         GPU_TYPE="intel"
-        GPU_INFO=$(lspci | grep -i intel | grep -i vga | head -1)
+        GPU_INFO=$(lspci 2>/dev/null | grep -i intel | grep -i vga | head -1)
         echo "✅ Intel GPU detected: $GPU_INFO"
     else
         echo "ℹ️ No dedicated GPU detected. Using CPU-only mode."
@@ -231,7 +237,10 @@ choose_python_method() {
             echo "✅ Using existing conda installation"
         elif python3 --version >/dev/null 2>&1; then
             PYTHON_VERSION=$(python3 --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
-            if [ "$(echo "$PYTHON_VERSION >= 3.8" | bc -l)" -eq 1 ] 2>/dev/null; then
+            # Use simple version comparison instead of bc
+            MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
+            MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
+            if [ "$MAJOR" -gt 3 ] || [ "$MAJOR" -eq 3 -a "$MINOR" -ge 8 ]; then
                 PYTHON_METHOD="system"
                 echo "✅ Using system Python $PYTHON_VERSION"
             else
@@ -318,8 +327,19 @@ if [ "$PYTHON_METHOD" = "conda" ]; then
         echo "✅ Using existing kwaainet environment"
     fi
     
-    # Activate environment
-    conda activate kwaainet
+    # Activate environment (ensure conda is initialized first)
+    if ! conda activate kwaainet 2>/dev/null; then
+        echo "⚠️ Conda not initialized properly. Initializing conda..."
+        conda init bash
+        conda init zsh 2>/dev/null || true
+        # Source conda for current session
+        if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
+            . "$HOME/miniconda3/etc/profile.d/conda.sh"
+        elif [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then
+            . "$HOME/anaconda3/etc/profile.d/conda.sh"
+        fi
+        conda activate kwaainet
+    fi
     PYTHON_EXEC="python"
     PIP_EXEC="pip"
     
@@ -374,11 +394,20 @@ $PIP_EXEC install --upgrade "transformers>=4.43.1" "huggingface_hub>=0.20.0" &>/
 INSTALLER_DIR="$(dirname "$0")"
 if [ -d "$INSTALLER_DIR/linux" ]; then
     echo "📦 Installing from local development version..."
-    $PIP_EXEC install -e "$INSTALLER_DIR/linux/"
+    if ! $PIP_EXEC install -e "$INSTALLER_DIR/linux/" 2>/dev/null; then
+        echo "⚠️ Failed to install local development version. Installing dependencies only..."
+        $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu || {
+            echo "❌ Failed to install PyTorch. Please check your internet connection."
+            exit 1
+        }
+    fi
 else
     echo "⚠️ Local development version not found. Please build the Linux package first."
     echo "For now, installing dependencies only..."
-    $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+    if ! $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
+        echo "❌ Failed to install PyTorch. Please check your internet connection."
+        exit 1
+    fi
 fi
 
 # Create launcher script for one-step execution
@@ -484,12 +513,18 @@ fi
 echo "⚙️ Running initial setup..."
 if [ "$PYTHON_METHOD" = "conda" ]; then
     if conda activate kwaainet 2>/dev/null; then
-        python -m kwaainet.runner setup
+        python -m kwaainet.runner setup 2>/dev/null || {
+            echo "⚠️ Initial setup failed. You may need to run 'kwaainet setup' manually."
+        }
     else
-        "$LAUNCHER_PATH" setup
+        "$LAUNCHER_PATH" setup 2>/dev/null || {
+            echo "⚠️ Initial setup failed. You may need to run 'kwaainet setup' manually."
+        }
     fi
 else
-    "$LAUNCHER_PATH" setup
+    "$LAUNCHER_PATH" setup 2>/dev/null || {
+        echo "⚠️ Initial setup failed. You may need to run 'kwaainet setup' manually."
+    }
 fi
 
 echo ""
