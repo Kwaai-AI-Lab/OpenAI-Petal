@@ -11,17 +11,32 @@
 </p>
 
 
-OpenAI compliant api server developed using FastAPI to bridge to [Petals](https://github.com/bigscience-workshop/petals)
- v1/generate api call. Parts of code were referenced from [Petals chat](https://github.com/petals-infra/chat.petals.dev)
- 
-### Endpoints
-- `v1/models`
-- `v1/completions`
-- `v1/chat/completions`
+## Overview
+
+**OpenAI-Petal** is an OpenAI API-compatible server that bridges to the Petals distributed inference network. It enables you to run large language models through Petals' distributed network while maintaining full compatibility with OpenAI's API format, making it easy to integrate into existing applications.
+
+### Key Features
+- **🔌 OpenAI API Compatibility**: Drop-in replacement supporting standard endpoints
+- **🌐 Petals Integration**: Leverages distributed inference for efficient model serving  
+- **🛠️ Advanced Tool Calling**: Function calling with model-specific formatting (Hermes, Llama 3, Mistral, etc.)
+- **💻 Cross-Platform**: Linux and macOS support with automatic GPU detection (NVIDIA, AMD, Intel, Apple Silicon)
+- **⚡ High Performance**: FastAPI backend with streaming support and smart token processing
+- **📦 Easy Setup**: One-step installers handle all dependencies automatically
+
+### Architecture
+- **FastAPI Backend**: High-performance async web server with CORS support
+- **Model Management**: Automatic model loading/unloading with graceful shutdown  
+- **Streaming Support**: Real-time response streaming for both completions and chat
+- **Token Processing**: Smart special token handling and cleanup with configurable stop sequences
+
+### API Endpoints
+- `v1/models` - List available models
+- `v1/completions` - Text completion endpoint
+- `v1/chat/completions` - Chat completion endpoint with tool calling support
 
 
 
-The best way to support is to give us a ⭐ on [GitHub](https://github.com/KWAAI-ai-lab/paiassistant) and join our [slack community](https://kwaaiailab.slack.com)!
+The best way to support is to give us a ⭐ on [GitHub](https://github.com/KWAAI-ai-lab/paiassistant), [join the Kwaai community](https://www.kwaai.ai/home/sign-up), and connect with us on [slack](https://kwaaiailab.slack.com)!
 
 
 ### Installation and Setup
