@@ -499,14 +499,14 @@ function Install-PythonPackages {
                 }
             }
             
-            # Upgrade transformers and huggingface_hub for compatibility
-            Write-Info "Upgrading transformers and huggingface_hub for Llama 3.1 rope_scaling support..."
-            & conda run -n kwaainet pip install --upgrade "transformers>=4.43.1" "huggingface_hub>=0.20.0" 2>$null
+            # Install compatible versions of transformers and huggingface_hub
+            Write-Info "Installing compatible transformers and huggingface_hub versions..."
+            & conda run -n kwaainet pip install "transformers==4.43.1" "huggingface_hub>=0.20.0" 2>$null
             if ($LASTEXITCODE -eq 0) {
-                Write-Success "Successfully upgraded transformers and huggingface_hub"
+                Write-Success "Successfully installed compatible transformers and huggingface_hub"
             }
             else {
-                Write-Warning "Failed to upgrade transformers/huggingface_hub. May have compatibility issues with Llama 3.1 models..."
+                Write-Warning "Failed to install transformers/huggingface_hub. May have compatibility issues..."
             }
             
             # Install PyTorch
@@ -519,6 +519,24 @@ function Install-PythonPackages {
             else {
                 Write-ErrorMessage "Failed to install PyTorch. Please check your internet connection."
                 exit 1
+            }
+            
+            # Install KwaaiNet Windows package
+            $installerDir = Split-Path $PSScriptRoot -Parent
+            $windowsPackagePath = "$installerDir\Installer\windows"
+            if (Test-Path $windowsPackagePath) {
+                Write-Info "Installing KwaaiNet Windows package..."
+                & conda run -n kwaainet pip install -e $windowsPackagePath 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "KwaaiNet Windows package installed successfully"
+                }
+                else {
+                    Write-ErrorMessage "Failed to install KwaaiNet Windows package"
+                    exit 1
+                }
+            }
+            else {
+                Write-Warning "KwaaiNet Windows package not found at $windowsPackagePath"
             }
         }
         else {
@@ -550,9 +568,9 @@ function Install-PythonPackages {
                 }
             }
             
-            # Upgrade transformers and huggingface_hub
-            Write-Info "Upgrading transformers and huggingface_hub..."
-            & $pipExec install --upgrade "transformers>=4.43.1" "huggingface_hub>=0.20.0" 2>$null
+            # Install compatible versions of transformers and huggingface_hub
+            Write-Info "Installing compatible transformers and huggingface_hub versions..."
+            & $pipExec install "transformers==4.43.1" "huggingface_hub>=0.20.0" 2>$null
             
             # Install PyTorch
             Write-Info "Installing PyTorch (CPU version)..."
@@ -562,6 +580,24 @@ function Install-PythonPackages {
                 exit 1
             }
             Write-Success "PyTorch installed successfully"
+            
+            # Install KwaaiNet Windows package
+            $installerDir = Split-Path $PSScriptRoot -Parent
+            $windowsPackagePath = "$installerDir\Installer\windows"
+            if (Test-Path $windowsPackagePath) {
+                Write-Info "Installing KwaaiNet Windows package..."
+                & $pipExec install -e $windowsPackagePath 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "KwaaiNet Windows package installed successfully"
+                }
+                else {
+                    Write-ErrorMessage "Failed to install KwaaiNet Windows package"
+                    exit 1
+                }
+            }
+            else {
+                Write-Warning "KwaaiNet Windows package not found at $windowsPackagePath"
+            }
         }
         
         Write-Success "Python packages installed successfully"
