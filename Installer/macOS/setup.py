@@ -8,14 +8,16 @@ if platform.system() != "Darwin":
 
 # Define dependencies - no CUDA packages as they're not needed on macOS
 dependencies = [
-    "torch>=1.12",  # Match the Docker version requirement
+    "torch>=2.0.0",  # Updated for security and compatibility
     "peft>=0.6.0",  # Match the Docker version (--no-deps)
     "petals @ git+https://github.com/bigscience-workshop/petals",
-    "pyarrow",  # Often needed for data handling
-    "requests",
-    "tqdm",
-    "pyyaml",
-    "psutil",  # For system monitoring
+    "transformers==4.43.1",  # Explicit version for security and Petals compatibility
+    "pyarrow>=10.0.0",  # Security updates
+    "requests>=2.32.0",  # Security fixes
+    "tqdm>=4.66.0",  # Latest stable
+    "pyyaml>=6.0.0",  # Security fixes
+    "psutil>=5.9.0",  # System monitoring with security updates
+    "accelerate>=0.20.0",  # ML acceleration library
 ]
 
 # Add any Mac-specific dependencies

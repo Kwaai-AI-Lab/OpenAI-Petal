@@ -36,11 +36,13 @@ setup(
     ],
     python_requires=">=3.8",
     install_requires=[
-        "PyYAML>=6.0",
+        "PyYAML>=6.0.2",  # Security fixes
         "petals>=2.2.0",
         "torch>=2.0.0",
-        "transformers==4.43.1",
-        "accelerate>=0.20.0",
+        "transformers==4.43.1",  # Secure version compatible with Petals
+        "accelerate>=0.25.0",  # Latest stable with improvements
+        "requests>=2.32.0",  # Security fixes
+        "tqdm>=4.66.0",  # Latest stable
     ],
     extras_require={
         "cuda": [
