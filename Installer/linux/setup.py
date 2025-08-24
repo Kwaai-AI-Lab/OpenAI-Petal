@@ -39,7 +39,7 @@ setup(
         "PyYAML>=6.0",
         "petals>=2.2.0",
         "torch>=2.0.0",
-        "transformers>=4.25.0",
+        "transformers==4.43.1",
         "accelerate>=0.20.0",
     ],
     extras_require={

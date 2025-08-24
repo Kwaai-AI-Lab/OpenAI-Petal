@@ -409,12 +409,12 @@ else
     fi
 fi
 
-# Upgrade transformers and huggingface_hub for compatibility
-echo "📦 Upgrading transformers and huggingface_hub for Llama 3.1 rope_scaling support..."
-if $PIP_EXEC install --upgrade "transformers>=4.43.1" "huggingface_hub>=0.20.0" --progress-bar ascii; then
-    echo "✅ Successfully upgraded transformers and huggingface_hub"
+# Install compatible versions of transformers and huggingface_hub
+echo "📦 Installing compatible transformers and huggingface_hub versions..."
+if $PIP_EXEC install "transformers==4.43.1" "huggingface_hub>=0.20.0" --progress-bar ascii; then
+    echo "✅ Successfully installed compatible transformers and huggingface_hub"
 else
-    echo "⚠️ Failed to upgrade transformers/huggingface_hub. May have compatibility issues with Llama 3.1 models..."
+    echo "⚠️ Failed to install transformers/huggingface_hub. May have compatibility issues..."
 fi
 
 # Install from the local development version
