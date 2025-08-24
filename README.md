@@ -51,6 +51,21 @@ The steps below can be used to setup the enviroment for this project. The instal
 
 For a complete one-step installation that handles Python, dependencies, and environment setup:
 
+#### Windows
+```powershell
+# Download and run the installer
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/feature/windows-installer/Installer/windowsinstaller.ps1" -OutFile "windowsinstaller.ps1"
+powershell.exe -ExecutionPolicy Bypass -File "windowsinstaller.ps1"
+```
+
+Or use the batch file launcher:
+```cmd
+# Download both files to the same directory and run
+curl -L -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/feature/windows-installer/Installer/install.bat
+curl -L -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/feature/windows-installer/Installer/windowsinstaller.ps1
+install.bat
+```
+
 #### Linux
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxinstaller.sh)"
@@ -83,10 +98,19 @@ pip install https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macO
 ```
 
 > ⚠️ Make sure you are using **Python 3.8+** and `pip` is from the correct environment (virtualenv, conda, or system Python).
+> 
+> **Windows Requirements:** Windows 10+ (64-bit), PowerShell 5.1+
 
 ## Uninstallation
 
 To completely remove KwaaiNet and its environment:
+
+#### Windows
+```powershell
+# Download and run the uninstaller
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/feature/windows-installer/Installer/windowsuninstaller.ps1" -OutFile "windowsuninstaller.ps1"
+powershell.exe -ExecutionPolicy Bypass -File "windowsuninstaller.ps1"
+```
 
 #### Linux
 ```bash
@@ -193,6 +217,20 @@ KwaaiNet respects the following environment variables:
 
 ## Performance Considerations
 
+### Windows Systems
+
+#### NVIDIA GPUs
+Windows systems with NVIDIA GPUs will automatically use CUDA acceleration when available. The installer detects NVIDIA GPUs using nvidia-smi and WMI queries.
+
+#### AMD GPUs
+AMD GPU detection is supported through WMI queries. ROCm support may be limited on Windows compared to Linux.
+
+#### Intel GPUs
+Intel integrated and discrete GPUs are detected and supported through Intel Extension for PyTorch when available.
+
+#### CPU-only
+On systems without dedicated GPUs, KwaaiNet will run in CPU-only mode with optimized PyTorch CPU libraries.
+
 ### Linux Systems
 
 #### NVIDIA GPUs
@@ -218,6 +256,30 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 ## Troubleshooting
 
 ### Common Issues
+
+#### Windows-specific Issues
+
+**PowerShell execution policy errors:**
+- The installer will attempt to set the execution policy automatically
+- If it fails, run: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
+
+**GPU not detected:**
+- Ensure proper GPU drivers are installed (NVIDIA GeForce Experience, AMD Adrenalin, Intel Arc Control)
+- Check Device Manager for GPU hardware detection
+- Verify `nvidia-smi` command works for NVIDIA GPUs
+
+**Installation fails with permission errors:**
+- Run PowerShell as Administrator if needed
+- Some dependencies may require elevated privileges
+- The installer will use winget when available for automatic dependency installation
+
+**Python version issues:**
+- The installer supports Python 3.8+ and will set up Miniconda if system Python is incompatible
+- Windows Store Python installations may cause issues - prefer python.org or Miniconda installations
+
+**antivirus software interfering:**
+- Some antivirus software may block the installer or conda operations
+- Add exclusions for the KwaaiNet directory and Python environments if needed
 
 #### Linux-specific Issues
 

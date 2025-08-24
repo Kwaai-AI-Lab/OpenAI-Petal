@@ -1,0 +1,799 @@
+# KwaaiNet for Windows - One-Step Installer
+# This script handles the entire installation process for KwaaiNet on Windows
+
+# Ensure we can run PowerShell scripts
+#Requires -Version 5.1
+
+param(
+    [switch]$UseSystemPython,
+    [switch]$UseConda,
+    [switch]$Force,
+    [switch]$Quiet
+)
+
+# Set strict mode for better error handling
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+# Global variables
+$script:InstallPath = "$env:USERPROFILE\.kwaainet"
+$script:PythonMethod = ""
+$script:GpuType = "none"
+$script:GpuInfo = ""
+$script:UseElevated = $false
+
+# Function to write colored output
+function Write-ColorOutput {
+    param(
+        [string]$Message,
+        [string]$Color = "White",
+        [string]$Prefix = ""
+    )
+    
+    if (-not $Quiet) {
+        if ($Prefix) {
+            Write-Host "$Prefix " -NoNewline -ForegroundColor $Color
+        }
+        Write-Host $Message -ForegroundColor $Color
+    }
+}
+
+# Function to write step output
+function Write-Step {
+    param([string]$Message)
+    Write-ColorOutput $Message "Cyan" "==>"
+}
+
+# Function to write success output
+function Write-Success {
+    param([string]$Message)
+    Write-ColorOutput $Message "Green" "✅"
+}
+
+# Function to write warning output
+function Write-Warning {
+    param([string]$Message)
+    Write-ColorOutput $Message "Yellow" "⚠️"
+}
+
+# Function to write error output
+function Write-ErrorMessage {
+    param([string]$Message)
+    Write-ColorOutput $Message "Red" "❌"
+}
+
+# Function to write info output
+function Write-Info {
+    param([string]$Message)
+    Write-ColorOutput $Message "Blue" "ℹ️"
+}
+
+# Function to test if running as administrator
+function Test-Administrator {
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+# Function to detect Windows version and architecture
+function Get-SystemInfo {
+    Write-Step "Detecting Windows version and architecture..."
+    
+    try {
+        $osInfo = Get-CimInstance Win32_OperatingSystem
+        $computerInfo = Get-CimInstance Win32_ComputerSystem
+        
+        $osVersion = $osInfo.Version
+        $osName = $osInfo.Caption
+        $architecture = $computerInfo.SystemType
+        $totalRAM = [math]::Round($computerInfo.TotalPhysicalMemory / 1GB, 2)
+        
+        Write-Success "Windows System Detected:"
+        Write-Host "   OS: $osName" -ForegroundColor White
+        Write-Host "   Version: $osVersion" -ForegroundColor White  
+        Write-Host "   Architecture: $architecture" -ForegroundColor White
+        Write-Host "   Total RAM: ${totalRAM} GB" -ForegroundColor White
+        
+        # Check Windows 10/11 compatibility
+        $majorVersion = [int]($osVersion.Split('.')[0])
+        $buildNumber = [int]($osVersion.Split('.')[2])
+        
+        if ($majorVersion -lt 10) {
+            Write-ErrorMessage "Windows 10 or newer is required. Found Windows version $majorVersion."
+            exit 1
+        }
+        
+        # Check architecture
+        if ($architecture -notmatch "(x64|ARM64)") {
+            Write-ErrorMessage "64-bit Windows is required. Found: $architecture"
+            exit 1
+        }
+        
+        return @{
+            OSName = $osName
+            OSVersion = $osVersion
+            Architecture = $architecture
+            TotalRAM = $totalRAM
+            BuildNumber = $buildNumber
+        }
+    }
+    catch {
+        Write-ErrorMessage "Failed to detect system information: $($_.Exception.Message)"
+        exit 1
+    }
+}
+
+# Function to check PowerShell execution policy
+function Test-ExecutionPolicy {
+    Write-Step "Checking PowerShell execution policy..."
+    
+    $currentPolicy = Get-ExecutionPolicy -Scope CurrentUser
+    $validPolicies = @("Unrestricted", "RemoteSigned", "Bypass")
+    
+    if ($currentPolicy -notin $validPolicies) {
+        Write-Warning "Current execution policy ($currentPolicy) may prevent installation."
+        
+        try {
+            Write-Info "Attempting to set execution policy for current user..."
+            Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+            Write-Success "Execution policy updated to RemoteSigned for current user"
+        }
+        catch {
+            Write-ErrorMessage "Failed to update execution policy. Please run:"
+            Write-Host "Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser" -ForegroundColor Yellow
+            exit 1
+        }
+    }
+    else {
+        Write-Success "Execution policy is compatible: $currentPolicy"
+    }
+}
+
+# Function to detect GPU hardware
+function Get-GpuInfo {
+    Write-Step "Detecting GPU hardware..."
+    
+    try {
+        $script:GpuType = "none"
+        $script:GpuInfo = ""
+        
+        # Check for NVIDIA GPU first
+        try {
+            $nvidiaOutput = & nvidia-smi --query-gpu=name --format=csv,noheader,nounits 2>$null
+            if ($LASTEXITCODE -eq 0 -and $nvidiaOutput) {
+                $script:GpuType = "nvidia"
+                $script:GpuInfo = $nvidiaOutput.Trim()
+                Write-Success "NVIDIA GPU detected: $script:GpuInfo"
+                return
+            }
+        }
+        catch {
+            # nvidia-smi not available, continue checking
+        }
+        
+        # Check GPU via WMI
+        $gpus = Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notlike "*Basic*" -and $_.Name -notlike "*Generic*" }
+        
+        foreach ($gpu in $gpus) {
+            $gpuName = $gpu.Name
+            
+            if ($gpuName -match "NVIDIA|GeForce|GTX|RTX|Quadro|Tesla") {
+                $script:GpuType = "nvidia"
+                $script:GpuInfo = $gpuName
+                Write-Success "NVIDIA GPU detected: $gpuName"
+                Write-Warning "NVIDIA drivers may not be properly installed (nvidia-smi not found)"
+                break
+            }
+            elseif ($gpuName -match "AMD|Radeon|RX|Vega") {
+                $script:GpuType = "amd"
+                $script:GpuInfo = $gpuName
+                Write-Success "AMD GPU detected: $gpuName"
+                break
+            }
+            elseif ($gpuName -match "Intel.*Graphics|Intel.*Iris|Intel.*HD") {
+                $script:GpuType = "intel"
+                $script:GpuInfo = $gpuName
+                Write-Success "Intel GPU detected: $gpuName"
+            }
+        }
+        
+        if ($script:GpuType -eq "none") {
+            Write-Info "No dedicated GPU detected. Using CPU-only mode."
+        }
+    }
+    catch {
+        Write-Warning "Failed to detect GPU information: $($_.Exception.Message)"
+        $script:GpuType = "none"
+    }
+}
+
+# Function to check if a command exists
+function Test-Command {
+    param([string]$Command)
+    $null = Get-Command $Command -ErrorAction SilentlyContinue
+    return $?
+}
+
+# Function to install package via winget
+function Install-WingetPackage {
+    param(
+        [string]$PackageId,
+        [string]$DisplayName,
+        [switch]$Silent = $true
+    )
+    
+    if (-not (Test-Command "winget")) {
+        Write-Warning "winget not available. Please install $DisplayName manually."
+        return $false
+    }
+    
+    try {
+        $args = @("install", "--id", $PackageId, "--accept-package-agreements", "--accept-source-agreements")
+        if ($Silent) { $args += "--silent" }
+        
+        Write-Info "Installing $DisplayName via winget..."
+        $process = Start-Process "winget" -ArgumentList $args -Wait -NoNewWindow -PassThru
+        
+        if ($process.ExitCode -eq 0) {
+            Write-Success "$DisplayName installed successfully"
+            return $true
+        }
+        else {
+            Write-Warning "winget installation of $DisplayName failed (exit code: $($process.ExitCode))"
+            return $false
+        }
+    }
+    catch {
+        Write-Warning "Failed to install $DisplayName via winget: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+# Function to detect and setup Python environment
+function Set-PythonEnvironment {
+    Write-Step "Setting up Python environment..."
+    
+    # Determine which Python method to use
+    if ($UseConda) {
+        $script:PythonMethod = "conda"
+        Write-Info "Using conda (forced by --UseConda flag)"
+    }
+    elseif ($UseSystemPython) {
+        $script:PythonMethod = "system"
+        Write-Info "Using system Python (forced by --UseSystemPython flag)"
+    }
+    else {
+        # Auto-detect best method
+        if (Test-Command "conda") {
+            $script:PythonMethod = "conda"
+            Write-Success "Using existing conda installation"
+        }
+        elseif (Test-Command "python") {
+            try {
+                $pythonVersion = (& python --version 2>&1).ToString()
+                if ($pythonVersion -match "Python (\d+)\.(\d+)") {
+                    $major = [int]$matches[1]
+                    $minor = [int]$matches[2]
+                    
+                    if ($major -ge 3 -and $minor -ge 8) {
+                        $script:PythonMethod = "system"
+                        Write-Success "Using system Python $($matches[0])"
+                    }
+                    else {
+                        Write-Warning "System Python is too old ($($matches[0])). Will install conda..."
+                        $script:PythonMethod = "conda"
+                    }
+                }
+                else {
+                    Write-Warning "Could not determine Python version. Will install conda..."
+                    $script:PythonMethod = "conda"
+                }
+            }
+            catch {
+                Write-Warning "Python found but version check failed. Will install conda..."
+                $script:PythonMethod = "conda"
+            }
+        }
+        else {
+            Write-Warning "No suitable Python found. Will install conda..."
+            $script:PythonMethod = "conda"
+        }
+    }
+    
+    # Install or setup the chosen Python environment
+    if ($script:PythonMethod -eq "conda") {
+        Install-Conda
+        Setup-CondaEnvironment
+    }
+    else {
+        Setup-SystemPython
+    }
+}
+
+# Function to install Miniconda
+function Install-Conda {
+    Write-Step "Installing Miniconda..."
+    
+    # Check if conda is already available
+    if (Test-Command "conda") {
+        Write-Success "Conda already installed"
+        return
+    }
+    
+    try {
+        # Determine architecture and download URL
+        $arch = if ([Environment]::Is64BitOperatingSystem) { "x86_64" } else { "x86" }
+        $installerName = "Miniconda3-latest-Windows-$arch.exe"
+        $downloadUrl = "https://repo.anaconda.com/miniconda/$installerName"
+        $installerPath = "$env:TEMP\$installerName"
+        
+        Write-Info "Downloading Miniconda installer..."
+        $webClient = New-Object System.Net.WebClient
+        $webClient.DownloadFile($downloadUrl, $installerPath)
+        
+        Write-Info "Installing Miniconda (this may take a few minutes)..."
+        $installArgs = @(
+            "/S",  # Silent install
+            "/InstallationType=JustMe",
+            "/AddToPath=1",
+            "/RegisterPython=0",
+            "/D=$env:USERPROFILE\Miniconda3"
+        )
+        
+        $process = Start-Process $installerPath -ArgumentList $installArgs -Wait -NoNewWindow -PassThru
+        
+        if ($process.ExitCode -ne 0) {
+            Write-ErrorMessage "Miniconda installation failed with exit code $($process.ExitCode)"
+            exit 1
+        }
+        
+        # Clean up installer
+        Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+        
+        # Update PATH for current session
+        $condaPath = "$env:USERPROFILE\Miniconda3"
+        $env:PATH = "$condaPath;$condaPath\Scripts;$condaPath\Library\bin;$env:PATH"
+        
+        Write-Success "Miniconda installed successfully"
+    }
+    catch {
+        Write-ErrorMessage "Failed to install Miniconda: $($_.Exception.Message)"
+        exit 1
+    }
+}
+
+# Function to setup conda environment
+function Setup-CondaEnvironment {
+    Write-Step "Setting up KwaaiNet conda environment..."
+    
+    try {
+        # Refresh conda and create environment
+        & conda config --set auto_activate_base false 2>$null
+        
+        # Check if environment already exists
+        $envList = & conda env list 2>$null
+        if ($envList -match "kwaainet") {
+            Write-Success "Using existing kwaainet conda environment"
+        }
+        else {
+            Write-Info "Creating Python 3.10 environment for KwaaiNet..."
+            & conda create -y -n kwaainet python=3.10 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                Write-ErrorMessage "Failed to create conda environment"
+                exit 1
+            }
+            Write-Success "Created Python 3.10 environment for KwaaiNet"
+        }
+        
+        Write-Success "Conda environment setup complete"
+    }
+    catch {
+        Write-ErrorMessage "Failed to setup conda environment: $($_.Exception.Message)"
+        exit 1
+    }
+}
+
+# Function to setup system Python with virtual environment
+function Setup-SystemPython {
+    Write-Step "Setting up KwaaiNet virtual environment..."
+    
+    try {
+        $venvPath = "$script:InstallPath\venv"
+        
+        if (Test-Path $venvPath) {
+            Write-Success "Using existing virtual environment"
+        }
+        else {
+            Write-Info "Creating virtual environment..."
+            New-Item -ItemType Directory -Path $script:InstallPath -Force | Out-Null
+            & python -m venv $venvPath
+            
+            if ($LASTEXITCODE -ne 0) {
+                Write-ErrorMessage "Failed to create virtual environment"
+                exit 1
+            }
+            Write-Success "Created virtual environment for KwaaiNet"
+        }
+    }
+    catch {
+        Write-ErrorMessage "Failed to setup virtual environment: $($_.Exception.Message)"
+        exit 1
+    }
+}
+
+# Function to install system dependencies
+function Install-Dependencies {
+    Write-Step "Installing system dependencies..."
+    
+    $dependencies = @(
+        @{ PackageId = "Git.Git"; DisplayName = "Git for Windows"; Required = $true },
+        @{ PackageId = "Microsoft.VCRedist.2015+.x64"; DisplayName = "Visual C++ Redistributable"; Required = $true }
+    )
+    
+    foreach ($dep in $dependencies) {
+        Write-Info "Checking $($dep.DisplayName)..."
+        
+        # Check if already installed based on package type
+        $installed = $false
+        
+        switch ($dep.PackageId) {
+            "Git.Git" {
+                $installed = Test-Command "git"
+            }
+            "Microsoft.VCRedist.2015+.x64" {
+                # Check if VC++ runtime is installed
+                $installed = Test-Path "$env:SystemRoot\System32\vcruntime140.dll"
+            }
+        }
+        
+        if ($installed) {
+            Write-Success "$($dep.DisplayName) is already installed"
+        }
+        else {
+            $result = Install-WingetPackage -PackageId $dep.PackageId -DisplayName $dep.DisplayName
+            if (-not $result -and $dep.Required) {
+                Write-Warning "Failed to install required dependency: $($dep.DisplayName)"
+                Write-Info "Please install $($dep.DisplayName) manually and re-run this installer"
+            }
+        }
+    }
+    
+    # Refresh PATH after installations
+    $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
+}
+
+# Function to install Python packages
+function Install-PythonPackages {
+    Write-Step "Installing KwaaiNet Python packages..."
+    
+    try {
+        if ($script:PythonMethod -eq "conda") {
+            # Activate conda environment and install packages
+            Write-Info "Activating conda environment and installing packages..."
+            
+            # Clear any cached versions
+            Write-Info "Clearing cached versions of KwaaiNet..."
+            & conda run -n kwaainet pip cache remove kwaainet-windows 2>$null
+            & conda run -n kwaainet pip cache remove kwaainet_windows 2>$null
+            
+            # Install basic dependencies
+            Write-Info "Installing basic dependencies..."
+            & conda run -n kwaainet pip install pyyaml 2>$null
+            
+            # Install updated petals with rope_scaling support
+            Write-Info "Installing Petals 2.3.0.dev2 with rope_scaling support..."
+            Write-Info "This may take several minutes as it builds from source..."
+            
+            $petalsResult = & conda run -n kwaainet pip install "git+https://github.com/bigscience-workshop/petals.git" 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "Petals installed successfully from git"
+            }
+            else {
+                Write-Warning "Failed to install petals from git. Trying fallback installation..."
+                & conda run -n kwaainet pip install petals 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Petals installed from PyPI"
+                }
+                else {
+                    Write-Warning "Failed to install petals. Continuing with PyTorch installation..."
+                }
+            }
+            
+            # Upgrade transformers and huggingface_hub for compatibility
+            Write-Info "Upgrading transformers and huggingface_hub for Llama 3.1 rope_scaling support..."
+            & conda run -n kwaainet pip install --upgrade "transformers>=4.43.1" "huggingface_hub>=0.20.0" 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "Successfully upgraded transformers and huggingface_hub"
+            }
+            else {
+                Write-Warning "Failed to upgrade transformers/huggingface_hub. May have compatibility issues with Llama 3.1 models..."
+            }
+            
+            # Install PyTorch
+            Write-Info "Installing PyTorch (CPU version)..."
+            Write-Info "This may take a few minutes to download..."
+            & conda run -n kwaainet pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "PyTorch installed successfully"
+            }
+            else {
+                Write-ErrorMessage "Failed to install PyTorch. Please check your internet connection."
+                exit 1
+            }
+        }
+        else {
+            # Use virtual environment
+            $venvPath = "$script:InstallPath\venv"
+            $pipExec = "$venvPath\Scripts\pip.exe"
+            $pythonExec = "$venvPath\Scripts\python.exe"
+            
+            Write-Info "Installing packages in virtual environment..."
+            
+            # Activate virtual environment and install packages
+            & $pipExec cache remove kwaainet-windows 2>$null
+            & $pipExec cache remove kwaainet_windows 2>$null
+            
+            # Install basic dependencies
+            & $pipExec install pyyaml 2>$null
+            
+            # Install updated petals
+            Write-Info "Installing Petals 2.3.0.dev2 with rope_scaling support..."
+            $petalsResult = & $pipExec install "git+https://github.com/bigscience-workshop/petals.git" 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "Petals installed successfully from git"
+            }
+            else {
+                Write-Warning "Failed to install petals from git. Trying fallback..."
+                & $pipExec install petals 2>$null
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warning "Failed to install petals. Continuing with PyTorch..."
+                }
+            }
+            
+            # Upgrade transformers and huggingface_hub
+            Write-Info "Upgrading transformers and huggingface_hub..."
+            & $pipExec install --upgrade "transformers>=4.43.1" "huggingface_hub>=0.20.0" 2>$null
+            
+            # Install PyTorch
+            Write-Info "Installing PyTorch (CPU version)..."
+            & $pipExec install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                Write-ErrorMessage "Failed to install PyTorch. Please check your internet connection."
+                exit 1
+            }
+            Write-Success "PyTorch installed successfully"
+        }
+        
+        Write-Success "Python packages installed successfully"
+    }
+    catch {
+        Write-ErrorMessage "Failed to install Python packages: $($_.Exception.Message)"
+        exit 1
+    }
+}
+
+# Function to create launcher scripts
+function New-LauncherScripts {
+    Write-Step "Creating launcher scripts..."
+    
+    try {
+        $launcherDir = "$script:InstallPath\bin"
+        New-Item -ItemType Directory -Path $launcherDir -Force | Out-Null
+        
+        if ($script:PythonMethod -eq "conda") {
+            # Create PowerShell launcher for conda
+            $psLauncher = @'
+# KwaaiNet Launcher - Run KwaaiNet without having to activate conda first
+param([Parameter(ValueFromRemainingArguments)]$Args)
+
+# Find conda installation
+$condaPath = $null
+if (Get-Command conda -ErrorAction SilentlyContinue) {
+    $condaPath = Split-Path (Split-Path (Get-Command conda).Source)
+} elseif (Test-Path "$env:USERPROFILE\Miniconda3\Scripts\conda.exe") {
+    $condaPath = "$env:USERPROFILE\Miniconda3"
+} elseif (Test-Path "$env:USERPROFILE\Anaconda3\Scripts\conda.exe") {
+    $condaPath = "$env:USERPROFILE\Anaconda3"
+} else {
+    Write-Error "❌ Error: Could not find conda installation."
+    exit 1
+}
+
+# Activate the environment and run the command
+$condaExe = "$condaPath\Scripts\conda.exe"
+& $condaExe run -n kwaainet python -m kwaainet.runner @Args
+'@
+            
+            $psLauncherPath = "$launcherDir\kwaainet.ps1"
+            Set-Content -Path $psLauncherPath -Value $psLauncher -Encoding UTF8
+            
+            # Create batch file launcher that calls PowerShell
+            $batchLauncher = @"
+@echo off
+powershell.exe -ExecutionPolicy Bypass -File "$psLauncherPath" %*
+"@
+            $batchLauncherPath = "$launcherDir\kwaainet.bat"
+            Set-Content -Path $batchLauncherPath -Value $batchLauncher -Encoding ASCII
+        }
+        else {
+            # Create batch launcher for virtual environment
+            $venvPath = "$script:InstallPath\venv"
+            $batchLauncher = @"
+@echo off
+REM KwaaiNet Launcher - Run KwaaiNet from virtual environment
+
+set VENV_PATH=$venvPath
+
+if not exist "%VENV_PATH%" (
+    echo ❌ Error: KwaaiNet virtual environment not found at %VENV_PATH%
+    exit /b 1
+)
+
+REM Activate virtual environment and run the command
+call "%VENV_PATH%\Scripts\activate.bat" && python -m kwaainet.runner %*
+"@
+            $batchLauncherPath = "$launcherDir\kwaainet.bat"
+            Set-Content -Path $batchLauncherPath -Value $batchLauncher -Encoding ASCII
+            
+            # Also create PowerShell version
+            $psLauncher = @"
+# KwaaiNet Launcher - Run KwaaiNet from virtual environment
+param([Parameter(ValueFromRemainingArguments)]`$Args)
+
+`$venvPath = "$venvPath"
+
+if (-not (Test-Path `$venvPath)) {
+    Write-Error "❌ Error: KwaaiNet virtual environment not found at `$venvPath"
+    exit 1
+}
+
+# Activate virtual environment and run the command
+& "`$venvPath\Scripts\python.exe" -m kwaainet.runner @Args
+"@
+            $psLauncherPath = "$launcherDir\kwaainet.ps1"
+            Set-Content -Path $psLauncherPath -Value $psLauncher -Encoding UTF8
+        }
+        
+        Write-Success "Launcher scripts created successfully"
+        Write-Info "Launchers created at:"
+        Write-Host "   PowerShell: $launcherDir\kwaainet.ps1" -ForegroundColor White
+        Write-Host "   Batch: $launcherDir\kwaainet.bat" -ForegroundColor White
+        
+        # Add to PATH
+        Add-ToPath $launcherDir
+        
+    }
+    catch {
+        Write-ErrorMessage "Failed to create launcher scripts: $($_.Exception.Message)"
+        exit 1
+    }
+}
+
+# Function to add directory to PATH
+function Add-ToPath {
+    param([string]$Directory)
+    
+    try {
+        Write-Step "Adding launcher directory to PATH..."
+        
+        # Get current user PATH
+        $currentPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
+        
+        # Check if directory is already in PATH
+        if ($currentPath -split ";" -contains $Directory) {
+            Write-Success "Directory already in PATH"
+            return
+        }
+        
+        # Add to PATH
+        $newPath = if ($currentPath) { "$currentPath;$Directory" } else { $Directory }
+        [System.Environment]::SetEnvironmentVariable("PATH", $newPath, "User")
+        
+        # Update current session PATH
+        $env:PATH += ";$Directory"
+        
+        Write-Success "Added $Directory to user PATH"
+        Write-Info "Restart your terminal or PowerShell session for PATH changes to take effect"
+    }
+    catch {
+        Write-Warning "Failed to add directory to PATH: $($_.Exception.Message)"
+        Write-Info "You can manually add this directory to your PATH: $Directory"
+    }
+}
+
+# Function to run initial setup
+function Start-InitialSetup {
+    Write-Step "Running initial setup..."
+    
+    try {
+        $launcherPath = "$script:InstallPath\bin\kwaainet.ps1"
+        
+        if (Test-Path $launcherPath) {
+            & powershell.exe -ExecutionPolicy Bypass -File $launcherPath setup 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "Initial setup completed"
+            }
+            else {
+                Write-Warning "Initial setup failed. You may need to run 'kwaainet setup' manually."
+            }
+        }
+        else {
+            Write-Warning "Launcher not found. Please run setup manually after installation."
+        }
+    }
+    catch {
+        Write-Warning "Initial setup failed: $($_.Exception.Message)"
+        Write-Info "You may need to run 'kwaainet setup' manually."
+    }
+}
+
+# Main installation function
+function Start-Installation {
+    Write-Host "==========================================================" -ForegroundColor Cyan
+    Write-Host "KwaaiNet for Windows - One-Step Installer" -ForegroundColor Cyan
+    Write-Host "==========================================================" -ForegroundColor Cyan
+    Write-Host "This installer will set up KwaaiNet for sharing compute on Windows" -ForegroundColor White
+    Write-Host "It includes Python setup, dependencies, and environment configuration" -ForegroundColor White
+    Write-Host ""
+    
+    # Check if running as administrator
+    if (Test-Administrator) {
+        Write-Warning "Running as Administrator. This installer should be run as a regular user."
+        Write-Info "Some operations will use elevated privileges when needed."
+        $script:UseElevated = $true
+    }
+    
+    try {
+        # Step 1: System detection
+        $systemInfo = Get-SystemInfo
+        
+        # Step 2: Check execution policy
+        Test-ExecutionPolicy
+        
+        # Step 3: GPU detection  
+        Get-GpuInfo
+        
+        # Step 4: Install system dependencies
+        Install-Dependencies
+        
+        # Step 5: Python environment setup
+        Set-PythonEnvironment
+        
+        # Step 6: Install Python packages
+        Install-PythonPackages
+        
+        # Step 7: Create launcher scripts
+        New-LauncherScripts
+        
+        # Step 8: Run initial setup
+        Start-InitialSetup
+        
+        Write-Host ""
+        Write-Host "==========================================================" -ForegroundColor Green
+        Write-Host "✅ KwaaiNet for Windows installation completed!" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "🔧 Configuration detected:" -ForegroundColor White
+        Write-Host "   - OS: $($systemInfo.OSName)" -ForegroundColor White
+        Write-Host "   - Architecture: $($systemInfo.Architecture)" -ForegroundColor White
+        Write-Host "   - GPU: $script:GpuType $(if($script:GpuInfo) { "($script:GpuInfo)" })" -ForegroundColor White
+        Write-Host "   - Python method: $script:PythonMethod" -ForegroundColor White
+        Write-Host ""
+        Write-Host "📝 Next steps:" -ForegroundColor White
+        Write-Host "   1. Complete the Python package installation" -ForegroundColor White
+        Write-Host "   2. Set up launcher scripts" -ForegroundColor White
+        Write-Host "   3. Configure GPU acceleration (if available)" -ForegroundColor White
+        Write-Host ""
+        Write-Host "📚 For more information, visit: https://github.com/Kwaai-AI-Lab/OpenAI-Petal" -ForegroundColor White
+        Write-Host "==========================================================" -ForegroundColor Green
+    }
+    catch {
+        Write-ErrorMessage "Installation failed: $($_.Exception.Message)"
+        Write-Host "Stack trace: $($_.ScriptStackTrace)" -ForegroundColor Red
+        exit 1
+    }
+}
+
+# Script entry point
+if ($MyInvocation.InvocationName -ne ".") {
+    Start-Installation
+}
