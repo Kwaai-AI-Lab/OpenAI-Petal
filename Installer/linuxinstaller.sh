@@ -5,11 +5,50 @@
 
 set -e  # Exit on error
 
+# Parse command line arguments
+SKIP_SYSTEM_PACKAGES=false
+FORCE_CONDA=false
+FORCE_VENV=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --no-system-packages)
+            SKIP_SYSTEM_PACKAGES=true
+            shift
+            ;;
+        --force-conda)
+            FORCE_CONDA=true
+            shift
+            ;;
+        --force-venv)
+            FORCE_VENV=true
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: $0 [OPTIONS]"
+            echo "Options:"
+            echo "  --no-system-packages  Skip system package installation (assumes all dependencies are available)"
+            echo "  --force-conda         Force using conda environment instead of auto-detection"
+            echo "  --force-venv          Force using virtual environment instead of auto-detection"
+            echo "  --help, -h            Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
 echo "=========================================================="
 echo "KwaaiNet for Linux - One-Step Installer"
 echo "=========================================================="
 echo "This installer will set up KwaaiNet for sharing compute on Linux"
 echo "It includes Python setup, dependencies, and environment configuration"
+if [ "$SKIP_SYSTEM_PACKAGES" = true ]; then
+    echo "⚠️ Skipping system package installation (--no-system-packages)"
+fi
 echo ""
 
 # Function to check if a command exists
@@ -98,44 +137,135 @@ check_root() {
     fi
 }
 
+# Function to check if system dependencies are available
+check_system_deps() {
+    echo "🔍 Checking system dependencies..."
+    
+    local missing_packages=()
+    local missing_commands=()
+    
+    # Check essential commands
+    if ! command_exists curl; then
+        missing_commands+=("curl")
+    fi
+    
+    if ! command_exists wget; then
+        missing_commands+=("wget")
+    fi
+    
+    if ! command_exists git; then
+        missing_commands+=("git")
+    fi
+    
+    # Check Python 3
+    if ! command_exists python3; then
+        missing_commands+=("python3")
+    else
+        # Check Python version
+        PYTHON_VERSION=$(python3 -c "import sys; print('.'.join(map(str, sys.version_info[:2])))" 2>/dev/null || echo "0.0")
+        PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
+        PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
+        
+        if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 8 ]); then
+            echo "⚠️ Python $PYTHON_VERSION found, but Python 3.8+ is required"
+            missing_commands+=("python3 (3.8+)")
+        fi
+    fi
+    
+    # Check pip
+    if ! command_exists pip3 && ! python3 -m pip --version >/dev/null 2>&1; then
+        missing_commands+=("pip3")
+    fi
+    
+    # Check build tools
+    if ! command_exists gcc && ! command_exists clang; then
+        missing_commands+=("build tools (gcc/clang)")
+    fi
+    
+    if [ ${#missing_commands[@]} -eq 0 ]; then
+        echo "✅ All required dependencies are available"
+        return 0
+    else
+        echo "⚠️ Missing dependencies: ${missing_commands[*]}"
+        return 1
+    fi
+}
+
 # Function to install system dependencies
 install_system_deps() {
     echo "📦 Installing system dependencies..."
     
+    # First check if we need to install anything
+    if check_system_deps; then
+        echo "✅ System dependencies already satisfied"
+        return 0
+    fi
+    
+    # Check if we have sudo access
+    if ! command_exists sudo && [ "$EUID" -ne 0 ]; then
+        echo "❌ Error: System packages need to be installed but sudo is not available."
+        echo "Please install the missing dependencies manually or run as root."
+        echo "Required: curl, wget, git, python3 (3.8+), python3-pip, build tools"
+        exit 1
+    fi
+    
     case $DISTRO_FAMILY in
         debian)
-            $USE_SUDO $PKG_UPDATE
+            echo "🔄 Updating package list..."
+            if ! $USE_SUDO $PKG_UPDATE 2>/dev/null; then
+                echo "⚠️ Failed to update package list. Continuing..."
+            fi
+            echo "📦 Installing packages..."
             $USE_SUDO $PKG_INSTALL curl wget git build-essential python3 python3-pip python3-venv python3-dev pciutils
-            # GPU support packages
+            # GPU support packages (optional)
             $USE_SUDO $PKG_INSTALL mesa-utils || true
             ;;
         redhat)
-            $USE_SUDO $PKG_UPDATE
+            echo "🔄 Updating package list..."
+            if ! $USE_SUDO $PKG_UPDATE 2>/dev/null; then
+                echo "⚠️ Failed to update package list. Continuing..."
+            fi
+            echo "📦 Installing packages..."
             $USE_SUDO $PKG_INSTALL curl wget git gcc gcc-c++ make python3 python3-pip python3-devel pciutils
-            # GPU support packages
+            # GPU support packages (optional)
             $USE_SUDO $PKG_INSTALL mesa-dri-drivers || true
             ;;
         arch)
-            $USE_SUDO $PKG_UPDATE
+            echo "🔄 Updating package list..."
+            if ! $USE_SUDO $PKG_UPDATE 2>/dev/null; then
+                echo "⚠️ Failed to update package list. Continuing..."
+            fi
+            echo "📦 Installing packages..."
             $USE_SUDO $PKG_INSTALL curl wget git base-devel python python-pip pciutils
-            # GPU support packages
+            # GPU support packages (optional)
             $USE_SUDO $PKG_INSTALL mesa || true
             ;;
         suse)
-            $USE_SUDO $PKG_UPDATE
+            echo "🔄 Updating package list..."
+            if ! $USE_SUDO $PKG_UPDATE 2>/dev/null; then
+                echo "⚠️ Failed to update package list. Continuing..."
+            fi
+            echo "📦 Installing packages..."
             $USE_SUDO $PKG_INSTALL curl wget git gcc gcc-c++ make python3 python3-pip python3-devel pciutils
-            # GPU support packages
+            # GPU support packages (optional)
             $USE_SUDO $PKG_INSTALL Mesa || true
             ;;
         *)
-            echo "⚠️ Unknown distribution family. Please install the following manually:"
+            echo "❌ Unknown distribution family. Please install the following manually:"
             echo "  - curl, wget, git"
             echo "  - Python 3.8+ with pip and development headers"
             echo "  - Build tools (gcc, make)"
+            exit 1
             ;;
     esac
     
-    echo "✅ System dependencies installed"
+    # Verify installation was successful
+    if ! check_system_deps; then
+        echo "❌ System dependency installation failed. Please install missing packages manually."
+        exit 1
+    fi
+    
+    echo "✅ System dependencies installed successfully"
 }
 
 # Function to detect GPU
@@ -239,8 +369,15 @@ choose_python_method() {
     
     PYTHON_METHOD=""
     
-    # Check if user prefers system Python or conda
-    if [ "${KWAAINET_USE_SYSTEM_PYTHON:-}" = "true" ]; then
+    # Check command line flags first
+    if [ "$FORCE_VENV" = true ]; then
+        PYTHON_METHOD="system"
+        echo "ℹ️ Using virtual environment (--force-venv)"
+    elif [ "$FORCE_CONDA" = true ]; then
+        PYTHON_METHOD="conda"
+        echo "ℹ️ Using conda (--force-conda)"
+    # Check environment variables
+    elif [ "${KWAAINET_USE_SYSTEM_PYTHON:-}" = "true" ]; then
         PYTHON_METHOD="system"
         echo "ℹ️ Using system Python (KWAAINET_USE_SYSTEM_PYTHON=true)"
     elif [ "${KWAAINET_USE_CONDA:-}" = "true" ]; then
@@ -318,8 +455,18 @@ check_root
 # Detect GPU
 detect_gpu
 
-# Install system dependencies
-install_system_deps
+# Install system dependencies (unless skipped)
+if [ "$SKIP_SYSTEM_PACKAGES" = true ]; then
+    echo "⏭️ Skipping system package installation"
+    # Still check if we have the required dependencies
+    if ! check_system_deps; then
+        echo "❌ Error: Required system dependencies are missing."
+        echo "Install them manually or run without --no-system-packages flag."
+        exit 1
+    fi
+else
+    install_system_deps
+fi
 
 # Choose Python method
 choose_python_method
