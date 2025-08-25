@@ -71,6 +71,19 @@ install.bat
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxinstaller.sh)"
 ```
 
+The Linux installer supports additional options:
+```bash
+# Skip system package installation (if you already have dependencies)
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxinstaller.sh | bash -s -- --no-system-packages
+
+# Force specific Python environment
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxinstaller.sh | bash -s -- --force-venv
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxinstaller.sh | bash -s -- --force-conda
+
+# Show help
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxinstaller.sh | bash -s -- --help
+```
+
 #### macOS
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macinstaller.sh)"
@@ -277,6 +290,11 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 - The installer supports Python 3.8+ and will set up Miniconda if system Python is incompatible
 - Windows Store Python installations may cause issues - prefer python.org or Miniconda installations
 
+**ModuleNotFoundError: No module named 'kwaainet':**
+- This was a known issue that has been fixed in recent installer updates
+- For existing installations, activate your environment and run: `pip install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/windows"`
+- Or reinstall using the latest installer
+
 **antivirus software interfering:**
 - Some antivirus software may block the installer or conda operations
 - Add exclusions for the KwaaiNet directory and Python environments if needed
@@ -289,8 +307,19 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 - Check if `nvidia-smi`, `rocm-smi`, or Intel GPU tools are working
 
 **Installation fails with permission errors:**
-- The installer will automatically detect if `sudo` is needed
+- The installer will automatically detect if `sudo` is needed and only use it when necessary
+- If you have all dependencies installed, use `--no-system-packages` to avoid sudo requirement
 - Ensure you have administrative privileges for system package installation
+
+**ModuleNotFoundError: No module named 'kwaainet':**
+- This was a known issue that has been fixed in recent installer updates
+- For existing installations, run: `source ~/.kwaainet-venv/bin/activate && pip install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"`
+- Or reinstall using the latest installer
+
+**Dependency conflicts (transformers version issues):**
+- The installer now uses `transformers==4.43.1` for Petals compatibility
+- This version is secure and not affected by recent CVEs (2024-11392, 11393, 11394)
+- Conflicts should be resolved automatically in new installations
 
 **Python version issues:**
 - The installer supports Python 3.8+ and will set up conda if system Python is too old
@@ -312,6 +341,26 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 - Check your network connection  
 - Verify the initial peers configuration
 - Ensure firewall allows the configured port
+
+## Recent Fixes and Improvements
+
+### Security Updates (December 2024)
+- ✅ Updated all dependencies to address GitHub-reported vulnerabilities
+- ✅ Fixed CVE-2024-24762 (FastAPI ReDoS vulnerability)
+- ✅ Updated LangChain to address CVE-2023-46229 and CVE-2024-21513
+- ✅ Kept transformers at secure version 4.43.1 (not affected by CVE-2024-11392/93/94)
+
+### Installer Improvements (December 2024)
+- ✅ Fixed critical Linux installer bug causing "No module named 'kwaainet'" error
+- ✅ Fixed Windows installer missing package installation
+- ✅ Added intelligent sudo handling - only uses sudo when necessary
+- ✅ Fixed transformers dependency conflicts (pinned to exact version 4.43.1)
+- ✅ Added Linux installer options: `--no-system-packages`, `--force-venv`, `--force-conda`
+
+### Compatibility
+- ✅ All installers now properly install the kwaainet package
+- ✅ Dependency conflicts resolved with Petals compatibility maintained
+- ✅ Works on Ubuntu 24.04, Windows 10+, macOS (Intel and Apple Silicon)
 
 ## Contributing
 
