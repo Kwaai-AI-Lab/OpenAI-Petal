@@ -16,7 +16,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # Global variables
-$script:InstallPath = "$env:USERPROFILE\.kwaainet"
+$script:InstallPath = Join-Path $env:USERPROFILE ".kwaainet"
 $script:PythonMethod = ""
 $script:GpuType = "none"
 $script:GpuInfo = ""
@@ -47,25 +47,25 @@ function Write-Step {
 # Function to write success output
 function Write-Success {
     param([string]$Message)
-    Write-ColorOutput $Message "Green" "✅"
+    Write-ColorOutput $Message "Green" "[SUCCESS]"
 }
 
 # Function to write warning output
 function Write-Warning {
     param([string]$Message)
-    Write-ColorOutput $Message "Yellow" "⚠️"
+    Write-ColorOutput $Message "Yellow" "[WARNING]"
 }
 
 # Function to write error output
 function Write-ErrorMessage {
     param([string]$Message)
-    Write-ColorOutput $Message "Red" "❌"
+    Write-ColorOutput $Message "Red" "[ERROR]"
 }
 
 # Function to write info output
 function Write-Info {
     param([string]$Message)
-    Write-ColorOutput $Message "Blue" "ℹ️"
+    Write-ColorOutput $Message "Blue" "[INFO]"
 }
 
 # Function to test if running as administrator
@@ -337,7 +337,7 @@ function Install-Conda {
             "/InstallationType=JustMe",
             "/AddToPath=1",
             "/RegisterPython=0",
-            "/D=$env:USERPROFILE\Miniconda3"
+            "/D=$(Join-Path $env:USERPROFILE 'Miniconda3')"
         )
         
         $process = Start-Process $installerPath -ArgumentList $installArgs -Wait -NoNewWindow -PassThru
@@ -351,8 +351,10 @@ function Install-Conda {
         Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
         
         # Update PATH for current session
-        $condaPath = "$env:USERPROFILE\Miniconda3"
-        $env:PATH = "$condaPath;$condaPath\Scripts;$condaPath\Library\bin;$env:PATH"
+        $condaPath = Join-Path $env:USERPROFILE "Miniconda3"
+        $scriptsPath = Join-Path $condaPath "Scripts"
+        $libraryBinPath = Join-Path $condaPath "Library\bin"
+        $env:PATH = "$condaPath;$scriptsPath;$libraryBinPath;$env:PATH"
         
         Write-Success "Miniconda installed successfully"
     }
@@ -626,10 +628,10 @@ param([Parameter(ValueFromRemainingArguments)]$Args)
 $condaPath = $null
 if (Get-Command conda -ErrorAction SilentlyContinue) {
     $condaPath = Split-Path (Split-Path (Get-Command conda).Source)
-} elseif (Test-Path "$env:USERPROFILE\Miniconda3\Scripts\conda.exe") {
-    $condaPath = "$env:USERPROFILE\Miniconda3"
-} elseif (Test-Path "$env:USERPROFILE\Anaconda3\Scripts\conda.exe") {
-    $condaPath = "$env:USERPROFILE\Anaconda3"
+} elseif (Test-Path (Join-Path $env:USERPROFILE "Miniconda3\Scripts\conda.exe")) {
+    $condaPath = Join-Path $env:USERPROFILE "Miniconda3"
+} elseif (Test-Path (Join-Path $env:USERPROFILE "Anaconda3\Scripts\conda.exe")) {
+    $condaPath = Join-Path $env:USERPROFILE "Anaconda3"
 } else {
     Write-Error "❌ Error: Could not find conda installation."
     exit 1
