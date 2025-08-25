@@ -337,7 +337,7 @@ function Install-Conda {
             "/InstallationType=JustMe",
             "/AddToPath=1",
             "/RegisterPython=0",
-            "/D=$(Join-Path $env:USERPROFILE 'Miniconda3')"
+            "/D=$env:USERPROFILE\Miniconda3"
         )
         
         $process = Start-Process $installerPath -ArgumentList $installArgs -Wait -NoNewWindow -PassThru
@@ -351,10 +351,8 @@ function Install-Conda {
         Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
         
         # Update PATH for current session
-        $condaPath = Join-Path $env:USERPROFILE "Miniconda3"
-        $scriptsPath = Join-Path $condaPath "Scripts"
-        $libraryBinPath = Join-Path $condaPath "Library\bin"
-        $env:PATH = "$condaPath;$scriptsPath;$libraryBinPath;$env:PATH"
+        $condaPath = "$env:USERPROFILE\Miniconda3"
+        $env:PATH = "$condaPath;$condaPath\Scripts;$condaPath\Library\bin;$env:PATH"
         
         Write-Success "Miniconda installed successfully"
     }
@@ -628,10 +626,10 @@ param([Parameter(ValueFromRemainingArguments)]$Args)
 $condaPath = $null
 if (Get-Command conda -ErrorAction SilentlyContinue) {
     $condaPath = Split-Path (Split-Path (Get-Command conda).Source)
-} elseif (Test-Path (Join-Path $env:USERPROFILE "Miniconda3\Scripts\conda.exe")) {
-    $condaPath = Join-Path $env:USERPROFILE "Miniconda3"
-} elseif (Test-Path (Join-Path $env:USERPROFILE "Anaconda3\Scripts\conda.exe")) {
-    $condaPath = Join-Path $env:USERPROFILE "Anaconda3"
+} elseif (Test-Path "$env:USERPROFILE\Miniconda3\Scripts\conda.exe") {
+    $condaPath = "$env:USERPROFILE\Miniconda3"
+} elseif (Test-Path "$env:USERPROFILE\Anaconda3\Scripts\conda.exe") {
+    $condaPath = "$env:USERPROFILE\Anaconda3"
 } else {
     Write-Error "[ERROR] Could not find conda installation."
     exit 1
