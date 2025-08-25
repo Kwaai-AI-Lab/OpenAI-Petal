@@ -166,9 +166,20 @@ check_system_deps() {
         PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
         PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
         
-        if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 8 ]); then
-            echo "⚠️ Python $PYTHON_VERSION found, but Python 3.8+ is required"
-            missing_commands+=("python3 (3.8+)")
+        if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 7 ]); then
+            echo "⚠️ Python $PYTHON_VERSION found, but Python 3.7+ is required"
+            missing_commands+=("python3 (3.7+)")
+        elif [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -eq 7 ]; then
+            echo "⚠️ Python 3.7 detected. This may not be compatible with all dependencies."
+            echo "   Modern ML libraries (transformers, pytorch) typically require Python 3.8+."
+            echo "   The installer will try to continue but may fail during package installation."
+            echo ""
+            read -p "   Continue anyway? [y/N]: " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                echo "Installation cancelled. Please upgrade to Python 3.8+ for best compatibility."
+                exit 1
+            fi
         fi
     fi
     
@@ -205,7 +216,7 @@ install_system_deps() {
     if ! command_exists sudo && [ "$EUID" -ne 0 ]; then
         echo "❌ Error: System packages need to be installed but sudo is not available."
         echo "Please install the missing dependencies manually or run as root."
-        echo "Required: curl, wget, git, python3 (3.8+), python3-pip, build tools"
+        echo "Required: curl, wget, git, python3 (3.7+), python3-pip, build tools"
         exit 1
     fi
     
@@ -558,10 +569,32 @@ fi
 
 # Install compatible versions of transformers and huggingface_hub
 echo "📦 Installing compatible transformers and huggingface_hub versions..."
-if $PIP_EXEC install "transformers==4.43.1" "huggingface_hub>=0.20.0"; then
-    echo "✅ Successfully installed compatible transformers and huggingface_hub"
+
+# Check Python version for compatibility
+PYTHON_VERSION=$(python3 -c "import sys; print('.'.join(map(str, sys.version_info[:2])))" 2>/dev/null || echo "0.0")
+PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
+PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
+
+if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -eq 7 ]; then
+    echo "📦 Using Python 3.7 compatible versions..."
+    # Try transformers 4.21.3 which was the last version with good Python 3.7 support
+    if $PIP_EXEC install "transformers==4.21.3" "huggingface_hub>=0.8.0,<0.20.0"; then
+        echo "✅ Successfully installed Python 3.7 compatible transformers and huggingface_hub"
+    else
+        echo "⚠️ Failed to install Python 3.7 compatible versions. Trying default versions..."
+        if $PIP_EXEC install "transformers==4.43.1" "huggingface_hub>=0.20.0"; then
+            echo "✅ Successfully installed default transformers and huggingface_hub"
+        else
+            echo "⚠️ Failed to install transformers/huggingface_hub. May have compatibility issues..."
+        fi
+    fi
 else
-    echo "⚠️ Failed to install transformers/huggingface_hub. May have compatibility issues..."
+    # Python 3.8+ - use the secure version
+    if $PIP_EXEC install "transformers==4.43.1" "huggingface_hub>=0.20.0"; then
+        echo "✅ Successfully installed compatible transformers and huggingface_hub"
+    else
+        echo "⚠️ Failed to install transformers/huggingface_hub. May have compatibility issues..."
+    fi
 fi
 
 # Install from the local development version

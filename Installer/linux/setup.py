@@ -34,15 +34,16 @@ setup(
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
         "Topic :: System :: Distributed Computing",
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.7",
     install_requires=[
         "PyYAML>=6.0.2",  # Security fixes
         "petals>=2.2.0",
-        "torch>=2.0.0",
-        "transformers==4.43.1",  # Secure version compatible with Petals
-        "accelerate>=0.25.0",  # Latest stable with improvements
-        "requests>=2.32.0",  # Security fixes
-        "tqdm>=4.66.0",  # Latest stable
+        "torch>=1.12.0",  # Broader compatibility for older Python
+        'transformers==4.21.3; python_version=="3.7"',  # Python 3.7 compatible
+        'transformers==4.43.1; python_version>="3.8"',  # Secure version for Python 3.8+
+        "accelerate>=0.20.0",  # Broader compatibility
+        "requests>=2.28.0",  # Security fixes with broader compatibility
+        "tqdm>=4.64.0",  # Stable version
     ],
     extras_require={
         "cuda": [
