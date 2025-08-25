@@ -566,17 +566,34 @@ if [ "$PYTHON_METHOD" = "conda" ]; then
         fi
     fi
     
-    # Activate environment (ensure conda is initialized first)
+    # Determine conda installation path
+    CONDA_BASE=""
+    if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
+        CONDA_BASE="$HOME/miniconda3"
+    elif [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then
+        CONDA_BASE="$HOME/anaconda3"
+    elif command_exists conda; then
+        # Try to find conda base from existing installation
+        CONDA_BASE=$(conda info --base 2>/dev/null || dirname $(dirname $(which conda)) 2>/dev/null)
+    fi
+    
+    if [ -z "$CONDA_BASE" ] || [ ! -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
+        echo "❌ Error: Cannot find conda installation or conda.sh script"
+        exit 1
+    fi
+    
+    echo "ℹ️ Using conda installation at: $CONDA_BASE"
+    
+    # Source conda for current session
+    . "$CONDA_BASE/etc/profile.d/conda.sh"
+    
+    # Activate environment
     if ! conda activate kwaainet 2>/dev/null; then
-        echo "⚠️ Conda not initialized properly. Initializing conda..."
-        conda init bash
-        conda init zsh 2>/dev/null || true
-        # Source conda for current session
-        if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
-            . "$HOME/miniconda3/etc/profile.d/conda.sh"
-        elif [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then
-            . "$HOME/anaconda3/etc/profile.d/conda.sh"
-        fi
+        echo "⚠️ Failed to activate kwaainet environment. Re-initializing conda..."
+        "$CONDA_BASE/bin/conda" init bash
+        "$CONDA_BASE/bin/conda" init zsh 2>/dev/null || true
+        # Re-source conda
+        . "$CONDA_BASE/etc/profile.d/conda.sh"
         conda activate kwaainet
     fi
     PYTHON_EXEC="python"
@@ -745,25 +762,33 @@ if [ "$PYTHON_METHOD" = "conda" ]; then
 #!/bin/bash
 # KwaaiNet Launcher - Run KwaaiNet without having to activate conda first
 
-# Find conda installation
-if command -v conda >/dev/null 2>&1; then
-    CONDA_PATH=$(dirname $(dirname $(which conda)))
-elif [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
+# Find conda installation (prioritize user installations over system)
+CONDA_PATH=""
+if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
     CONDA_PATH="$HOME/miniconda3"
 elif [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then
     CONDA_PATH="$HOME/anaconda3"
-else
-    echo "❌ Error: Could not find conda installation."
+elif command -v conda >/dev/null 2>&1; then
+    # Try to get conda base, but verify it has conda.sh
+    POTENTIAL_PATH=$(conda info --base 2>/dev/null)
+    if [ -n "$POTENTIAL_PATH" ] && [ -f "$POTENTIAL_PATH/etc/profile.d/conda.sh" ]; then
+        CONDA_PATH="$POTENTIAL_PATH"
+    else
+        # Fallback to directory detection
+        CONDA_PATH=$(dirname $(dirname $(which conda)) 2>/dev/null)
+    fi
+fi
+
+if [ -z "$CONDA_PATH" ] || [ ! -f "$CONDA_PATH/etc/profile.d/conda.sh" ]; then
+    echo "❌ Error: Could not find conda installation with conda.sh script."
+    echo "Expected locations:"
+    echo "  - $HOME/miniconda3/etc/profile.d/conda.sh"
+    echo "  - $HOME/anaconda3/etc/profile.d/conda.sh"
     exit 1
 fi
 
 # Source conda without changing the prompt
-if [ -f "$CONDA_PATH/etc/profile.d/conda.sh" ]; then
-    source "$CONDA_PATH/etc/profile.d/conda.sh"
-else
-    echo "❌ Error: Could not find conda.sh in $CONDA_PATH"
-    exit 1
-fi
+source "$CONDA_PATH/etc/profile.d/conda.sh"
 
 # Activate the environment and run the command
 conda activate kwaainet && python -m kwaainet.runner "$@"
@@ -836,10 +861,18 @@ fi
 # Run initial setup
 echo "⚙️ Running initial setup..."
 if [ "$PYTHON_METHOD" = "conda" ]; then
-    if conda activate kwaainet 2>/dev/null; then
-        python -m kwaainet.runner setup 2>/dev/null || {
-            echo "⚠️ Initial setup failed. You may need to run 'kwaainet setup' manually."
-        }
+    # Ensure conda is sourced and environment is active
+    if [ -n "$CONDA_BASE" ] && [ -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
+        . "$CONDA_BASE/etc/profile.d/conda.sh"
+        if conda activate kwaainet 2>/dev/null; then
+            python -m kwaainet.runner setup 2>/dev/null || {
+                echo "⚠️ Initial setup failed. You may need to run 'kwaainet setup' manually."
+            }
+        else
+            "$LAUNCHER_PATH" setup 2>/dev/null || {
+                echo "⚠️ Initial setup failed. You may need to run 'kwaainet setup' manually."
+            }
+        fi
     else
         "$LAUNCHER_PATH" setup 2>/dev/null || {
             echo "⚠️ Initial setup failed. You may need to run 'kwaainet setup' manually."
