@@ -568,8 +568,10 @@ fi
 INSTALLER_DIR="$(dirname "$0")"
 if [ -d "$INSTALLER_DIR/linux" ]; then
     echo "📦 Installing from local development version..."
-    if ! $PIP_EXEC install -e "$INSTALLER_DIR/linux/" 2>/dev/null; then
-        echo "⚠️ Failed to install local development version. Installing dependencies only..."
+    if $PIP_EXEC install -e "$INSTALLER_DIR/linux/" 2>/dev/null; then
+        echo "✅ KwaaiNet Linux package installed successfully (local development version)"
+    else
+        echo "⚠️ Failed to install local development version. Installing from GitHub..."
         echo "📦 Installing PyTorch (CPU version)..."
         echo "   This may take a few minutes to download..."
         if $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
@@ -578,15 +580,35 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
             echo "❌ Failed to install PyTorch. Please check your internet connection."
             exit 1
         fi
+        
+        # Install KwaaiNet Linux package from GitHub as fallback
+        echo "📦 Installing KwaaiNet Linux package from GitHub..."
+        if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux" 2>/dev/null; then
+            echo "✅ KwaaiNet Linux package installed successfully"
+        else
+            echo "❌ Failed to install KwaaiNet Linux package from GitHub"
+            echo "Please check your internet connection and try again."
+            exit 1
+        fi
     fi
 else
-    echo "⚠️ Local development version not found. Please build the Linux package first."
+    echo "⚠️ Local development version not found. Installing from GitHub repository..."
     echo "📦 Installing PyTorch dependencies..."
     echo "   This may take a few minutes to download..."
     if $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
         echo "✅ PyTorch installed successfully"
     else
         echo "❌ Failed to install PyTorch. Please check your internet connection."
+        exit 1
+    fi
+    
+    # Install KwaaiNet Linux package from GitHub
+    echo "📦 Installing KwaaiNet Linux package..."
+    if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux" 2>/dev/null; then
+        echo "✅ KwaaiNet Linux package installed successfully"
+    else
+        echo "❌ Failed to install KwaaiNet Linux package from GitHub"
+        echo "Please check your internet connection and try again."
         exit 1
     fi
 fi
