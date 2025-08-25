@@ -9,6 +9,7 @@ set -e  # Exit on error
 SKIP_SYSTEM_PACKAGES=false
 FORCE_CONDA=false
 FORCE_VENV=false
+NO_BUILD_TOOLS=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -24,12 +25,17 @@ while [[ $# -gt 0 ]]; do
             FORCE_VENV=true
             shift
             ;;
+        --no-build-tools)
+            NO_BUILD_TOOLS=true
+            shift
+            ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
             echo "Options:"
             echo "  --no-system-packages  Skip system package installation (assumes all dependencies are available)"
             echo "  --force-conda         Force using conda environment instead of auto-detection"
             echo "  --force-venv          Force using virtual environment instead of auto-detection"
+            echo "  --no-build-tools      Skip packages requiring build tools, use pre-built wheels only"
             echo "  --help, -h            Show this help message"
             exit 0
             ;;
@@ -141,25 +147,26 @@ check_root() {
 check_system_deps() {
     echo "🔍 Checking system dependencies..."
     
-    local missing_packages=()
-    local missing_commands=()
+    local missing_essential=()
+    local missing_optional=()
+    local missing_build=()
     
     # Check essential commands
     if ! command_exists curl; then
-        missing_commands+=("curl")
+        missing_essential+=("curl")
     fi
     
     if ! command_exists wget; then
-        missing_commands+=("wget")
+        missing_essential+=("wget") 
     fi
     
     if ! command_exists git; then
-        missing_commands+=("git")
+        missing_essential+=("git")
     fi
     
     # Check Python 3
     if ! command_exists python3; then
-        missing_commands+=("python3")
+        missing_essential+=("python3")
     else
         # Check Python version
         PYTHON_VERSION=$(python3 -c "import sys; print('.'.join(map(str, sys.version_info[:2])))" 2>/dev/null || echo "0.0")
@@ -168,7 +175,7 @@ check_system_deps() {
         
         if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 7 ]); then
             echo "⚠️ Python $PYTHON_VERSION found, but Python 3.7+ is required"
-            missing_commands+=("python3 (3.7+)")
+            missing_essential+=("python3 (3.7+)")
         elif [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -eq 7 ]; then
             echo "⚠️ Python 3.7 detected. This may not be compatible with all dependencies."
             echo "   Modern ML libraries (transformers, pytorch) typically require Python 3.8+."
@@ -185,20 +192,41 @@ check_system_deps() {
     
     # Check pip
     if ! command_exists pip3 && ! python3 -m pip --version >/dev/null 2>&1; then
-        missing_commands+=("pip3")
+        missing_essential+=("pip3")
     fi
     
-    # Check build tools
-    if ! command_exists gcc && ! command_exists clang; then
-        missing_commands+=("build tools (gcc/clang)")
+    # Check build tools (can potentially be handled by conda or skipped)
+    if [ "$NO_BUILD_TOOLS" = true ]; then
+        echo "ℹ️ Skipping build tools check (--no-build-tools flag)"
+    elif ! command_exists gcc && ! command_exists clang; then
+        missing_build+=("build tools (gcc/clang)")
     fi
     
-    if [ ${#missing_commands[@]} -eq 0 ]; then
-        echo "✅ All required dependencies are available"
-        return 0
+    # Check development headers (needed for some Python packages)
+    if ! python3 -c "import sysconfig; import os; print(os.path.exists(sysconfig.get_path('include')))" 2>/dev/null | grep -q True; then
+        missing_optional+=("python3-dev headers")
+    fi
+    
+    # Set global variables for different dependency types
+    export MISSING_ESSENTIAL=("${missing_essential[@]}")
+    export MISSING_BUILD=("${missing_build[@]}")  
+    export MISSING_OPTIONAL=("${missing_optional[@]}")
+    
+    if [ ${#missing_essential[@]} -eq 0 ]; then
+        if [ ${#missing_build[@]} -gt 0 ] || [ ${#missing_optional[@]} -gt 0 ]; then
+            echo "✅ Essential dependencies available"
+            [ ${#missing_build[@]} -gt 0 ] && echo "⚠️ Missing build tools: ${missing_build[*]} (can be provided by conda)"
+            [ ${#missing_optional[@]} -gt 0 ] && echo "⚠️ Missing optional: ${missing_optional[*]}"
+            return 2  # Partial success - essential OK, build tools missing
+        else
+            echo "✅ All dependencies are available"
+            return 0  # Full success
+        fi
     else
-        echo "⚠️ Missing dependencies: ${missing_commands[*]}"
-        return 1
+        echo "❌ Missing essential dependencies: ${missing_essential[*]}"
+        [ ${#missing_build[@]} -gt 0 ] && echo "❌ Missing build tools: ${missing_build[*]}"
+        [ ${#missing_optional[@]} -gt 0 ] && echo "⚠️ Missing optional: ${missing_optional[*]}"
+        return 1  # Failure
     fi
 }
 
@@ -206,18 +234,40 @@ check_system_deps() {
 install_system_deps() {
     echo "📦 Installing system dependencies..."
     
-    # First check if we need to install anything
-    if check_system_deps; then
+    # Check what we need to install
+    check_system_deps
+    local dep_status=$?
+    
+    if [ $dep_status -eq 0 ]; then
         echo "✅ System dependencies already satisfied"
+        return 0
+    elif [ $dep_status -eq 2 ]; then
+        echo "ℹ️ Essential dependencies satisfied, build tools missing"
+        echo "ℹ️ Will use conda to provide build tools and avoid sudo"
+        export FORCE_CONDA_FOR_BUILD_TOOLS=true
         return 0
     fi
     
-    # Check if we have sudo access
-    if ! command_exists sudo && [ "$EUID" -ne 0 ]; then
-        echo "❌ Error: System packages need to be installed but sudo is not available."
-        echo "Please install the missing dependencies manually or run as root."
-        echo "Required: curl, wget, git, python3 (3.7+), python3-pip, build tools"
-        exit 1
+    # Only need sudo if essential packages are missing
+    if [ ${#MISSING_ESSENTIAL[@]} -gt 0 ]; then
+        if ! command_exists sudo && [ "$EUID" -ne 0 ]; then
+            echo "❌ Error: Essential system packages need to be installed but sudo is not available."
+            echo "Please install the missing essential dependencies manually or run as root."
+            echo "Required: ${MISSING_ESSENTIAL[*]}"
+            echo ""
+            echo "Alternatively, install these packages manually:"
+            case $DISTRO_FAMILY in
+                debian) echo "  sudo apt update && sudo apt install ${MISSING_ESSENTIAL[*]// / }" ;;
+                redhat) echo "  sudo yum install ${MISSING_ESSENTIAL[*]// / }" ;;
+                arch) echo "  sudo pacman -S ${MISSING_ESSENTIAL[*]// / }" ;;
+                suse) echo "  sudo zypper install ${MISSING_ESSENTIAL[*]// / }" ;;
+            esac
+            exit 1
+        fi
+    else
+        echo "ℹ️ Only build tools are missing - will use conda to provide them"
+        export FORCE_CONDA_FOR_BUILD_TOOLS=true
+        return 0
     fi
     
     case $DISTRO_FAMILY in
@@ -380,8 +430,12 @@ choose_python_method() {
     
     PYTHON_METHOD=""
     
-    # Check command line flags first
-    if [ "$FORCE_VENV" = true ]; then
+    # Check if we need conda for build tools (to avoid sudo)
+    if [ "${FORCE_CONDA_FOR_BUILD_TOOLS:-}" = "true" ]; then
+        PYTHON_METHOD="conda"
+        echo "ℹ️ Using conda to provide build tools and avoid sudo requirements"
+    # Check command line flags
+    elif [ "$FORCE_VENV" = true ]; then
         PYTHON_METHOD="system"
         echo "ℹ️ Using virtual environment (--force-venv)"
     elif [ "$FORCE_CONDA" = true ]; then
@@ -495,10 +549,21 @@ if [ "$PYTHON_METHOD" = "conda" ]; then
     # Create environment
     echo "⚙️ Setting up KwaaiNet conda environment..."
     if ! conda info --envs | grep -q kwaainet; then
-        conda create -y -n kwaainet python=3.10
-        echo "✅ Created Python 3.10 environment for KwaaiNet"
+        if [ "${FORCE_CONDA_FOR_BUILD_TOOLS:-}" = "true" ]; then
+            echo "📦 Installing build tools via conda to avoid sudo requirements..."
+            conda create -y -n kwaainet python=3.10 gcc_linux-64 gxx_linux-64 make
+            echo "✅ Created Python 3.10 environment with build tools for KwaaiNet"
+        else
+            conda create -y -n kwaainet python=3.10
+            echo "✅ Created Python 3.10 environment for KwaaiNet"
+        fi
     else
         echo "✅ Using existing kwaainet environment"
+        # Add build tools if needed and missing
+        if [ "${FORCE_CONDA_FOR_BUILD_TOOLS:-}" = "true" ]; then
+            echo "📦 Adding build tools to existing conda environment..."
+            conda install -y -n kwaainet gcc_linux-64 gxx_linux-64 make || echo "⚠️ Some build tools may already be installed"
+        fi
     fi
     
     # Activate environment (ensure conda is initialized first)
@@ -549,21 +614,37 @@ $PIP_EXEC install pyyaml &>/dev/null || {
     echo "⚠️ Failed to install pyyaml. Continuing..."
 }
 
-# Install updated petals with rope_scaling support
-echo "📦 Installing Petals 2.3.0.dev2 with rope_scaling support..."
-echo "   This may take several minutes as it builds from source..."
-
-# Try to install with progress bar, fallback to verbose if progress bar not supported
-if $PIP_EXEC install git+https://github.com/bigscience-workshop/petals.git 2>/dev/null; then
-    echo "✅ Petals installed successfully from git"
-elif $PIP_EXEC install git+https://github.com/bigscience-workshop/petals.git -v 2>/dev/null; then
-    echo "✅ Petals installed successfully from git (verbose mode)"
-else
-    echo "⚠️ Failed to install petals from git. Trying fallback installation..."
-    if $PIP_EXEC install petals 2>/dev/null || $PIP_EXEC install petals -v; then
-        echo "✅ Petals installed from PyPI"
+# Install Petals
+if [ "$NO_BUILD_TOOLS" = true ]; then
+    echo "📦 Installing Petals from PyPI (pre-built wheels only)..."
+    if $PIP_EXEC install petals --only-binary=all 2>/dev/null; then
+        echo "✅ Petals installed from PyPI (pre-built)"
     else
-        echo "⚠️ Failed to install petals. Continuing with local installation..."
+        echo "⚠️ No pre-built Petals available. Trying regular PyPI installation..."
+        if $PIP_EXEC install petals 2>/dev/null; then
+            echo "✅ Petals installed from PyPI"
+        else
+            echo "❌ Failed to install Petals without build tools"
+            echo "Try running without --no-build-tools or install build dependencies manually"
+            exit 1
+        fi
+    fi
+else
+    echo "📦 Installing Petals 2.3.0.dev2 with rope_scaling support..."
+    echo "   This may take several minutes as it builds from source..."
+
+    # Try to install with progress bar, fallback to verbose if progress bar not supported
+    if $PIP_EXEC install git+https://github.com/bigscience-workshop/petals.git 2>/dev/null; then
+        echo "✅ Petals installed successfully from git"
+    elif $PIP_EXEC install git+https://github.com/bigscience-workshop/petals.git -v 2>/dev/null; then
+        echo "✅ Petals installed successfully from git (verbose mode)"
+    else
+        echo "⚠️ Failed to install petals from git. Trying fallback installation..."
+        if $PIP_EXEC install petals 2>/dev/null || $PIP_EXEC install petals -v; then
+            echo "✅ Petals installed from PyPI"
+        else
+            echo "⚠️ Failed to install petals. Continuing with local installation..."
+        fi
     fi
 fi
 
@@ -575,14 +656,21 @@ PYTHON_VERSION=$(python3 -c "import sys; print('.'.join(map(str, sys.version_inf
 PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
 PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
 
+# Add --only-binary flag if no build tools
+BINARY_FLAG=""
+if [ "$NO_BUILD_TOOLS" = true ]; then
+    BINARY_FLAG="--only-binary=all"
+    echo "ℹ️ Using pre-built wheels only (--no-build-tools)"
+fi
+
 if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -eq 7 ]; then
     echo "📦 Using Python 3.7 compatible versions..."
     # Try transformers 4.21.3 which was the last version with good Python 3.7 support
-    if $PIP_EXEC install "transformers==4.21.3" "huggingface_hub>=0.8.0,<0.20.0"; then
+    if $PIP_EXEC install $BINARY_FLAG "transformers==4.21.3" "huggingface_hub>=0.8.0,<0.20.0"; then
         echo "✅ Successfully installed Python 3.7 compatible transformers and huggingface_hub"
     else
         echo "⚠️ Failed to install Python 3.7 compatible versions. Trying default versions..."
-        if $PIP_EXEC install "transformers==4.43.1" "huggingface_hub>=0.20.0"; then
+        if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "huggingface_hub>=0.20.0"; then
             echo "✅ Successfully installed default transformers and huggingface_hub"
         else
             echo "⚠️ Failed to install transformers/huggingface_hub. May have compatibility issues..."
@@ -590,7 +678,7 @@ if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -eq 7 ]; then
     fi
 else
     # Python 3.8+ - use the secure version
-    if $PIP_EXEC install "transformers==4.43.1" "huggingface_hub>=0.20.0"; then
+    if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "huggingface_hub>=0.20.0"; then
         echo "✅ Successfully installed compatible transformers and huggingface_hub"
     else
         echo "⚠️ Failed to install transformers/huggingface_hub. May have compatibility issues..."
@@ -607,7 +695,7 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
         echo "⚠️ Failed to install local development version. Installing from GitHub..."
         echo "📦 Installing PyTorch (CPU version)..."
         echo "   This may take a few minutes to download..."
-        if $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
+        if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
             echo "✅ PyTorch installed successfully"
         else
             echo "❌ Failed to install PyTorch. Please check your internet connection."
@@ -628,7 +716,7 @@ else
     echo "⚠️ Local development version not found. Installing from GitHub repository..."
     echo "📦 Installing PyTorch dependencies..."
     echo "   This may take a few minutes to download..."
-    if $PIP_EXEC install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
+    if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
         echo "✅ PyTorch installed successfully"
     else
         echo "❌ Failed to install PyTorch. Please check your internet connection."
