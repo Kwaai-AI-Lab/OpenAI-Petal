@@ -104,7 +104,7 @@ function Get-SystemInfo {
         }
         
         # Check architecture
-        if ($architecture -notmatch "(x64|ARM64)") {
+        if ($architecture -notmatch "x64" -and $architecture -notmatch "ARM64") {
             Write-ErrorMessage "64-bit Windows is required. Found: $architecture"
             exit 1
         }
@@ -633,7 +633,7 @@ if (Get-Command conda -ErrorAction SilentlyContinue) {
 } elseif (Test-Path (Join-Path $env:USERPROFILE "Anaconda3\Scripts\conda.exe")) {
     $condaPath = Join-Path $env:USERPROFILE "Anaconda3"
 } else {
-    Write-Error "❌ Error: Could not find conda installation."
+    Write-Error "[ERROR] Could not find conda installation."
     exit 1
 }
 
@@ -663,7 +663,7 @@ REM KwaaiNet Launcher - Run KwaaiNet from virtual environment
 set VENV_PATH=$venvPath
 
 if not exist "%VENV_PATH%" (
-    echo ❌ Error: KwaaiNet virtual environment not found at %VENV_PATH%
+    echo [ERROR] KwaaiNet virtual environment not found at %VENV_PATH%
     exit /b 1
 )
 
@@ -681,7 +681,7 @@ param([Parameter(ValueFromRemainingArguments)]`$Args)
 `$venvPath = "$venvPath"
 
 if (-not (Test-Path `$venvPath)) {
-    Write-Error "❌ Error: KwaaiNet virtual environment not found at `$venvPath"
+    Write-Error "[ERROR] KwaaiNet virtual environment not found at `$venvPath"
     exit 1
 }
 
@@ -808,7 +808,7 @@ function Start-Installation {
         
         Write-Host ""
         Write-Host "==========================================================" -ForegroundColor Green
-        Write-Host "✅ KwaaiNet for Windows installation completed!" -ForegroundColor Green
+        Write-Host "[SUCCESS] KwaaiNet for Windows installation completed!" -ForegroundColor Green
         Write-Host ""
         Write-Host "🔧 Configuration detected:" -ForegroundColor White
         Write-Host "   - OS: $($systemInfo.OSName)" -ForegroundColor White
