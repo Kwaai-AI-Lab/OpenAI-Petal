@@ -576,6 +576,114 @@ add_line_if_not_exists() {
     return 1
 }
 
+# Function to configure CUDA library paths for bitsandbytes
+configure_cuda_paths() {
+    echo "🔧 Configuring CUDA library paths for bitsandbytes..."
+    
+    # Only configure for NVIDIA GPUs
+    if [ "$GPU_TYPE" != "nvidia" ]; then
+        echo "ℹ️ No NVIDIA GPU detected, skipping CUDA configuration"
+        return 0
+    fi
+    
+    # Common CUDA library locations to search
+    CUDA_SEARCH_PATHS=(
+        "/usr/local/cuda*/lib64"
+        "/usr/local/cuda/lib64"
+        "/opt/cuda*/lib64"
+        "/usr/lib/x86_64-linux-gnu"
+        "/usr/lib64"
+        "/lib/x86_64-linux-gnu"
+        "/lib64"
+        "$HOME/.conda/envs/*/lib"
+        "$HOME/miniconda3/envs/*/lib"
+        "$HOME/anaconda3/envs/*/lib"
+    )
+    
+    CUDA_LIBS_FOUND=()
+    echo "🔍 Searching for CUDA libraries..."
+    
+    # Search for libcudart.so
+    for search_path in "${CUDA_SEARCH_PATHS[@]}"; do
+        # Handle wildcards in paths
+        for expanded_path in $search_path; do
+            if [ -d "$expanded_path" ]; then
+                if find "$expanded_path" -name "libcudart.so*" -type f 2>/dev/null | head -1 | read -r lib_path; then
+                    LIB_DIR=$(dirname "$lib_path")
+                    # Add to array if not already present
+                    if [[ ! " ${CUDA_LIBS_FOUND[@]} " =~ " ${LIB_DIR} " ]]; then
+                        CUDA_LIBS_FOUND+=("$LIB_DIR")
+                        echo "✅ Found CUDA libraries in: $LIB_DIR"
+                    fi
+                fi
+            fi
+        done
+    done
+    
+    # If no CUDA libraries found, provide guidance
+    if [ ${#CUDA_LIBS_FOUND[@]} -eq 0 ]; then
+        echo "⚠️ No CUDA libraries found. bitsandbytes may not work with GPU acceleration."
+        echo "   To fix this issue:"
+        echo "   1. Install CUDA toolkit: https://developer.nvidia.com/cuda-downloads"
+        echo "   2. Or use conda-forge CUDA packages: 'conda install cuda -c conda-forge'"
+        echo "   3. Then run: 'find / -name libcudart.so* 2>/dev/null'"
+        echo "   4. Add the directory to LD_LIBRARY_PATH manually"
+        return 1
+    fi
+    
+    # Create LD_LIBRARY_PATH export string
+    CUDA_PATHS_STR=""
+    for lib_path in "${CUDA_LIBS_FOUND[@]}"; do
+        if [ -z "$CUDA_PATHS_STR" ]; then
+            CUDA_PATHS_STR="$lib_path"
+        else
+            CUDA_PATHS_STR="$CUDA_PATHS_STR:$lib_path"
+        fi
+    done
+    
+    # Update shell configuration files
+    echo "📝 Adding CUDA library paths to shell configuration..."
+    
+    # Get shell configuration files
+    SHELL_FILES=(
+        "$HOME/.zshrc"
+        "$HOME/.bashrc" 
+        "$HOME/.bash_profile"
+        "$HOME/.profile"
+    )
+    
+    CUDA_EXPORT_LINE="export LD_LIBRARY_PATH=\"\$LD_LIBRARY_PATH:$CUDA_PATHS_STR\""
+    CUDA_UPDATED=false
+    
+    for rc_file in "${SHELL_FILES[@]}"; do
+        if [ -f "$rc_file" ]; then
+            # Check if any LD_LIBRARY_PATH line contains our CUDA paths
+            if ! grep -q "LD_LIBRARY_PATH.*$(echo "$CUDA_PATHS_STR" | head -c 20)" "$rc_file"; then
+                echo "📝 Adding CUDA paths to $rc_file"
+                add_line_if_not_exists "$rc_file" "$CUDA_EXPORT_LINE" "# CUDA library paths for bitsandbytes (added by KwaaiNet installer)"
+                CUDA_UPDATED=true
+            else
+                echo "✅ CUDA paths already configured in $rc_file"
+            fi
+        fi
+    done
+    
+    # If path wasn't in any existing file, create/update the default for current shell
+    if [ "$CUDA_UPDATED" = false ]; then
+        SHELL_RC=$(ensure_shell_config)
+        echo "📝 Adding CUDA paths to $SHELL_RC (default)"
+        add_line_if_not_exists "$SHELL_RC" "$CUDA_EXPORT_LINE" "# CUDA library paths for bitsandbytes (added by KwaaiNet installer)"
+    fi
+    
+    # Update current session LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$CUDA_PATHS_STR"
+    
+    echo "✅ CUDA library paths configured successfully"
+    echo "   Added paths: $CUDA_PATHS_STR"
+    
+    return 0
+}
+
 # Main installation flow starts here
 echo "🔍 Detecting system configuration..."
 
@@ -893,6 +1001,9 @@ else
     fi
 fi
 
+# Configure CUDA library paths for bitsandbytes (NVIDIA GPUs only)
+configure_cuda_paths
+
 # Create launcher script for one-step execution
 echo "🚀 Creating launcher script..."
 LAUNCHER_PATH="$HOME/.local/bin/kwaainet"
@@ -932,6 +1043,27 @@ fi
 # Source conda without changing the prompt
 source "$CONDA_PATH/etc/profile.d/conda.sh"
 
+# Configure CUDA library paths for bitsandbytes if not already set
+if command -v nvidia-smi >/dev/null 2>&1; then
+    # Search for CUDA libraries in common locations
+    CUDA_PATHS=""
+    for search_path in "/usr/local/cuda*/lib64" "/usr/local/cuda/lib64" "/opt/cuda*/lib64" "/usr/lib/x86_64-linux-gnu" "/usr/lib64" "$CONDA_PATH/envs/kwaainet/lib"; do
+        for expanded_path in $search_path; do
+            if [ -d "$expanded_path" ] && find "$expanded_path" -name "libcudart.so*" -type f >/dev/null 2>&1; then
+                if [ -z "$CUDA_PATHS" ]; then
+                    CUDA_PATHS="$expanded_path"
+                else
+                    CUDA_PATHS="$CUDA_PATHS:$expanded_path"
+                fi
+            fi
+        done
+    done
+    
+    if [ -n "$CUDA_PATHS" ]; then
+        export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$CUDA_PATHS"
+    fi
+fi
+
 # Activate the environment and run the command
 conda activate kwaainet && python -m kwaainet.runner "$@"
 EOF
@@ -948,6 +1080,27 @@ VENV_PATH="$VENV_PATH"
 if [ ! -d "\$VENV_PATH" ]; then
     echo "❌ Error: KwaaiNet virtual environment not found at \$VENV_PATH"
     exit 1
+fi
+
+# Configure CUDA library paths for bitsandbytes if not already set
+if command -v nvidia-smi >/dev/null 2>&1; then
+    # Search for CUDA libraries in common locations
+    CUDA_PATHS=""
+    for search_path in "/usr/local/cuda*/lib64" "/usr/local/cuda/lib64" "/opt/cuda*/lib64" "/usr/lib/x86_64-linux-gnu" "/usr/lib64"; do
+        for expanded_path in \$search_path; do
+            if [ -d "\$expanded_path" ] && find "\$expanded_path" -name "libcudart.so*" -type f >/dev/null 2>&1; then
+                if [ -z "\$CUDA_PATHS" ]; then
+                    CUDA_PATHS="\$expanded_path"
+                else
+                    CUDA_PATHS="\$CUDA_PATHS:\$expanded_path"
+                fi
+            fi
+        done
+    done
+    
+    if [ -n "\$CUDA_PATHS" ]; then
+        export LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:\$CUDA_PATHS"
+    fi
 fi
 
 # Activate virtual environment and run the command
@@ -1039,6 +1192,14 @@ echo "📝 Next steps:"
 echo "   1. Complete the Python package installation"
 echo "   2. Set up launcher scripts"
 echo "   3. Configure GPU acceleration (if available)"
+if [ "$GPU_TYPE" = "nvidia" ]; then
+echo ""
+echo "🔧 NVIDIA GPU detected - CUDA library paths have been configured."
+echo "   If you encounter bitsandbytes CUDA errors:"
+echo "   1. Restart your shell or run: source ~/.bashrc"
+echo "   2. Verify CUDA installation: nvidia-smi"
+echo "   3. Check library paths: echo \$LD_LIBRARY_PATH"
+fi
 echo ""
 echo "📚 For more information, visit: https://github.com/Kwaai-AI-Lab/OpenAI-Petal"
 echo "=========================================================="
