@@ -366,28 +366,23 @@ function Install-Conda {
 function Setup-CondaEnvironment {
     Write-Step "Setting up KwaaiNet conda environment..."
     
-    try {
-        # Check if environment already exists
-        $envList = & conda env list 2>$null
-        if ($envList -match "kwaainet") {
-            Write-Success "Using existing kwaainet conda environment"
-        }
-        else {
-            Write-Info "Creating Python 3.10 environment for KwaaiNet..."
-            & conda create -y -n kwaainet python=3.10 2>$null
-            if ($LASTEXITCODE -ne 0) {
-                Write-ErrorMessage "Failed to create conda environment"
-                exit 1
-            }
-            Write-Success "Created Python 3.10 environment for KwaaiNet"
-        }
-        
-        Write-Success "Conda environment setup complete"
+    # Check if environment already exists
+    $envList = & conda env list 2>$null
+    if ($envList -match "kwaainet") {
+        Write-Success "Using existing kwaainet conda environment"
     }
-    catch {
-        Write-ErrorMessage "Failed to setup conda environment: $($_.Exception.Message)"
-        exit 1
+    else {
+        Write-Info "Creating Python 3.10 environment for KwaaiNet..."
+        $condaOutput = & conda create -y -n kwaainet python=3.10 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-ErrorMessage "Failed to create conda environment"
+            Write-ErrorMessage "Conda output: $condaOutput"
+            exit 1
+        }
+        Write-Success "Created Python 3.10 environment for KwaaiNet"
     }
+    
+    Write-Success "Conda environment setup complete"
 }
 
 # Function to setup system Python with virtual environment
