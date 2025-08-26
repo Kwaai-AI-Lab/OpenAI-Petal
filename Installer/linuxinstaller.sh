@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.1.2"
+INSTALLER_VERSION="0.1.3"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false

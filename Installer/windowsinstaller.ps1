@@ -5,7 +5,7 @@
 #Requires -Version 5.1
 
 # Installer version
-$script:InstallerVersion = "0.1.2"
+$script:InstallerVersion = "0.1.3"
 
 param(
     [switch]$UseSystemPython,
