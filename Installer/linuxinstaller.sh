@@ -1,9 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer
+# KwaaiNet for Linux - One-Step Installer v0.1
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
+
+# Installer version
+INSTALLER_VERSION="0.1"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -48,7 +51,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "=========================================================="
-echo "KwaaiNet for Linux - One-Step Installer"
+echo "KwaaiNet for Linux - One-Step Installer v$INSTALLER_VERSION"
 echo "=========================================================="
 echo "This installer will set up KwaaiNet for sharing compute on Linux"
 echo "It includes Python setup, dependencies, and environment configuration"

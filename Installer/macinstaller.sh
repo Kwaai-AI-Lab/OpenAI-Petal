@@ -1,12 +1,15 @@
 #!/bin/bash
 
-# KwaaiNet for Mac - One-Step Installer
+# KwaaiNet for Mac - One-Step Installer v0.1
 # This script handles the entire installation process for KwaaiNet on macOS
 
 set -e  # Exit on error
 
+# Installer version
+INSTALLER_VERSION="0.1"
+
 echo "=========================================================="
-echo "KwaaiNet for Mac - One-Step Installer"
+echo "KwaaiNet for Mac - One-Step Installer v$INSTALLER_VERSION"
 echo "=========================================================="
 echo "This installer will set up KwaaiNet for sharing compute on macOS"
 echo "It includes Python setup, dependencies, and environment configuration"

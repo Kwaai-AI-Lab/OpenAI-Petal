@@ -1,8 +1,11 @@
-# KwaaiNet for Windows - One-Step Installer
+# KwaaiNet for Windows - One-Step Installer v0.1
 # This script handles the entire installation process for KwaaiNet on Windows
 
 # Ensure we can run PowerShell scripts
 #Requires -Version 5.1
+
+# Installer version
+$script:InstallerVersion = "0.1"
 
 param(
     [switch]$UseSystemPython,
@@ -806,7 +809,7 @@ function Start-InitialSetup {
 # Main installation function
 function Start-Installation {
     Write-Host "==========================================================" -ForegroundColor Cyan
-    Write-Host "KwaaiNet for Windows - One-Step Installer" -ForegroundColor Cyan
+    Write-Host "KwaaiNet for Windows - One-Step Installer v$script:InstallerVersion" -ForegroundColor Cyan
     Write-Host "==========================================================" -ForegroundColor Cyan
     Write-Host "This installer will set up KwaaiNet for sharing compute on Windows" -ForegroundColor White
     Write-Host "It includes Python setup, dependencies, and environment configuration" -ForegroundColor White
