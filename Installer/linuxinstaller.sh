@@ -73,10 +73,10 @@ get_pip_command() {
     # Otherwise, try to find the best system pip
     elif command_exists pip3; then
         echo "pip3"
-    elif command_exists pip && python3 -c "import sys; exit(0 if sys.version_info[0] == 3 else 1)" 2>/dev/null; then
+    elif command_exists pip && ${PYTHON_CMD:-python3} -c "import sys; exit(0 if sys.version_info[0] == 3 else 1)" 2>/dev/null; then
         echo "pip"
     else
-        echo "python3 -m pip"
+        echo "${PYTHON_CMD:-python3} -m pip"
     fi
 }
 
@@ -182,12 +182,31 @@ check_system_deps() {
         missing_essential+=("git")
     fi
     
-    # Check Python 3
-    if ! command_exists python3; then
+    # Find best Python version
+    PYTHON_CMD=""
+    PYTHON_VERSION=""
+    
+    # Try to find the newest Python version (check 3.12 down to 3.7)
+    for ver in 3.12 3.11 3.10 3.9 3.8 3.7; do
+        if command_exists "python$ver"; then
+            PYTHON_CMD="python$ver"
+            PYTHON_VERSION=$($PYTHON_CMD -c "import sys; print('.'.join(map(str, sys.version_info[:2])))" 2>/dev/null || echo "0.0")
+            echo "✅ Found Python $PYTHON_VERSION at $PYTHON_CMD"
+            break
+        fi
+    done
+    
+    # Fallback to python3 if specific versions not found
+    if [ -z "$PYTHON_CMD" ] && command_exists python3; then
+        PYTHON_CMD="python3"
+        PYTHON_VERSION=$(python3 -c "import sys; print('.'.join(map(str, sys.version_info[:2])))" 2>/dev/null || echo "0.0")
+        echo "✅ Found Python $PYTHON_VERSION at python3"
+    fi
+    
+    if [ -z "$PYTHON_CMD" ]; then
         missing_essential+=("python3")
     else
         # Check Python version
-        PYTHON_VERSION=$(python3 -c "import sys; print('.'.join(map(str, sys.version_info[:2])))" 2>/dev/null || echo "0.0")
         PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
         PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
         
@@ -206,10 +225,13 @@ check_system_deps() {
                 exit 1
             fi
         fi
+        
+        # Export the best Python command for later use
+        export PYTHON_CMD
     fi
     
     # Check pip - any working pip interface is acceptable
-    if ! command_exists pip3 && ! command_exists pip && ! python3 -m pip --version >/dev/null 2>&1; then
+    if ! command_exists pip3 && ! command_exists pip && ! ${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1; then
         missing_essential+=("pip3")
     fi
     
@@ -221,7 +243,7 @@ check_system_deps() {
     fi
     
     # Check development headers (needed for some Python packages)
-    if ! python3 -c "import sysconfig; import os; print(os.path.exists(sysconfig.get_path('include')))" 2>/dev/null | grep -q True; then
+    if ! ${PYTHON_CMD:-python3} -c "import sysconfig; import os; print(os.path.exists(sysconfig.get_path('include')))" 2>/dev/null | grep -q True; then
         missing_optional+=("python3-dev headers")
     fi
     
@@ -342,10 +364,10 @@ install_system_deps() {
     echo "🔍 Verifying system dependencies installation..."
     
     # Special handling for pip3 symlink issues
-    if ! command_exists pip3 && command_exists pip && python3 -m pip --version >/dev/null 2>&1; then
-        echo "ℹ️ pip3 command not found but pip works with python3. This is normal on some systems."
-    elif ! command_exists pip3 && python3 -m pip --version >/dev/null 2>&1; then
-        echo "ℹ️ pip3 command not found but python3 -m pip works. This is normal on some systems."
+    if ! command_exists pip3 && command_exists pip && ${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1; then
+        echo "ℹ️ pip3 command not found but pip works with ${PYTHON_CMD:-python3}. This is normal on some systems."
+    elif ! command_exists pip3 && ${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1; then
+        echo "ℹ️ pip3 command not found but ${PYTHON_CMD:-python3} -m pip works. This is normal on some systems."
     fi
     
     # Final dependency check with more lenient pip detection
@@ -359,7 +381,7 @@ install_system_deps() {
         echo "🔍 Debugging information:"
         echo "   - pip3 command: $(command_exists pip3 && echo "✅ Available" || echo "❌ Missing")"
         echo "   - pip command: $(command_exists pip && echo "✅ Available" || echo "❌ Missing")"
-        echo "   - python3 -m pip: $(python3 -m pip --version >/dev/null 2>&1 && echo "✅ Available" || echo "❌ Missing")"
+        echo "   - ${PYTHON_CMD:-python3} -m pip: $(${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1 && echo "✅ Available" || echo "❌ Missing")"
         echo ""
         echo "If pip is installed but pip3 command is missing, you can create a symlink:"
         echo "   sudo ln -sf \$(which pip) /usr/local/bin/pip3"
@@ -499,14 +521,14 @@ choose_python_method() {
         if command_exists conda; then
             PYTHON_METHOD="conda"
             echo "✅ Using existing conda installation"
-        elif python3 --version >/dev/null 2>&1; then
-            PYTHON_VERSION=$(python3 --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
+        elif ${PYTHON_CMD:-python3} --version >/dev/null 2>&1; then
+            PYTHON_VERSION=$(${PYTHON_CMD:-python3} --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
             # Use simple version comparison instead of bc
             MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
             MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
             if [ "$MAJOR" -gt 3 ] || [ "$MAJOR" -eq 3 -a "$MINOR" -ge 8 ]; then
                 PYTHON_METHOD="system"
-                echo "✅ Using system Python $PYTHON_VERSION"
+                echo "✅ Using system Python $PYTHON_VERSION (${PYTHON_CMD:-python3})"
             else
                 echo "⚠️ System Python is too old ($PYTHON_VERSION). Installing conda..."
                 PYTHON_METHOD="conda"
@@ -651,7 +673,7 @@ elif [ "$PYTHON_METHOD" = "system" ]; then
     
     VENV_PATH="$HOME/.kwaainet-venv"
     if [ ! -d "$VENV_PATH" ]; then
-        python3 -m venv "$VENV_PATH"
+        ${PYTHON_CMD:-python3} -m venv "$VENV_PATH"
         echo "✅ Created virtual environment for KwaaiNet"
     else
         echo "✅ Using existing virtual environment"
@@ -715,7 +737,7 @@ fi
 echo "📦 Installing compatible transformers and huggingface_hub versions..."
 
 # Check Python version for compatibility
-PYTHON_VERSION=$(python3 -c "import sys; print('.'.join(map(str, sys.version_info[:2])))" 2>/dev/null || echo "0.0")
+PYTHON_VERSION=$(${PYTHON_CMD:-python3} -c "import sys; print('.'.join(map(str, sys.version_info[:2])))" 2>/dev/null || echo "0.0")
 PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
 PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
 
