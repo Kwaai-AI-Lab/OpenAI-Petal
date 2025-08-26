@@ -880,4 +880,4 @@ function Start-Installation {
 # Script entry point
 if ($MyInvocation.InvocationName -ne ".") {
     Start-Installation
-}
+}
