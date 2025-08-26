@@ -276,6 +276,7 @@ check_system_deps() {
 # Function to install system dependencies
 install_system_deps() {
     echo "📦 Installing system dependencies..."
+    echo "🔍 Debug: Starting install_system_deps function"
     
     # Check what we need to install
     check_system_deps
