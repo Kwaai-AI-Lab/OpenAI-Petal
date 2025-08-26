@@ -62,6 +62,24 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Function to get the appropriate pip command for the current environment
+get_pip_command() {
+    # If we're in a conda environment, use pip directly
+    if [ "${CONDA_DEFAULT_ENV:-}" = "kwaainet" ] || [ "${PYTHON_METHOD:-}" = "conda" ]; then
+        echo "pip"
+    # If we're in a venv and it has its own pip, use it
+    elif [ -n "${VIRTUAL_ENV:-}" ] && [ -f "${VIRTUAL_ENV}/bin/pip" ]; then
+        echo "${VIRTUAL_ENV}/bin/pip"
+    # Otherwise, try to find the best system pip
+    elif command_exists pip3; then
+        echo "pip3"
+    elif command_exists pip && python3 -c "import sys; exit(0 if sys.version_info[0] == 3 else 1)" 2>/dev/null; then
+        echo "pip"
+    else
+        echo "python3 -m pip"
+    fi
+}
+
 # Function to show a spinner while a command runs
 show_spinner() {
     local pid=$1
@@ -190,8 +208,8 @@ check_system_deps() {
         fi
     fi
     
-    # Check pip
-    if ! command_exists pip3 && ! python3 -m pip --version >/dev/null 2>&1; then
+    # Check pip - any working pip interface is acceptable
+    if ! command_exists pip3 && ! command_exists pip && ! python3 -m pip --version >/dev/null 2>&1; then
         missing_essential+=("pip3")
     fi
     
@@ -320,13 +338,41 @@ install_system_deps() {
             ;;
     esac
     
-    # Verify installation was successful
-    if ! check_system_deps; then
-        echo "❌ System dependency installation failed. Please install missing packages manually."
-        exit 1
+    # Verify installation was successful and fix common pip issues
+    echo "🔍 Verifying system dependencies installation..."
+    
+    # Special handling for pip3 symlink issues
+    if ! command_exists pip3 && command_exists pip && python3 -m pip --version >/dev/null 2>&1; then
+        echo "ℹ️ pip3 command not found but pip works with python3. This is normal on some systems."
+    elif ! command_exists pip3 && python3 -m pip --version >/dev/null 2>&1; then
+        echo "ℹ️ pip3 command not found but python3 -m pip works. This is normal on some systems."
     fi
     
-    echo "✅ System dependencies installed successfully"
+    # Final dependency check with more lenient pip detection
+    check_system_deps
+    local final_status=$?
+    
+    if [ $final_status -eq 1 ]; then
+        # Still failing - try to provide more helpful error information
+        echo "❌ System dependency installation verification failed."
+        echo ""
+        echo "🔍 Debugging information:"
+        echo "   - pip3 command: $(command_exists pip3 && echo "✅ Available" || echo "❌ Missing")"
+        echo "   - pip command: $(command_exists pip && echo "✅ Available" || echo "❌ Missing")"
+        echo "   - python3 -m pip: $(python3 -m pip --version >/dev/null 2>&1 && echo "✅ Available" || echo "❌ Missing")"
+        echo ""
+        echo "If pip is installed but pip3 command is missing, you can create a symlink:"
+        echo "   sudo ln -sf \$(which pip) /usr/local/bin/pip3"
+        echo ""
+        echo "Or the installer will use 'python3 -m pip' instead of 'pip3' command."
+        
+        # Don't exit - allow installer to continue with python3 -m pip
+        echo "⚠️ Continuing installation with available pip interface..."
+    elif [ $final_status -eq 2 ]; then
+        echo "✅ Essential dependencies verified (build tools will be provided by conda)"
+    else
+        echo "✅ All system dependencies verified successfully"
+    fi
 }
 
 # Function to detect GPU
@@ -597,7 +643,7 @@ if [ "$PYTHON_METHOD" = "conda" ]; then
         conda activate kwaainet
     fi
     PYTHON_EXEC="python"
-    PIP_EXEC="pip"
+    PIP_EXEC="$(get_pip_command)"
     
 elif [ "$PYTHON_METHOD" = "system" ]; then
     # Use system Python with virtual environment
@@ -614,7 +660,7 @@ elif [ "$PYTHON_METHOD" = "system" ]; then
     # Activate virtual environment
     source "$VENV_PATH/bin/activate"
     PYTHON_EXEC="$VENV_PATH/bin/python"
-    PIP_EXEC="$VENV_PATH/bin/pip"
+    PIP_EXEC="$(get_pip_command)"
 fi
 
 # Clear cached versions of the package
