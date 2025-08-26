@@ -54,8 +54,7 @@ For a complete one-step installation that handles Python, dependencies, and envi
 #### Windows
 ```powershell
 # Download and run the installer
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windowsinstaller.ps1" -OutFile "windowsinstaller.ps1"
-powershell.exe -ExecutionPolicy Bypass -File "windowsinstaller.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windowsinstaller.ps1" -OutFile "windowsinstaller.ps1"; powershell.exe -ExecutionPolicy Bypass -File "windowsinstaller.ps1"
 ```
 
 Or use the batch file launcher:
@@ -139,8 +138,7 @@ To completely remove KwaaiNet and its environment:
 #### Windows
 ```powershell
 # Download and run the uninstaller
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windowsuninstaller.ps1" -OutFile "windowsuninstaller.ps1"
-powershell.exe -ExecutionPolicy Bypass -File "windowsuninstaller.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windowsuninstaller.ps1" -OutFile "windowsuninstaller.ps1"; powershell.exe -ExecutionPolicy Bypass -File "windowsuninstaller.ps1"
 ```
 
 #### Linux
