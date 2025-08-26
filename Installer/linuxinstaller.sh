@@ -235,7 +235,7 @@ check_system_deps() {
     
     # Check pip - any working pip interface is acceptable
     if ! command_exists pip3 && ! command_exists pip && ! ${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1; then
-        missing_essential+=("pip3")
+        missing_essential+=("pip (python package manager)")
     fi
     
     # Check build tools (can potentially be handled by conda or skipped)
@@ -320,7 +320,17 @@ install_system_deps() {
                 echo "⚠️ Failed to update package list. Continuing..."
             fi
             echo "📦 Installing packages..."
-            $USE_SUDO $PKG_INSTALL curl wget git build-essential python3 python3-pip python3-venv python3-dev pciutils
+            $USE_SUDO $PKG_INSTALL curl wget git build-essential python3 python3-venv python3-dev pciutils
+            # Try python3-pip, fallback to ensuring ensurepip is available
+            if ! $USE_SUDO $PKG_INSTALL python3-pip 2>/dev/null; then
+                echo "ℹ️ python3-pip package not available, trying python3-ensurepip..."
+                $USE_SUDO $PKG_INSTALL python3-ensurepip 2>/dev/null || true
+                # Bootstrap pip using ensurepip if needed
+                if ! command_exists pip3 && ! ${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1; then
+                    echo "🔄 Bootstrapping pip using ensurepip..."
+                    ${PYTHON_CMD:-python3} -m ensurepip --upgrade 2>/dev/null || true
+                fi
+            fi
             # GPU support packages (optional)
             $USE_SUDO $PKG_INSTALL mesa-utils || true
             ;;
