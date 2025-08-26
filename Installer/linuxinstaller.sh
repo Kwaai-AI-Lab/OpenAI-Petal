@@ -778,13 +778,50 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
         echo "✅ KwaaiNet Linux package installed successfully (local development version)"
     else
         echo "⚠️ Failed to install local development version. Installing from GitHub..."
-        echo "📦 Installing PyTorch (CPU version)..."
-        echo "   This may take a few minutes to download..."
-        if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
-            echo "✅ PyTorch installed successfully"
+        
+        # Install PyTorch based on GPU availability
+        if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
+            echo "📦 Installing PyTorch (CUDA version for NVIDIA GPU)..."
+            echo "   This may take a few minutes to download..."
+            if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121; then
+                echo "✅ PyTorch CUDA installed successfully"
+            else
+                echo "⚠️ Failed to install CUDA PyTorch. Falling back to CPU version..."
+                if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
+                    echo "✅ PyTorch CPU installed successfully"
+                else
+                    echo "❌ Failed to install PyTorch. Please check your internet connection."
+                    exit 1
+                fi
+            fi
         else
-            echo "❌ Failed to install PyTorch. Please check your internet connection."
-            exit 1
+            echo "📦 Installing PyTorch (CPU version)..."
+            echo "   This may take a few minutes to download..."
+            if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
+                echo "✅ PyTorch CPU installed successfully"
+            else
+                echo "❌ Failed to install PyTorch. Please check your internet connection."
+                exit 1
+            fi
+        fi
+        
+        # Install bitsandbytes for quantization support
+        echo "📦 Installing bitsandbytes for quantization support..."
+        if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
+            echo "   Installing CUDA-compatible version for NVIDIA GPU..."
+            # First try standard installation which should auto-detect CUDA
+            if $PIP_EXEC install $BINARY_FLAG bitsandbytes; then
+                echo "✅ bitsandbytes CUDA installed successfully"
+            else
+                echo "⚠️ Failed to install bitsandbytes CUDA. Quantization may not work properly."
+            fi
+        else
+            echo "   Installing CPU version..."
+            if $PIP_EXEC install $BINARY_FLAG bitsandbytes; then
+                echo "✅ bitsandbytes CPU installed successfully"
+            else
+                echo "⚠️ Failed to install bitsandbytes. Quantization may not work properly."
+            fi
         fi
         
         # Install KwaaiNet Linux package from GitHub as fallback
@@ -799,13 +836,50 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
     fi
 else
     echo "⚠️ Local development version not found. Installing from GitHub repository..."
-    echo "📦 Installing PyTorch dependencies..."
-    echo "   This may take a few minutes to download..."
-    if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
-        echo "✅ PyTorch installed successfully"
+    
+    # Install PyTorch based on GPU availability
+    if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
+        echo "📦 Installing PyTorch (CUDA version for NVIDIA GPU)..."
+        echo "   This may take a few minutes to download..."
+        if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121; then
+            echo "✅ PyTorch CUDA installed successfully"
+        else
+            echo "⚠️ Failed to install CUDA PyTorch. Falling back to CPU version..."
+            if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
+                echo "✅ PyTorch CPU installed successfully"
+            else
+                echo "❌ Failed to install PyTorch. Please check your internet connection."
+                exit 1
+            fi
+        fi
     else
-        echo "❌ Failed to install PyTorch. Please check your internet connection."
-        exit 1
+        echo "📦 Installing PyTorch (CPU version)..."
+        echo "   This may take a few minutes to download..."
+        if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
+            echo "✅ PyTorch CPU installed successfully"
+        else
+            echo "❌ Failed to install PyTorch. Please check your internet connection."
+            exit 1
+        fi
+    fi
+    
+    # Install bitsandbytes for quantization support
+    echo "📦 Installing bitsandbytes for quantization support..."
+    if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
+        echo "   Installing CUDA-compatible version for NVIDIA GPU..."
+        # First try standard installation which should auto-detect CUDA
+        if $PIP_EXEC install $BINARY_FLAG bitsandbytes; then
+            echo "✅ bitsandbytes CUDA installed successfully"
+        else
+            echo "⚠️ Failed to install bitsandbytes CUDA. Quantization may not work properly."
+        fi
+    else
+        echo "   Installing CPU version..."
+        if $PIP_EXEC install $BINARY_FLAG bitsandbytes; then
+            echo "✅ bitsandbytes CPU installed successfully"
+        else
+            echo "⚠️ Failed to install bitsandbytes. Quantization may not work properly."
+        fi
     fi
     
     # Install KwaaiNet Linux package from GitHub

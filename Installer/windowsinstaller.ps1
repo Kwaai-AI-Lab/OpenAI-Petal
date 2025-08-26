@@ -521,6 +521,21 @@ function Install-PythonPackages {
                 exit 1
             }
             
+            # Install bitsandbytes for quantization support
+            Write-Info "Installing bitsandbytes for quantization support..."
+            if ($script:GpuType -eq "nvidia") {
+                Write-Info "Installing CUDA-compatible version for NVIDIA GPU..."
+            } else {
+                Write-Info "Installing CPU version..."
+            }
+            & conda run -n kwaainet pip install bitsandbytes 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "bitsandbytes installed successfully"
+            }
+            else {
+                Write-Warning "Failed to install bitsandbytes. Quantization may not work properly."
+            }
+            
             # Install KwaaiNet Windows package
             $installerDir = Split-Path $PSScriptRoot -Parent
             $windowsPackagePath = "$installerDir\Installer\windows"
@@ -580,6 +595,21 @@ function Install-PythonPackages {
                 exit 1
             }
             Write-Success "PyTorch installed successfully"
+            
+            # Install bitsandbytes for quantization support
+            Write-Info "Installing bitsandbytes for quantization support..."
+            if ($script:GpuType -eq "nvidia") {
+                Write-Info "Installing CUDA-compatible version for NVIDIA GPU..."
+            } else {
+                Write-Info "Installing CPU version..."
+            }
+            & $pipExec install bitsandbytes 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "bitsandbytes installed successfully"
+            }
+            else {
+                Write-Warning "Failed to install bitsandbytes. Quantization may not work properly."
+            }
             
             # Install KwaaiNet Windows package
             $installerDir = Split-Path $PSScriptRoot -Parent

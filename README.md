@@ -19,7 +19,7 @@
 - **🔌 OpenAI API Compatibility**: Drop-in replacement supporting standard endpoints
 - **🌐 Petals Integration**: Leverages distributed inference for efficient model serving  
 - **🛠️ Advanced Tool Calling**: Function calling with model-specific formatting (Hermes, Llama 3, Mistral, etc.)
-- **💻 Cross-Platform**: Linux and macOS support with automatic GPU detection (NVIDIA, AMD, Intel, Apple Silicon)
+- **💻 Cross-Platform**: Windows, Linux and macOS support with automatic GPU detection (NVIDIA, AMD, Intel, Apple Silicon)
 - **⚡ High Performance**: FastAPI backend with streaming support and smart token processing
 - **📦 Easy Setup**: One-step installers handle all dependencies automatically
 
@@ -54,16 +54,29 @@ For a complete one-step installation that handles Python, dependencies, and envi
 #### Windows
 ```powershell
 # Download and run the installer
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/feature/windows-installer/Installer/windowsinstaller.ps1" -OutFile "windowsinstaller.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windowsinstaller.ps1" -OutFile "windowsinstaller.ps1"
 powershell.exe -ExecutionPolicy Bypass -File "windowsinstaller.ps1"
 ```
 
 Or use the batch file launcher:
 ```cmd
 # Download both files to the same directory and run
-curl -L -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/feature/windows-installer/Installer/install.bat
-curl -L -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/feature/windows-installer/Installer/windowsinstaller.ps1
+curl -L -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/install.bat
+curl -L -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windowsinstaller.ps1
 install.bat
+```
+
+The Windows installer supports additional options:
+```powershell
+# Force specific Python environment
+.\windowsinstaller.ps1 -UseConda
+.\windowsinstaller.ps1 -UseSystemPython
+
+# Skip system package installation (if you already have dependencies)
+.\windowsinstaller.ps1 -SkipSystemPackages
+
+# Show help
+.\windowsinstaller.ps1 -Help
 ```
 
 #### Linux
@@ -100,6 +113,11 @@ This will:
 
 If you prefer to handle the environment yourself, you can install directly:
 
+#### Windows
+```powershell
+pip install -e ./Installer/windows/
+```
+
 #### Linux
 ```bash
 pip install -e ./Installer/linux/
@@ -121,7 +139,7 @@ To completely remove KwaaiNet and its environment:
 #### Windows
 ```powershell
 # Download and run the uninstaller
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/feature/windows-installer/Installer/windowsuninstaller.ps1" -OutFile "windowsuninstaller.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windowsuninstaller.ps1" -OutFile "windowsuninstaller.ps1"
 powershell.exe -ExecutionPolicy Bypass -File "windowsuninstaller.ps1"
 ```
 
