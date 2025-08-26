@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.1.3"
+INSTALLER_VERSION="0.1.4"
 
 echo "=========================================================="
 echo "KwaaiNet for Mac - One-Step Installer v$INSTALLER_VERSION"

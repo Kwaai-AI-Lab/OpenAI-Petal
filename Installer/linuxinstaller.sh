@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.1.3"
+INSTALLER_VERSION="0.1.4"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -234,7 +234,20 @@ check_system_deps() {
     fi
     
     # Check pip - any working pip interface is acceptable
-    if ! command_exists pip3 && ! command_exists pip && ! ${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1; then
+    # On Ubuntu 24.04+, pip might only be available via 'python3 -m pip'
+    local pip_available=false
+    if command_exists pip3; then
+        pip_available=true
+    elif command_exists pip; then
+        pip_available=true  
+    elif ${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1; then
+        pip_available=true
+    elif ${PYTHON_CMD:-python3} -c "import ensurepip" >/dev/null 2>&1; then
+        # ensurepip is available, we can bootstrap pip
+        pip_available=true
+    fi
+    
+    if [ "$pip_available" = false ]; then
         missing_essential+=("pip (python package manager)")
     fi
     
@@ -328,15 +341,35 @@ install_system_deps() {
             fi
             echo "📦 Installing packages..."
             $USE_SUDO $PKG_INSTALL curl wget git build-essential python3 python3-venv python3-dev pciutils
-            # Try python3-pip, fallback to ensuring ensurepip is available
+            
+            # Handle pip installation for Ubuntu 24.04+
+            echo "🔄 Setting up pip for Python package management..."
             if ! $USE_SUDO $PKG_INSTALL python3-pip 2>/dev/null; then
-                echo "ℹ️ python3-pip package not available, trying python3-ensurepip..."
+                echo "ℹ️ python3-pip package not available, using ensurepip approach..."
+                # Try to install ensurepip package
                 $USE_SUDO $PKG_INSTALL python3-ensurepip 2>/dev/null || true
-                # Bootstrap pip using ensurepip if needed
-                if ! command_exists pip3 && ! ${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1; then
-                    echo "🔄 Bootstrapping pip using ensurepip..."
-                    ${PYTHON_CMD:-python3} -m ensurepip --upgrade 2>/dev/null || true
+            fi
+            
+            # Ensure pip is available via some method
+            if ! command_exists pip3 && ! command_exists pip && ! ${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1; then
+                echo "🔄 Bootstrapping pip using ensurepip..."
+                ${PYTHON_CMD:-python3} -m ensurepip --upgrade 2>/dev/null || true
+                # If that fails, try without --upgrade
+                if ! ${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1; then
+                    echo "🔄 Attempting basic ensurepip bootstrap..."
+                    ${PYTHON_CMD:-python3} -m ensurepip 2>/dev/null || true
                 fi
+            fi
+            
+            # Final verification
+            if ${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1; then
+                echo "✅ pip is available via '${PYTHON_CMD:-python3} -m pip'"
+            elif command_exists pip3; then
+                echo "✅ pip3 command is available"
+            elif command_exists pip; then
+                echo "✅ pip command is available"
+            else
+                echo "⚠️ pip installation may have failed, but continuing..."
             fi
             # GPU support packages (optional)
             $USE_SUDO $PKG_INSTALL mesa-utils || true
