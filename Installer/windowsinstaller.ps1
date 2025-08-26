@@ -368,7 +368,7 @@ function Setup-CondaEnvironment {
     
     try {
         # Refresh conda and create environment
-        & conda config --set auto_activate_base false 2>$null
+        & conda config --set auto_activate false 2>$null
         
         # Check if environment already exists
         $envList = & conda env list 2>$null
