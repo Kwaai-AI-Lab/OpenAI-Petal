@@ -856,18 +856,18 @@ function Start-Installation {
         Write-Host "==========================================================" -ForegroundColor Green
         Write-Host "[SUCCESS] KwaaiNet for Windows installation completed!" -ForegroundColor Green
         Write-Host ""
-        Write-Host "🔧 Configuration detected:" -ForegroundColor White
+        Write-Host "[INFO] Configuration detected:" -ForegroundColor White
         Write-Host "   - OS: $($systemInfo.OSName)" -ForegroundColor White
         Write-Host "   - Architecture: $($systemInfo.Architecture)" -ForegroundColor White
         Write-Host "   - GPU: $script:GpuType $(if($script:GpuInfo) { "($script:GpuInfo)" })" -ForegroundColor White
         Write-Host "   - Python method: $script:PythonMethod" -ForegroundColor White
         Write-Host ""
-        Write-Host "📝 Next steps:" -ForegroundColor White
+        Write-Host "[NEXT] Next steps:" -ForegroundColor White
         Write-Host "   1. Complete the Python package installation" -ForegroundColor White
         Write-Host "   2. Set up launcher scripts" -ForegroundColor White
         Write-Host "   3. Configure GPU acceleration (if available)" -ForegroundColor White
         Write-Host ""
-        Write-Host "📚 For more information, visit: https://github.com/Kwaai-AI-Lab/OpenAI-Petal" -ForegroundColor White
+        Write-Host "[INFO] For more information, visit: https://github.com/Kwaai-AI-Lab/OpenAI-Petal" -ForegroundColor White
         Write-Host "==========================================================" -ForegroundColor Green
     }
     catch {
