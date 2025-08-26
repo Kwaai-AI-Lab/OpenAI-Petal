@@ -17,13 +17,16 @@ Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
 Classifier: Topic :: System :: Distributed Computing
-Requires-Python: >=3.8
+Requires-Python: >=3.7
 Description-Content-Type: text/markdown
-Requires-Dist: PyYAML>=6.0
+Requires-Dist: PyYAML>=6.0.2
 Requires-Dist: petals>=2.2.0
-Requires-Dist: torch>=2.0.0
-Requires-Dist: transformers>=4.25.0
+Requires-Dist: torch>=1.12.0
+Requires-Dist: transformers==4.21.3; python_version == "3.7"
+Requires-Dist: transformers==4.43.1; python_version >= "3.8"
 Requires-Dist: accelerate>=0.20.0
+Requires-Dist: requests>=2.28.0
+Requires-Dist: tqdm>=4.64.0
 Provides-Extra: cuda
 Requires-Dist: nvidia-cublas-cu12; extra == "cuda"
 Requires-Dist: nvidia-cuda-runtime-cu12; extra == "cuda"
