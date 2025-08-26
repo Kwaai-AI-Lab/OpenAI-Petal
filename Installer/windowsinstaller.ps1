@@ -367,9 +367,6 @@ function Setup-CondaEnvironment {
     Write-Step "Setting up KwaaiNet conda environment..."
     
     try {
-        # Refresh conda and create environment
-        & conda config --set auto_activate false 2>$null
-        
         # Check if environment already exists
         $envList = & conda env list 2>$null
         if ($envList -match "kwaainet") {
