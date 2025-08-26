@@ -622,16 +622,34 @@ function New-LauncherScripts {
 # KwaaiNet Launcher - Run KwaaiNet without having to activate conda first
 param([Parameter(ValueFromRemainingArguments)]$Args)
 
-# Find conda installation
+# Find conda installation (prioritize user installations over system)
 $condaPath = $null
-if (Get-Command conda -ErrorAction SilentlyContinue) {
-    $condaPath = Split-Path (Split-Path (Get-Command conda).Source)
-} elseif (Test-Path "$env:USERPROFILE\Miniconda3\Scripts\conda.exe") {
+if (Test-Path "$env:USERPROFILE\Miniconda3\Scripts\conda.exe") {
     $condaPath = "$env:USERPROFILE\Miniconda3"
 } elseif (Test-Path "$env:USERPROFILE\Anaconda3\Scripts\conda.exe") {
     $condaPath = "$env:USERPROFILE\Anaconda3"
-} else {
-    Write-Error "[ERROR] Could not find conda installation."
+} elseif (Get-Command conda -ErrorAction SilentlyContinue) {
+    # Try to get conda base, but verify it exists
+    try {
+        $potentialPath = & conda info --base 2>$null
+        if ($potentialPath -and (Test-Path "$potentialPath\Scripts\conda.exe")) {
+            $condaPath = $potentialPath
+        } else {
+            # Fallback to directory detection
+            $condaPath = Split-Path (Split-Path (Get-Command conda).Source)
+        }
+    } catch {
+        $condaPath = Split-Path (Split-Path (Get-Command conda).Source)
+    }
+}
+
+if (-not $condaPath -or -not (Test-Path "$condaPath\Scripts\conda.exe")) {
+    Write-Error @"
+[ERROR] Could not find conda installation with conda.exe.
+Expected locations:
+  - $env:USERPROFILE\Miniconda3\Scripts\conda.exe
+  - $env:USERPROFILE\Anaconda3\Scripts\conda.exe
+"@
     exit 1
 }
 
