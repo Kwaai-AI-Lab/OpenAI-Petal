@@ -281,6 +281,8 @@ install_system_deps() {
     check_system_deps
     local dep_status=$?
     
+    echo "🔍 Debug: Dependency check status: $dep_status"
+    
     if [ $dep_status -eq 0 ]; then
         echo "✅ System dependencies already satisfied"
         return 0
@@ -290,6 +292,10 @@ install_system_deps() {
         export FORCE_CONDA_FOR_BUILD_TOOLS=true
         return 0
     fi
+    
+    # Debug: Show what dependencies are detected as missing
+    echo "🔍 Debug: Missing essential dependencies: ${MISSING_ESSENTIAL[*]:-none}"
+    echo "🔍 Debug: Number of missing essential: ${#MISSING_ESSENTIAL[@]}"
     
     # Only need sudo if essential packages are missing
     if [ ${#MISSING_ESSENTIAL[@]} -gt 0 ]; then
