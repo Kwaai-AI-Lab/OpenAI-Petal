@@ -532,8 +532,7 @@ function Install-PythonPackages {
             }
             
             # Install KwaaiNet Windows package
-            $installerDir = Split-Path $PSScriptRoot -Parent
-            $windowsPackagePath = "$installerDir\Installer\windows"
+            $windowsPackagePath = "$PSScriptRoot\windows"
             if (Test-Path $windowsPackagePath) {
                 Write-Info "Installing KwaaiNet Windows package..."
                 & conda run -n kwaainet pip install -e $windowsPackagePath 2>$null
@@ -607,8 +606,7 @@ function Install-PythonPackages {
             }
             
             # Install KwaaiNet Windows package
-            $installerDir = Split-Path $PSScriptRoot -Parent
-            $windowsPackagePath = "$installerDir\Installer\windows"
+            $windowsPackagePath = "$PSScriptRoot\windows"
             if (Test-Path $windowsPackagePath) {
                 Write-Info "Installing KwaaiNet Windows package..."
                 & $pipExec install -e $windowsPackagePath 2>$null
@@ -875,4 +873,4 @@ function Start-Installation {
 # Script entry point
 if ($MyInvocation.InvocationName -ne ".") {
     Start-Installation
-}
+}
