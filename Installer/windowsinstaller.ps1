@@ -256,60 +256,69 @@ function Install-WingetPackage {
 function Set-PythonEnvironment {
     Write-Step "Setting up Python environment..."
     
-    # Determine which Python method to use
-    if ($UseConda) {
-        $script:PythonMethod = "conda"
-        Write-Info "Using conda (forced by --UseConda flag)"
-    }
-    elseif ($UseSystemPython) {
-        $script:PythonMethod = "system"
-        Write-Info "Using system Python (forced by --UseSystemPython flag)"
-    }
-    else {
-        # Auto-detect best method
-        if (Test-Command "conda") {
+    try {
+        # Determine which Python method to use
+        if ($UseConda) {
             $script:PythonMethod = "conda"
-            Write-Success "Using existing conda installation"
+            Write-Info "Using conda (forced by --UseConda flag)"
         }
-        elseif (Test-Command "python") {
-            try {
-                $pythonVersion = (& python --version 2>&1).ToString()
-                if ($pythonVersion -match "Python (\d+)\.(\d+)") {
-                    $major = [int]$matches[1]
-                    $minor = [int]$matches[2]
-                    
-                    if ($major -ge 3 -and $minor -ge 8) {
-                        $script:PythonMethod = "system"
-                        Write-Success "Using system Python $($matches[0])"
+        elseif ($UseSystemPython) {
+            $script:PythonMethod = "system"
+            Write-Info "Using system Python (forced by --UseSystemPython flag)"
+        }
+        else {
+            # Auto-detect best method
+            if (Test-Command "conda") {
+                $script:PythonMethod = "conda"
+                Write-Success "Using existing conda installation"
+            }
+            elseif (Test-Command "python") {
+                try {
+                    $pythonVersion = (& python --version 2>&1).ToString()
+                    if ($pythonVersion -match "Python (\d+)\.(\d+)") {
+                        $major = [int]$matches[1]
+                        $minor = [int]$matches[2]
+                        
+                        if ($major -ge 3 -and $minor -ge 8) {
+                            $script:PythonMethod = "system"
+                            Write-Success "Using system Python $($matches[0])"
+                        }
+                        else {
+                            Write-Warning "System Python is too old ($($matches[0])). Will install conda..."
+                            $script:PythonMethod = "conda"
+                        }
                     }
                     else {
-                        Write-Warning "System Python is too old ($($matches[0])). Will install conda..."
+                        Write-Warning "Could not determine Python version. Will install conda..."
                         $script:PythonMethod = "conda"
                     }
                 }
-                else {
-                    Write-Warning "Could not determine Python version. Will install conda..."
+                catch {
+                    Write-Warning "Python found but version check failed. Will install conda..."
                     $script:PythonMethod = "conda"
                 }
             }
-            catch {
-                Write-Warning "Python found but version check failed. Will install conda..."
+            else {
+                Write-Warning "No suitable Python found. Will install conda..."
                 $script:PythonMethod = "conda"
             }
         }
-        else {
-            Write-Warning "No suitable Python found. Will install conda..."
-            $script:PythonMethod = "conda"
-        }
-    }
     
-    # Install or setup the chosen Python environment
-    if ($script:PythonMethod -eq "conda") {
-        Install-Conda
-        Setup-CondaEnvironment
+        # Install or setup the chosen Python environment
+        if ($script:PythonMethod -eq "conda") {
+            Install-Conda
+            Setup-CondaEnvironment
+        }
+        else {
+            Setup-SystemPython
+        }
+        
+        Write-Success "Python environment setup completed successfully"
     }
-    else {
-        Setup-SystemPython
+    catch {
+        Write-ErrorMessage "Failed to setup Python environment: $($_.Exception.Message)"
+        Write-Host "Error details: $($_.Exception)" -ForegroundColor Red
+        exit 1
     }
 }
 
@@ -376,13 +385,24 @@ function Setup-CondaEnvironment {
     }
     else {
         Write-Info "Creating Python 3.10 environment for KwaaiNet..."
-        $condaOutput = & conda create -y -n kwaainet python=3.10 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-ErrorMessage "Failed to create conda environment"
-            Write-ErrorMessage "Conda output: $condaOutput"
+        try {
+            $condaOutput = & conda create -y -n kwaainet python=3.10 2>&1
+            
+            # Check if environment was actually created by verifying it exists
+            $envCheck = & conda env list 2>$null
+            if ($envCheck -match "kwaainet") {
+                Write-Success "Created Python 3.10 environment for KwaaiNet"
+            }
+            else {
+                Write-ErrorMessage "Failed to create conda environment - environment not found after creation"
+                Write-ErrorMessage "Conda output: $condaOutput"
+                exit 1
+            }
+        }
+        catch {
+            Write-ErrorMessage "Failed to create conda environment: $($_.Exception.Message)"
             exit 1
         }
-        Write-Success "Created Python 3.10 environment for KwaaiNet"
     }
     
     Write-Success "Conda environment setup complete"
