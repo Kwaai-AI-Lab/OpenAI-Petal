@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.1.4"
+INSTALLER_VERSION="0.1.5"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -254,8 +254,15 @@ check_system_deps() {
     # Check build tools (can potentially be handled by conda or skipped)
     if [ "$NO_BUILD_TOOLS" = true ]; then
         echo "ℹ️ Skipping build tools check (--no-build-tools flag)"
-    elif ! command_exists gcc && ! command_exists clang; then
-        missing_build+=("build tools (gcc/clang)")
+    else
+        if ! command_exists gcc && ! command_exists clang; then
+            missing_build+=("build tools (gcc/clang)")
+        fi
+        
+        # Check for Rust compiler (needed for tokenizers)
+        if ! command_exists rustc; then
+            missing_build+=("rust compiler (for tokenizers)")
+        fi
     fi
     
     # Check development headers (needed for some Python packages)
@@ -373,6 +380,25 @@ install_system_deps() {
             fi
             # GPU support packages (optional)
             $USE_SUDO $PKG_INSTALL mesa-utils || true
+            
+            # Install Rust compiler for tokenizers (if not already installed)
+            if ! command_exists rustc; then
+                echo "🦀 Installing Rust compiler for tokenizers..."
+                if command_exists snap && $USE_SUDO snap install rustup --classic 2>/dev/null; then
+                    echo "✅ Rust installed via snap"
+                    export PATH="$PATH:/snap/bin"
+                    /snap/bin/rustup default stable 2>/dev/null || true
+                else
+                    echo "📥 Installing Rust via rustup..."
+                    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+                    if [ -f "$HOME/.cargo/env" ]; then
+                        source "$HOME/.cargo/env"
+                        echo "✅ Rust compiler installed successfully"
+                    else
+                        echo "⚠️ Rust installation may have failed. tokenizers might need pre-built wheels."
+                    fi
+                fi
+            fi
             ;;
         redhat)
             echo "🔄 Updating package list..."
@@ -383,6 +409,24 @@ install_system_deps() {
             $USE_SUDO $PKG_INSTALL curl wget git gcc gcc-c++ make python3 python3-pip python3-devel pciutils
             # GPU support packages (optional)
             $USE_SUDO $PKG_INSTALL mesa-dri-drivers || true
+            
+            # Install Rust compiler for tokenizers (if not already installed)
+            if ! command_exists rustc; then
+                echo "🦀 Installing Rust compiler for tokenizers..."
+                # Try to install rust via package manager first
+                if $USE_SUDO $PKG_INSTALL rust cargo 2>/dev/null; then
+                    echo "✅ Rust installed via package manager"
+                else
+                    echo "📥 Installing Rust via rustup..."
+                    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+                    if [ -f "$HOME/.cargo/env" ]; then
+                        source "$HOME/.cargo/env"
+                        echo "✅ Rust compiler installed successfully"
+                    else
+                        echo "⚠️ Rust installation may have failed. tokenizers might need pre-built wheels."
+                    fi
+                fi
+            fi
             ;;
         arch)
             echo "🔄 Updating package list..."
@@ -393,6 +437,23 @@ install_system_deps() {
             $USE_SUDO $PKG_INSTALL curl wget git base-devel python python-pip pciutils
             # GPU support packages (optional)
             $USE_SUDO $PKG_INSTALL mesa || true
+            
+            # Install Rust compiler for tokenizers (if not already installed)
+            if ! command_exists rustc; then
+                echo "🦀 Installing Rust compiler for tokenizers..."
+                if $USE_SUDO $PKG_INSTALL rust 2>/dev/null; then
+                    echo "✅ Rust installed via pacman"
+                else
+                    echo "📥 Installing Rust via rustup..."
+                    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+                    if [ -f "$HOME/.cargo/env" ]; then
+                        source "$HOME/.cargo/env"
+                        echo "✅ Rust compiler installed successfully"
+                    else
+                        echo "⚠️ Rust installation may have failed. tokenizers might need pre-built wheels."
+                    fi
+                fi
+            fi
             ;;
         suse)
             echo "🔄 Updating package list..."
@@ -403,6 +464,23 @@ install_system_deps() {
             $USE_SUDO $PKG_INSTALL curl wget git gcc gcc-c++ make python3 python3-pip python3-devel pciutils
             # GPU support packages (optional)
             $USE_SUDO $PKG_INSTALL Mesa || true
+            
+            # Install Rust compiler for tokenizers (if not already installed)
+            if ! command_exists rustc; then
+                echo "🦀 Installing Rust compiler for tokenizers..."
+                if $USE_SUDO $PKG_INSTALL rust cargo 2>/dev/null; then
+                    echo "✅ Rust installed via zypper"
+                else
+                    echo "📥 Installing Rust via rustup..."
+                    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+                    if [ -f "$HOME/.cargo/env" ]; then
+                        source "$HOME/.cargo/env"
+                        echo "✅ Rust compiler installed successfully"
+                    else
+                        echo "⚠️ Rust installation may have failed. tokenizers might need pre-built wheels."
+                    fi
+                fi
+            fi
             ;;
         *)
             echo "❌ Unknown distribution family. Please install the following manually:"
@@ -737,6 +815,76 @@ configure_cuda_paths() {
     return 0
 }
 
+# Function to install tokenizers with fallback handling
+install_tokenizers_with_fallback() {
+    echo "🔤 Installing tokenizers with build fallback handling..."
+    
+    # Ensure Rust environment is available if installed
+    if [ -f "$HOME/.cargo/env" ]; then
+        echo "🦀 Sourcing Rust environment..."
+        source "$HOME/.cargo/env"
+    fi
+    
+    # Add cargo bin to PATH for this session
+    if [ -d "$HOME/.cargo/bin" ]; then
+        export PATH="$HOME/.cargo/bin:$PATH"
+    fi
+    
+    # Try to install tokenizers with different strategies
+    local binary_flag=""
+    if [ "$NO_BUILD_TOOLS" = true ]; then
+        binary_flag="--only-binary=all"
+        echo "ℹ️ Using pre-built wheels only (--no-build-tools)"
+    fi
+    
+    # Strategy 1: Try normal installation (will compile if needed)
+    if [ "$NO_BUILD_TOOLS" != true ]; then
+        echo "📦 Attempting to install tokenizers (may compile from source)..."
+        if $PIP_EXEC install tokenizers 2>/dev/null; then
+            echo "✅ tokenizers installed successfully"
+            return 0
+        else
+            echo "⚠️ Failed to install tokenizers from source. Trying pre-built wheels..."
+        fi
+    fi
+    
+    # Strategy 2: Force pre-built wheels only
+    echo "📦 Attempting to install tokenizers (pre-built wheels only)..."
+    if $PIP_EXEC install --only-binary=tokenizers tokenizers 2>/dev/null; then
+        echo "✅ tokenizers installed successfully (pre-built wheels)"
+        return 0
+    else
+        echo "⚠️ Failed to install pre-built tokenizers wheels."
+    fi
+    
+    # Strategy 3: Try with specific version that has more wheel support
+    echo "📦 Attempting to install older tokenizers version with better wheel support..."
+    if $PIP_EXEC install --only-binary=tokenizers "tokenizers==0.19.1" 2>/dev/null; then
+        echo "✅ tokenizers 0.19.1 installed successfully (pre-built wheels)"
+        return 0
+    else
+        echo "⚠️ Failed to install tokenizers 0.19.1 pre-built wheels."
+    fi
+    
+    # Strategy 4: Last resort - try without any constraints but with timeout
+    echo "📦 Last attempt: installing tokenizers with extended timeout..."
+    if timeout 600 $PIP_EXEC install tokenizers --no-cache-dir 2>/dev/null; then
+        echo "✅ tokenizers installed successfully (extended timeout)"
+        return 0
+    else
+        echo "❌ All tokenizers installation strategies failed."
+        echo ""
+        echo "🔧 Manual fix options:"
+        echo "   1. Install Rust compiler: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+        echo "   2. Install build dependencies: sudo apt-get install build-essential (Ubuntu/Debian)"
+        echo "   3. Force pre-built wheels: pip install --only-binary=tokenizers tokenizers"
+        echo "   4. Use conda environment: conda install tokenizers -c conda-forge"
+        echo ""
+        echo "⚠️ Installation will continue, but tokenizers may not work properly."
+        return 1
+    fi
+}
+
 # Main installation flow starts here
 echo "🔍 Detecting system configuration..."
 
@@ -894,6 +1042,9 @@ else
     fi
 fi
 
+# Install tokenizers first (handles Rust compilation issues)
+install_tokenizers_with_fallback
+
 # Install compatible versions of transformers and huggingface_hub
 echo "📦 Installing compatible transformers and huggingface_hub versions..."
 
@@ -907,6 +1058,11 @@ BINARY_FLAG=""
 if [ "$NO_BUILD_TOOLS" = true ]; then
     BINARY_FLAG="--only-binary=all"
     echo "ℹ️ Using pre-built wheels only (--no-build-tools)"
+fi
+
+# Ensure Rust environment is available for any compilation
+if [ -f "$HOME/.cargo/env" ]; then
+    source "$HOME/.cargo/env"
 fi
 
 if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -eq 7 ]; then

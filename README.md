@@ -22,6 +22,7 @@
 
 - [x] Research Windows installer requirements and analyze Linux installer structure
 - [x] Design Windows installer architecture (PowerShell vs Batch vs MSI)
+- [x] Fix Linux installer tokenizers build failure (wheel compilation error)
 - [ ] Implement Windows version and architecture detection
 - [ ] Implement Windows GPU detection (NVIDIA, AMD, Intel)
 - [ ] Implement Python/conda environment setup for Windows
@@ -43,6 +44,7 @@
 
 ### Future Enhancements
 
+- [ ] Automate ClickUp task updates from git commits/GitHub Actions
 - [ ] Make kwaainet node run as a daemon (command line argument)
 - [ ] Launch on OS reboot (system service integration)
 - [ ] Auto-reconnect if disconnected from network
@@ -352,6 +354,24 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 - Add exclusions for the KwaaiNet directory and Python environments if needed
 
 #### Linux-specific Issues
+
+**Tokenizers build failure (wheel compilation error):**
+- **Error**: `Building wheel for tokenizers (pyproject.toml) ... error`
+- **Cause**: Missing Rust compiler or build dependencies
+- **Solutions**:
+  ```bash
+  # Install Rust compiler
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  source ~/.cargo/env
+  
+  # Or install build dependencies
+  sudo apt-get update && sudo apt-get install build-essential
+  # For RHEL/CentOS: sudo yum groupinstall "Development Tools"
+  # For Arch: sudo pacman -S base-devel
+  
+  # Force use of pre-built wheels
+  pip install --only-binary=tokenizers tokenizers
+  ```
 
 **GPU not detected:**
 - Ensure proper GPU drivers are installed (NVIDIA, AMD, or Intel)
