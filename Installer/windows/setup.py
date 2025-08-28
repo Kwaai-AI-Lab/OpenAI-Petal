@@ -37,10 +37,10 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "PyYAML>=6.0.2",  # Security fixes
-        "petals>=2.2.0",
+        "petals>=2.2.0",  # Latest stable (requires transformers<4.35.0)
         "torch>=1.12.0",  # Broader compatibility for older Python
-        'transformers==4.21.3; python_version=="3.7"',  # Python 3.7 compatible
-        'transformers==4.43.1; python_version>="3.8"',  # Secure version for Python 3.8+
+        'transformers>=4.32.0,<4.35.0; python_version=="3.7"',  # Python 3.7 compatible (Petals constraint)
+        'transformers>=4.32.0,<4.35.0; python_version>="3.8"',  # Petals compatibility constraint (security compromise)
         "accelerate>=0.20.0",  # Broader compatibility
         "requests>=2.28.0",  # Security fixes with broader compatibility
         "tqdm>=4.64.0",  # Stable version

@@ -1,4 +1,4 @@
-git+https://github.com/bigscience-workshop/petals@103ef760dac64295823e3a5f5890344a778a0dd7
+git+https://github.com/bigscience-workshop/petals  # Development version with latest transformers compatibility
 Flask>=3.0.0  # Security improvements and bug fixes
 flask-cors>=5.0.0  # Latest stable version
 simplejson>=3.19.0  # Security and performance improvements  

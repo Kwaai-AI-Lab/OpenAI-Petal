@@ -32,6 +32,15 @@
 - [ ] Update README.md with Windows installation instructions
 - [ ] Test installer on different Windows versions and configurations
 
+### Security & Infrastructure Sprint (January 2025)
+
+- [x] Analyze GitHub security vulnerabilities (41 total: 2 critical, 11 high, 23 moderate, 5 low)
+- [x] Document transformers vulnerability trade-offs with Petals compatibility
+- [x] Update all non-conflicting dependencies to secure versions
+- [ ] Monitor Petals project for transformers 4.50.0+ compatibility updates
+- [ ] Investigate alternative distributed inference solutions
+- [ ] Implement additional security hardening measures
+
 ### Future Enhancements
 
 - [ ] Make kwaainet node run as a daemon (command line argument)
@@ -385,13 +394,39 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 - Verify the initial peers configuration
 - Ensure firewall allows the configured port
 
-## Recent Fixes and Improvements
+## Security Considerations
 
-### Security Updates (December 2024)
-- ✅ Updated all dependencies to address GitHub-reported vulnerabilities
+### ⚠️ Known Security Trade-offs (January 2025)
+
+**Transformers Vulnerability Status**: The current installation uses `transformers==4.43.1` due to Petals compatibility constraints. This version is **vulnerable to 8 known CVEs**:
+
+- **CVE-2025-1194** (ReDoS in tokenizers) - 🔴 **CRITICAL**
+- **CVE-2025-2099** (ReDoS in testing_utils) - 🔴 **CRITICAL** 
+- **CVE-2024-11392** (Code injection vulnerability) - 🟠 **HIGH**
+- **CVE-2024-11393** (Deserialization vulnerability) - 🟠 **HIGH**
+- **CVE-2024-11394** (Path traversal vulnerability) - 🟠 **HIGH**
+- Additional ReDoS vulnerabilities in various components
+
+**Why This Trade-off Exists**: Petals (both stable v2.2.0 and development versions) strictly requires `transformers==4.43.1`. Updating to the secure `transformers>=4.50.0` breaks Petals compatibility entirely.
+
+**Risk Mitigation Strategies**:
+- 🛡️ Run in isolated environments/containers
+- 🚫 Avoid processing untrusted input through tokenizers
+- 🔒 Use network firewalls to limit exposure
+- 📊 Monitor for unusual CPU usage (ReDoS indicators)
+- 🔄 Regularly check for Petals updates that support newer transformers
+
+**Resolution Timeline**: This will be resolved when:
+1. Petals releases a version supporting `transformers>=4.50.0`, OR
+2. A security fork of transformers 4.43.1 patches these CVEs, OR  
+3. Alternative distributed inference solutions become available
+
+### Other Security Updates (December 2024)
 - ✅ Fixed CVE-2024-24762 (FastAPI ReDoS vulnerability)
 - ✅ Updated LangChain to address CVE-2023-46229 and CVE-2024-21513
-- ✅ Kept transformers at secure version 4.43.1 (not affected by CVE-2024-11392/93/94)
+- ✅ Updated all other dependencies to latest secure versions
+
+## Recent Fixes and Improvements
 
 ### Installer Improvements (December 2024)
 - ✅ Fixed critical Linux installer bug causing "No module named 'kwaainet'" error
