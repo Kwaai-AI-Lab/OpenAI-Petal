@@ -16,6 +16,32 @@
 
 **OpenAI-Petal** is an OpenAI API-compatible server that bridges to the Petals distributed inference network. It enables you to run large language models through Petals' distributed network while maintaining full compatibility with OpenAI's API format, making it easy to integrate into existing applications.
 
+## Development Status & Todo
+
+### Current Sprint: Windows Installer Development
+
+- [x] Research Windows installer requirements and analyze Linux installer structure
+- [x] Design Windows installer architecture (PowerShell vs Batch vs MSI)
+- [ ] Implement Windows version and architecture detection
+- [ ] Implement Windows GPU detection (NVIDIA, AMD, Intel)
+- [ ] Implement Python/conda environment setup for Windows
+- [ ] Implement Windows dependency installation and package management
+- [ ] Create progress indicators and user feedback system
+- [ ] Implement comprehensive error handling and recovery
+- [ ] Create Windows uninstaller script
+- [ ] Update README.md with Windows installation instructions
+- [ ] Test installer on different Windows versions and configurations
+
+### Future Enhancements
+
+- [ ] Make kwaainet node run as a daemon (command line argument)
+- [ ] Launch on OS reboot (system service integration)
+- [ ] Auto-reconnect if disconnected from network
+- [ ] Automated testing for installation process
+- [ ] Enhanced GPU-specific optimizations
+- [ ] Comprehensive logging options
+- [ ] Performance benchmarking tools
+
 ### Key Features
 - **🔌 OpenAI API Compatibility**: Drop-in replacement supporting standard endpoints
 - **🌐 Petals Integration**: Leverages distributed inference for efficient model serving  
