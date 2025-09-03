@@ -42,10 +42,19 @@
 - [ ] Investigate alternative distributed inference solutions
 - [ ] Implement additional security hardening measures
 
+### Current Sprint: Daemon Mode Implementation
+
+- [x] Implement basic daemon mode with PID management
+- [x] Add daemon control commands (start, stop, restart, status, logs)
+- [x] Add process monitoring and health checks
+- [ ] Add FastAPI web server integration
+- [ ] Create web dashboard for daemon control
+- [ ] Add real-time WebSocket monitoring
+- [ ] Test complete daemon and dashboard integration
+
 ### Future Enhancements
 
 - [ ] Automate ClickUp task updates from git commits/GitHub Actions
-- [ ] Make kwaainet node run as a daemon (command line argument)
 - [ ] Launch on OS reboot (system service integration)
 - [ ] Auto-reconnect if disconnected from network
 - [ ] Automated testing for installation process
@@ -60,6 +69,8 @@
 - **💻 Cross-Platform**: Windows, Linux and macOS support with automatic GPU detection (NVIDIA, AMD, Intel, Apple Silicon)
 - **⚡ High Performance**: FastAPI backend with streaming support and smart token processing
 - **📦 Easy Setup**: One-step installers handle all dependencies automatically
+- **🤖 Daemon Mode**: Background operation with process monitoring and automatic restart
+- **🌐 Web Dashboard**: Real-time monitoring and control via web interface (coming soon)
 
 ### Architecture
 - **FastAPI Backend**: High-performance async web server with CORS support
@@ -464,6 +475,40 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 - ✅ All installers now properly install the kwaainet package
 - ✅ Dependency conflicts resolved with Petals compatibility maintained
 - ✅ Works on Ubuntu 24.04, Windows 10+, macOS (Intel and Apple Silicon)
+
+## 🤖 Daemon Mode (Linux)
+
+KwaaiNet now supports running as a daemon with advanced process management:
+
+### Basic Daemon Operations
+```bash
+# Start in daemon mode (background)
+kwaainet start --daemon
+
+# Or use daemon commands
+kwaainet daemon start     # Start daemon
+kwaainet daemon stop      # Stop daemon  
+kwaainet daemon restart   # Restart daemon
+kwaainet daemon status    # Show detailed status
+kwaainet daemon logs      # Show recent logs
+```
+
+### Process Management
+```bash
+# Regular commands (work with daemon or foreground)
+kwaainet start            # Start in foreground
+kwaainet stop             # Stop running instance
+kwaainet restart          # Restart instance
+kwaainet status           # Show status with metrics
+```
+
+### Features
+- **PID Management**: Automatic PID file handling and process tracking
+- **Health Monitoring**: CPU, memory, and connection monitoring
+- **Log Management**: Automatic log rotation and structured logging
+- **Signal Handling**: Graceful shutdown on SIGTERM/SIGINT
+- **Auto-Recovery**: Process monitoring with restart capability
+- **Status Reporting**: JSON status output with system metrics
 
 ## Contributing
 

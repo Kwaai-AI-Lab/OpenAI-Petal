@@ -44,6 +44,7 @@ setup(
         "accelerate>=0.20.0",  # Broader compatibility
         "requests>=2.28.0",  # Security fixes with broader compatibility
         "tqdm>=4.64.0",  # Stable version
+        "psutil>=5.9.0",  # Process and system monitoring for daemon functionality
     ],
     extras_require={
         "cuda": [

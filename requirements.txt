@@ -5,3 +5,4 @@ langchain>=0.3.0  # Fixed CVE-2023-46229, CVE-2024-21513
 transformers==4.43.1  # ⚠️  SECURITY TRADE-OFF: Petals compatibility constraint (vulnerable to 8 CVEs)
 langchain_community>=0.3.0  # Security updates aligned with langchain
 openai>=1.51.0  # Latest stable version
+psutil>=5.9.0  # Process and system monitoring for daemon functionality
