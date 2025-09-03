@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.1.5"
+INSTALLER_VERSION="0.1.6"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -819,6 +819,12 @@ configure_cuda_paths() {
 install_tokenizers_with_fallback() {
     echo "🔤 Installing tokenizers with build fallback handling..."
     
+    # Debug: Show environment status
+    echo "🔍 Debug: Checking build environment..."
+    echo "   - Rust compiler: $(command -v rustc >/dev/null 2>&1 && echo "✅ Available" || echo "❌ Missing")"
+    echo "   - GCC compiler: $(command -v gcc >/dev/null 2>&1 && echo "✅ Available" || echo "❌ Missing")"
+    echo "   - NO_BUILD_TOOLS flag: $NO_BUILD_TOOLS"
+    
     # Ensure Rust environment is available if installed
     if [ -f "$HOME/.cargo/env" ]; then
         echo "🦀 Sourcing Rust environment..."
@@ -828,6 +834,12 @@ install_tokenizers_with_fallback() {
     # Add cargo bin to PATH for this session
     if [ -d "$HOME/.cargo/bin" ]; then
         export PATH="$HOME/.cargo/bin:$PATH"
+        echo "🔍 Added ~/.cargo/bin to PATH"
+    fi
+    
+    # Re-check after sourcing Rust
+    if command -v rustc >/dev/null 2>&1; then
+        echo "✅ Rust compiler now available: $(rustc --version 2>/dev/null || echo 'version unknown')"
     fi
     
     # Try to install tokenizers with different strategies
@@ -837,24 +849,33 @@ install_tokenizers_with_fallback() {
         echo "ℹ️ Using pre-built wheels only (--no-build-tools)"
     fi
     
-    # Strategy 1: Try normal installation (will compile if needed)
-    if [ "$NO_BUILD_TOOLS" != true ]; then
-        echo "📦 Attempting to install tokenizers (may compile from source)..."
-        if $PIP_EXEC install tokenizers 2>/dev/null; then
-            echo "✅ tokenizers installed successfully"
-            return 0
-        else
-            echo "⚠️ Failed to install tokenizers from source. Trying pre-built wheels..."
-        fi
+    # Strategy 1: Force specific tokenizers version with pre-built wheels first
+    echo "📦 Attempting to install tokenizers 0.19.1 (pre-built wheels only)..."
+    if $PIP_EXEC install --only-binary=tokenizers "tokenizers==0.19.1" 2>/dev/null; then
+        echo "✅ tokenizers 0.19.1 installed successfully (pre-built wheels)"
+        return 0
+    else
+        echo "⚠️ Failed to install tokenizers 0.19.1 pre-built wheels."
     fi
     
-    # Strategy 2: Force pre-built wheels only
-    echo "📦 Attempting to install tokenizers (pre-built wheels only)..."
+    # Strategy 2: Try latest with pre-built wheels only
+    echo "📦 Attempting to install latest tokenizers (pre-built wheels only)..."
     if $PIP_EXEC install --only-binary=tokenizers tokenizers 2>/dev/null; then
         echo "✅ tokenizers installed successfully (pre-built wheels)"
         return 0
     else
-        echo "⚠️ Failed to install pre-built tokenizers wheels."
+        echo "⚠️ Failed to install latest tokenizers pre-built wheels."
+    fi
+    
+    # Strategy 3: Try compilation only if Rust is available and build tools allowed
+    if [ "$NO_BUILD_TOOLS" != true ] && (command -v rustc >/dev/null 2>&1 || [ -f "$HOME/.cargo/bin/rustc" ]); then
+        echo "📦 Attempting to install tokenizers (may compile from source with Rust)..."
+        if timeout 300 $PIP_EXEC install tokenizers --no-cache-dir; then
+            echo "✅ tokenizers installed successfully (compiled from source)"
+            return 0
+        else
+            echo "⚠️ Failed to compile tokenizers from source."
+        fi
     fi
     
     # Strategy 3: Try with specific version that has more wheel support
@@ -866,13 +887,28 @@ install_tokenizers_with_fallback() {
         echo "⚠️ Failed to install tokenizers 0.19.1 pre-built wheels."
     fi
     
-    # Strategy 4: Last resort - try without any constraints but with timeout
+    # Strategy 4: Emergency fallback - install via conda if available
+    if command -v conda >/dev/null 2>&1 && [ "${PYTHON_METHOD:-}" = "conda" ]; then
+        echo "📦 Emergency fallback: trying conda installation..."
+        if conda install -y tokenizers -c conda-forge 2>/dev/null; then
+            echo "✅ tokenizers installed via conda"
+            return 0
+        else
+            echo "⚠️ Conda installation also failed"
+        fi
+    fi
+    
+    # Strategy 5: Last resort - try without any constraints but with timeout
     echo "📦 Last attempt: installing tokenizers with extended timeout..."
-    if timeout 600 $PIP_EXEC install tokenizers --no-cache-dir 2>/dev/null; then
+    if timeout 600 $PIP_EXEC install tokenizers --no-cache-dir; then
         echo "✅ tokenizers installed successfully (extended timeout)"
         return 0
     else
         echo "❌ All tokenizers installation strategies failed."
+        echo ""
+        echo "🔧 IMMEDIATE WORKAROUND:"
+        echo "   Run installer with: --no-build-tools flag"
+        echo "   Command: curl -fsSL ... | bash -s -- --no-build-tools"
         echo ""
         echo "🔧 Manual fix options:"
         echo "   1. Install Rust compiler: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
@@ -1079,11 +1115,17 @@ if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -eq 7 ]; then
         fi
     fi
 else
-    # Python 3.8+ - use the secure version
-    if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "huggingface_hub>=0.20.0"; then
+    # Python 3.8+ - use the secure version with tokenizers pinning
+    echo "📦 Installing transformers with tokenizers dependency pinning..."
+    if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "tokenizers>=0.19.0,<0.20.0" "huggingface_hub>=0.20.0"; then
         echo "✅ Successfully installed compatible transformers and huggingface_hub"
     else
-        echo "⚠️ Failed to install transformers/huggingface_hub. May have compatibility issues..."
+        echo "⚠️ Failed to install transformers/huggingface_hub. Trying without tokenizers pinning..."
+        if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "huggingface_hub>=0.20.0"; then
+            echo "✅ Successfully installed compatible transformers and huggingface_hub (fallback)"
+        else
+            echo "⚠️ Failed to install transformers/huggingface_hub. May have compatibility issues..."
+        fi
     fi
 fi
 
