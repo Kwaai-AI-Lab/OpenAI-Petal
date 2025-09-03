@@ -1,2 +1,16 @@
 backup/
 __pycache__/
+
+# Python build artifacts
+*.egg-info/
+build/
+dist/
+*.whl
+*.tar.gz
+
+# System files
+.DS_Store
+
+# Testing artifacts
+test_daemon.py
+installed_packages.txt
