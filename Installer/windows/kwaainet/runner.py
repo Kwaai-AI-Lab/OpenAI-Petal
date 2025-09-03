@@ -250,42 +250,67 @@ class KwaaiNetRunner:
 
 def parse_args():
     """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description="KwaaiNet for Windows")
+    parser = argparse.ArgumentParser(
+        description="KwaaiNet for Windows - Distributed AI node with daemon support",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Daemon Mode Examples:
+  kwaainet start --daemon                    # Start in background
+  kwaainet start --daemon --model "meta-llama/Llama-2-7b-hf" --blocks 4
+  kwaainet stop                              # Stop daemon
+  kwaainet status                            # Check daemon status
+  kwaainet logs --lines 100                  # View recent logs
+  kwaainet restart                           # Restart daemon
+
+For more information: https://github.com/Kwaai-AI-Lab/OpenAI-Petal"""
+    )
     
     # Command subparsers
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
     
     # Start command
-    start_parser = subparsers.add_parser("start", help="Start KwaaiNet node")
-    start_parser.add_argument("--model", type=str, help="Model to use")
-    start_parser.add_argument("--blocks", type=int, help="Number of blocks to share")
-    start_parser.add_argument("--port", type=int, help="Port to listen on")
+    start_parser = subparsers.add_parser("start", 
+        help="Start KwaaiNet node",
+        description="Start KwaaiNet node in foreground or daemon mode")
+    start_parser.add_argument("--model", type=str, help="Model to use (e.g., 'meta-llama/Llama-2-7b-hf')")
+    start_parser.add_argument("--blocks", type=int, help="Number of blocks to share (default: 2)")
+    start_parser.add_argument("--port", type=int, help="Port to listen on (default: 8080)")
     start_parser.add_argument("--no-gpu", action="store_true", help="Disable GPU acceleration")
-    start_parser.add_argument("--gpu-type", choices=["auto", "cuda", "rocm", "cpu"], help="Specify GPU type")
+    start_parser.add_argument("--gpu-type", choices=["auto", "cuda", "rocm", "cpu"], help="Specify GPU type (auto-detected by default)")
     start_parser.add_argument("--public-name", type=str, help="Public name for your node")
     start_parser.add_argument("--public-ip", type=str, help="Explicitly set the public IP address")
     start_parser.add_argument("--announce-addr", type=str, help="Custom announce address for P2P networking")
     start_parser.add_argument("--no-relay", action="store_true", help="Disable automatic relay")
-    start_parser.add_argument("--daemon", action="store_true", help="Run as daemon (background process)")
+    start_parser.add_argument("--daemon", action="store_true", help="🔧 Run as daemon (background process)")
     
     # Stop command
-    subparsers.add_parser("stop", help="Stop KwaaiNet daemon")
+    subparsers.add_parser("stop", 
+        help="🛑 Stop KwaaiNet daemon",
+        description="Stop the KwaaiNet daemon process gracefully")
     
     # Restart command
-    subparsers.add_parser("restart", help="Restart KwaaiNet daemon")
+    subparsers.add_parser("restart", 
+        help="🔄 Restart KwaaiNet daemon",
+        description="Restart the KwaaiNet daemon with the same configuration")
     
     # Setup command
     subparsers.add_parser("setup", help="Setup KwaaiNet")
     
     # Status command
-    status_parser = subparsers.add_parser("status", help="Show KwaaiNet daemon status")
+    subparsers.add_parser("status", 
+        help="📊 Show KwaaiNet daemon status",
+        description="Display comprehensive daemon status including PID, uptime, CPU, memory usage")
     
     # Logs command
-    logs_parser = subparsers.add_parser("logs", help="Show KwaaiNet logs")
-    logs_parser.add_argument("--lines", "-n", type=int, default=50, help="Number of lines to show")
+    logs_parser = subparsers.add_parser("logs", 
+        help="📜 Show KwaaiNet logs",
+        description="Display recent log entries from the daemon")
+    logs_parser.add_argument("--lines", "-n", type=int, default=50, help="Number of lines to show (default: 50)")
+    logs_parser.add_argument("--follow", "-f", action="store_true", help="Follow log output in real-time")
     
     # Config command
-    config_parser = subparsers.add_parser("config", help="View or modify configuration")
+    config_parser = subparsers.add_parser("config", 
+        help="⚙️  View or modify configuration",
+        description="Manage KwaaiNet configuration settings")
     config_parser.add_argument("--view", action="store_true", help="View current configuration")
     config_parser.add_argument("--set", nargs=2, metavar=("KEY", "VALUE"), help="Set configuration value")
     
@@ -366,12 +391,27 @@ def main():
     
     elif args.command == "logs":
         lines = getattr(args, 'lines', 50)
-        logs = runner.get_logs(lines)
-        if logs:
-            for log_line in logs:
-                print(log_line)
+        follow = getattr(args, 'follow', False)
+        
+        if follow:
+            print("Following log output (Ctrl+C to stop)...")
+            import time
+            try:
+                while True:
+                    log_lines = runner.get_logs(lines)
+                    if log_lines:
+                        for line in log_lines[-10:]:  # Show last 10 lines when following
+                            print(line.rstrip())
+                    time.sleep(2)
+            except KeyboardInterrupt:
+                print("\nStopped following logs.")
         else:
-            print("No logs available")
+            logs = runner.get_logs(lines)
+            if logs:
+                for log_line in logs:
+                    print(log_line.rstrip())
+            else:
+                print("No logs available. Start the daemon to generate logs.")
         
     elif args.command == "config":
         if args.view:
