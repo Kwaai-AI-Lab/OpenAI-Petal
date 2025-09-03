@@ -32,7 +32,7 @@ if platform.system() == "Darwin":
 
 setup(
     name="kwaainet-mac",
-    version="0.8.0",
+    version="0.2.0",
     description="KwaaiNet Node for Mac systems to share compute/GPU resources",
     author="Kwaai Labs",
     author_email="contact@kwaai.ai",

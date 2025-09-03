@@ -12,7 +12,7 @@ if os.path.exists(readme_path):
 
 setup(
     name="kwaainet-linux",
-    version="0.8.0",
+    version="0.2.0",
     author="Kwaai Labs",
     author_email="contact@kwaai.ai",
     description="KwaaiNet for Linux - Native compute sharing with GPU acceleration",

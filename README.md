@@ -1,7 +1,7 @@
 <p>
 <h1 align="center">OpenAI API-compatible server for Petals distributed inference 👋</h1>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.1.2-blue.svg?cacheSeconds=2592000" />
-  <img alt="Installer Version" src="https://img.shields.io/badge/installer-v0.1.2-brightgreen.svg?cacheSeconds=2592000" />
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-blue.svg?cacheSeconds=2592000" />
+  <img alt="Installer Version" src="https://img.shields.io/badge/installer-v0.2.0-brightgreen.svg?cacheSeconds=2592000" />
   <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">
     <img alt="License: CC-BY-4.0" src="https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg" />
   <a href="https://kwaaiailab.slack.com" target="_blank">
@@ -22,7 +22,7 @@
 
 - [x] Research Windows installer requirements and analyze Linux installer structure
 - [x] Design Windows installer architecture (PowerShell vs Batch vs MSI)
-- [x] Fix Linux installer tokenizers build failure (wheel compilation error) - v0.1.6 hotfix pending
+- [x] Fix Linux installer tokenizers build failure (wheel compilation error) - ✅ Fixed in v0.2.0
 - [ ] Implement Windows version and architecture detection
 - [ ] Implement Windows GPU detection (NVIDIA, AMD, Intel)
 - [ ] Implement Python/conda environment setup for Windows
@@ -369,7 +369,7 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 **Tokenizers build failure (wheel compilation error):**
 - **Error**: `Building wheel for tokenizers (pyproject.toml) ... error`
 - **Cause**: Missing Rust compiler or build dependencies
-- **🚨 IMMEDIATE WORKAROUND** (if still occurring in v0.1.6):
+- **🚨 IMMEDIATE WORKAROUND** (if issues persist in v0.2.0):
   ```bash
   # Use the --no-build-tools flag to force pre-built wheels only
   curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxinstaller.sh | bash -s -- --no-build-tools
