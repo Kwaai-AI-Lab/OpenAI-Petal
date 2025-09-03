@@ -88,7 +88,7 @@
 The best way to support is to give us a ⭐ on [GitHub](https://github.com/KWAAI-ai-lab/paiassistant), [join the Kwaai community](https://www.kwaai.ai/home/sign-up), and connect with us on [slack](https://kwaaiailab.slack.com)!
 
 
-### Installation and Setup
+## Installation and Setup
 The steps below can be used to setup the enviroment for this project. The install will run with or without GPU. If you are running a private swarm node, you might need some gpu support to share the load with community inference servers. This project needs some resources for the tokenizer part of inference. It will run on cpu or gpu supported machines.
 
 > **Note:** The default setup and run process provided here will allow you to connect to Petals' public swarm. Data you send will be public. Please be aware!
