@@ -1,11 +1,11 @@
-# KwaaiNet for Windows - One-Step Installer v0.1
+# KwaaiNet for Windows - One-Step Installer v0.2.0
 # This script handles the entire installation process for KwaaiNet on Windows
 
 # Ensure we can run PowerShell scripts
 #Requires -Version 5.1
 
 # Installer version
-$script:InstallerVersion = "0.1.4"
+$script:InstallerVersion = "0.2.0"
 
 param(
     [switch]$UseSystemPython,

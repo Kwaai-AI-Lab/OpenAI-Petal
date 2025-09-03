@@ -1,13 +1,13 @@
 ## 3. kwaainet/__init__.py
 
 """
-KwaaiNet for Linux
-==================
+KwaaiNet for Windows
+====================
 
-A package to run KwaaiNet node on Linux systems, providing GPU acceleration through CUDA/ROCm.
+A package to run KwaaiNet node on Windows systems, providing GPU acceleration through CUDA.
 
 This package is designed to be an alternative to the Docker-based deployment
-for Linux users who want native performance and easier setup.
+for Windows users who want native performance and easier setup.
 """
 
 import logging
@@ -22,9 +22,9 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-# Check if running on Linux
-if platform.system() != "Linux":
-    logger.warning("This package is designed for Linux systems only.")
+# Check if running on Windows
+if platform.system() != "Windows":
+    logger.warning("This package is designed for Windows systems only.")
 
 # Check Python version
 if sys.version_info < (3, 8):
@@ -56,7 +56,7 @@ def stop_node():
     return runner.stop()
 
 def setup():
-    """Set up KwaaiNet on Linux"""
+    """Set up KwaaiNet on Windows"""
     return setup_linux()
 
 def get_config():
