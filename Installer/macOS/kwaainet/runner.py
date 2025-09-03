@@ -4,10 +4,13 @@ import logging
 import argparse
 import platform
 import subprocess
+import json
+import time
 from pathlib import Path
 
 from .config import KwaaiNetConfig
 from .installer import setup_mac
+from .daemon import DaemonProcess, setup_signal_handlers
 
 # Configure logging
 logging.basicConfig(
@@ -27,7 +30,12 @@ class KwaaiNetRunner:
         self.config = KwaaiNetConfig()
         self.home_dir = str(Path.home())
         self.data_dir = os.path.join(self.home_dir, ".kwaainet/data")
+        self.log_dir = os.path.join(self.home_dir, ".kwaainet/logs")
         os.makedirs(self.data_dir, exist_ok=True)
+        os.makedirs(self.log_dir, exist_ok=True)
+        
+        # Initialize daemon process manager
+        self.daemon = DaemonProcess("kwaainet")
         
     def check_system(self):
         """Check if system meets requirements"""
@@ -51,7 +59,7 @@ class KwaaiNetRunner:
             self.config.update(use_gpu=False)
         return True
     
-    def start(self):
+    def start(self, daemon_mode: bool = False):
         """Start KwaaiNet node"""
         # Prepare environment
         env = os.environ.copy()
@@ -116,14 +124,24 @@ class KwaaiNetRunner:
             # Log the full command for debugging
             logger.info(f"Running command: {' '.join(command)}")
             
-            # Start the process
-            process = subprocess.Popen(command, env=env)
+            # Setup daemon-specific logging if in daemon mode
+            if daemon_mode:
+                # Configure file logging for daemon mode
+                log_file = os.path.join(self.log_dir, "kwaainet.log")
+                file_handler = logging.FileHandler(log_file)
+                file_handler.setFormatter(logging.Formatter(
+                    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+                ))
+                logging.getLogger().addHandler(file_handler)
+                
+                # Setup signal handlers
+                setup_signal_handlers(self.daemon)
             
-            # Wait for process to complete
-            return_code = process.wait()
+            # Start the process using daemon manager
+            success = self.daemon.start_process(command, env, daemon_mode)
             
-            if return_code != 0:
-                logger.error(f"KwaaiNet node exited with code {return_code}")
+            if not success:
+                logger.error("Failed to start KwaaiNet node")
                 return False
                 
             return True
@@ -155,13 +173,12 @@ class KwaaiNetRunner:
                     command.append("--no_auto_relay")
                 
                 logger.info(f"Running command (CPU fallback): {' '.join(command)}")
-                process = subprocess.Popen(command, env=env)
                 
-                # Wait for process to complete
-                return_code = process.wait()
+                # Start fallback process using daemon manager
+                success = self.daemon.start_process(command, env, daemon_mode)
                 
-                if return_code != 0:
-                    logger.error(f"KwaaiNet node (CPU mode) exited with code {return_code}")
+                if not success:
+                    logger.error("KwaaiNet node (CPU mode) failed to start")
                     return False
                     
                 return True
@@ -172,10 +189,43 @@ class KwaaiNetRunner:
             
     def stop(self):
         """Stop KwaaiNet node"""
-        # Implementation would depend on how the process is managed
-        # This is a placeholder for now
         logger.info("Stopping KwaaiNet node")
-        return True
+        return self.daemon.stop_process()
+    
+    def restart(self):
+        """Restart KwaaiNet node"""
+        logger.info("Restarting KwaaiNet node")
+        
+        # Get the last command used to start the node
+        status = self.daemon.read_status()
+        if status and "command" in status:
+            command = status["command"]
+            env = os.environ.copy()
+            config_env = self.config.as_env_dict()
+            env.update(config_env)
+            
+            return self.daemon.restart_process(command, env)
+        else:
+            logger.error("Cannot restart: no previous command found")
+            return False
+    
+    def status(self):
+        """Get daemon status"""
+        return self.daemon.get_status()
+    
+    def get_logs(self, lines: int = 50):
+        """Get recent log entries"""
+        log_file = os.path.join(self.log_dir, "kwaainet.log")
+        if not os.path.exists(log_file):
+            return []
+        
+        try:
+            with open(log_file, 'r') as f:
+                all_lines = f.readlines()
+                return all_lines[-lines:] if lines else all_lines
+        except IOError as e:
+            logger.error(f"Failed to read log file: {e}")
+            return []
 
 def parse_args():
     """Parse command line arguments"""
@@ -194,10 +244,22 @@ def parse_args():
     start_parser.add_argument("--public-ip", type=str, help="Explicitly set the public IP address")
     start_parser.add_argument("--announce-addr", type=str, help="Custom announce address for P2P networking")
     start_parser.add_argument("--no-relay", action="store_true", help="Disable automatic relay")
-    
+    start_parser.add_argument("--daemon", action="store_true", help="Run in daemon mode (background)")
     
     # Stop command
     subparsers.add_parser("stop", help="Stop KwaaiNet node")
+    
+    # Restart command
+    subparsers.add_parser("restart", help="Restart KwaaiNet node")
+    
+    # Daemon management commands
+    daemon_parser = subparsers.add_parser("daemon", help="Daemon management commands")
+    daemon_subparsers = daemon_parser.add_subparsers(dest="daemon_command", help="Daemon operations")
+    daemon_subparsers.add_parser("start", help="Start daemon")
+    daemon_subparsers.add_parser("stop", help="Stop daemon")
+    daemon_subparsers.add_parser("restart", help="Restart daemon")
+    daemon_subparsers.add_parser("status", help="Show daemon status")
+    daemon_subparsers.add_parser("logs", help="Show daemon logs").add_argument("--lines", type=int, default=50, help="Number of lines to show")
     
     # Setup command
     subparsers.add_parser("setup", help="Setup KwaaiNet")
@@ -247,21 +309,59 @@ def main():
         if update_kwargs:
             runner.config.update(**update_kwargs)
             
-        # Start the node
-        if not runner.start():
+        # Start the node (with daemon mode if requested)
+        daemon_mode = getattr(args, 'daemon', False)
+        if not runner.start(daemon_mode):
             sys.exit(1)
             
     elif args.command == "stop":
         if not runner.stop():
             sys.exit(1)
             
+    elif args.command == "restart":
+        if not runner.restart():
+            sys.exit(1)
+            
+    elif args.command == "daemon":
+        if not args.daemon_command:
+            logger.error("No daemon command specified")
+            sys.exit(1)
+            
+        if args.daemon_command == "start":
+            # Start in daemon mode with current config
+            if not runner.start(daemon_mode=True):
+                sys.exit(1)
+        elif args.daemon_command == "stop":
+            if not runner.stop():
+                sys.exit(1)
+        elif args.daemon_command == "restart":
+            if not runner.restart():
+                sys.exit(1)
+        elif args.daemon_command == "status":
+            status = runner.status()
+            print(json.dumps(status, indent=2))
+        elif args.daemon_command == "logs":
+            lines = getattr(args, 'lines', 50)
+            log_lines = runner.get_logs(lines)
+            for line in log_lines:
+                print(line.rstrip())
+            
     elif args.command == "setup":
         if not runner.setup():
             sys.exit(1)
             
     elif args.command == "status":
-        # Implementation pending
-        logger.info("Status command not yet implemented")
+        status = runner.status()
+        if status.get("running"):
+            print(f"✅ KwaaiNet daemon is running (PID: {status.get('pid')})")
+            print(f"   Uptime: {status.get('uptime', 0):.1f} seconds")
+            print(f"   CPU: {status.get('cpu_percent', 0):.1f}%")
+            print(f"   Memory: {status.get('memory_percent', 0):.1f}% ({status.get('memory_mb', 0):.1f} MB)")
+            print(f"   Connections: {status.get('connections', 0)}")
+        else:
+            print("❌ KwaaiNet daemon is not running")
+            if status.get("error"):
+                print(f"   Error: {status['error']}")
         
     elif args.command == "config":
         if args.view:
