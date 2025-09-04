@@ -101,7 +101,7 @@ class KwaaiNetConfig:
         env_dict = {
             "KWAAINET_MODEL": self.config.get("model"),
             "KWAAINET_BLOCKS": str(self.config.get("blocks")),
-            "INITIAL_PEERS": " ".join(self.config.get("initial_peers")),
+            "INITIAL_PEERS": " ".join(self.config.get("initial_peers") or []),
             "KWAAINET_PORT": str(self.config.get("port")),
             "KWAAINET_LOG_LEVEL": self.config.get("log_level"),
         }

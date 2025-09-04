@@ -105,9 +105,8 @@ class DaemonProcess:
                 import subprocess
                 import sys
                 
-                # Write PID file for current process
+                # Don't write PID file here - we'll write the subprocess PID later
                 pid = os.getpid()
-                self.write_pid(pid)
                 
                 # Register cleanup
                 atexit.register(self._cleanup_pid_file)
@@ -150,9 +149,8 @@ class DaemonProcess:
                 logger.error(f"Second fork failed: {e}")
                 sys.exit(1)
             
-            # Write PID file
+            # Don't write PID file here - we'll write the subprocess PID later
             pid = os.getpid()
-            self.write_pid(pid)
             
             # Register cleanup
             atexit.register(self._cleanup_pid_file)
@@ -194,6 +192,10 @@ class DaemonProcess:
                 preexec_fn=os.setsid  # Create new process group
             )
             
+            # Write the subprocess PID to the PID file (not the daemon PID)
+            if daemon_mode:
+                self.write_pid(self.process.pid)
+            
             # Write initial status
             self.write_status({
                 "pid": self.process.pid,
@@ -210,6 +212,15 @@ class DaemonProcess:
             if not daemon_mode:
                 return_code = self.process.wait()
                 return return_code == 0
+            else:
+                # In daemon mode, keep the daemon alive to monitor the subprocess
+                while not self.should_stop.is_set() and self.process and self.process.poll() is None:
+                    time.sleep(1)
+                
+                # If we get here, the process has ended
+                if self.process:
+                    logger.warning(f"Process ended with return code: {self.process.returncode}")
+                self._cleanup_pid_file()
             
             return True
             
