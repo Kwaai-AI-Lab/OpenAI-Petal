@@ -90,9 +90,14 @@ class KwaaiNetRunner:
             port = self.config.get("port", 8080)
             command.extend(["--port", str(port)])
             
-            # Add initial peers if configured
+            # Add initial peers if configured, otherwise start new swarm
             if self.config.get("initial_peers"):
+                # Try to use configured peers with reachability check skipped
                 command.extend(["--initial_peers"] + self.config.get("initial_peers"))
+                command.append("--skip_reachability_check")
+            else:
+                # No peers configured, start a new private swarm
+                command.append("--new_swarm")
             
             # Add public name if configured
             if self.config.get("public_name"):
