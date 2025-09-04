@@ -204,9 +204,35 @@ pip cache remove kwaainet-mac &>/dev/null || true
 pip cache remove kwaainet_mac &>/dev/null || true
 rm -rf /tmp/pip-* 2>/dev/null || true
 
-# Install the package directly from your URL
-echo "📦 Installing KwaaiNet for Mac..."
-pip install --no-cache-dir https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.8.0.tar.gz
+# Uninstall any existing kwaainet packages to avoid version conflicts
+echo "🧹 Removing any existing KwaaiNet packages..."
+pip uninstall -y kwaainet-mac kwaainet_mac &>/dev/null || true
+
+# Download and install the current project code
+echo "📦 Downloading KwaaiNet source code..."
+TEMP_DIR=$(mktemp -d)
+cd "$TEMP_DIR"
+
+if command -v git >/dev/null 2>&1; then
+    echo "📡 Cloning repository with git..."
+    git clone --depth 1 https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git
+    PROJECT_PATH="$TEMP_DIR/OpenAI-Petal"
+else
+    echo "📡 Downloading repository archive..."
+    curl -L https://github.com/Kwaai-AI-Lab/OpenAI-Petal/archive/main.tar.gz -o main.tar.gz
+    tar -xzf main.tar.gz
+    PROJECT_PATH="$TEMP_DIR/OpenAI-Petal-main"
+fi
+
+# Install the current project in development mode
+echo "📦 Installing KwaaiNet for Mac in development mode..."
+cd "$PROJECT_PATH/Installer/macOS"
+pip install -e .
+
+# Clean up temporary files
+echo "🧹 Cleaning up temporary files..."
+cd /
+rm -rf "$TEMP_DIR"
 
 # Create launcher script for one-step execution
 echo "🚀 Creating launcher script..."
