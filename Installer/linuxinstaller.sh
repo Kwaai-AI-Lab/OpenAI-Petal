@@ -1255,6 +1255,51 @@ fi
 # Configure CUDA library paths for bitsandbytes (NVIDIA GPUs only)
 configure_cuda_paths
 
+# Install KwaaiNet Linux package
+echo "📦 Installing KwaaiNet for Linux..."
+
+# Clear cached versions and uninstall existing packages to avoid conflicts
+echo "🧹 Clearing any cached versions and removing existing packages..."
+$PIP_EXEC cache remove kwaainet-linux &>/dev/null || true
+$PIP_EXEC cache remove kwaainet_linux &>/dev/null || true
+$PIP_EXEC uninstall -y kwaainet-linux kwaainet_linux &>/dev/null || true
+
+# Download and install the current project code
+echo "📦 Downloading KwaaiNet source code..."
+TEMP_DIR=$(mktemp -d)
+cd "$TEMP_DIR"
+
+if command -v git >/dev/null 2>&1; then
+    echo "📡 Cloning repository with git..."
+    git clone --depth 1 https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git
+    PROJECT_PATH="$TEMP_DIR/OpenAI-Petal"
+else
+    echo "📡 Downloading repository archive..."
+    curl -L https://github.com/Kwaai-AI-Lab/OpenAI-Petal/archive/main.tar.gz -o main.tar.gz
+    tar -xzf main.tar.gz
+    PROJECT_PATH="$TEMP_DIR/OpenAI-Petal-main"
+fi
+
+# Install the current project in development mode
+echo "📦 Installing KwaaiNet for Linux in development mode..."
+cd "$PROJECT_PATH/Installer/linux"
+$PIP_EXEC install -e .
+
+if [ $? -eq 0 ]; then
+    echo "✅ KwaaiNet Linux package installed successfully"
+else
+    echo "❌ Failed to install KwaaiNet Linux package"
+    echo "🧹 Cleaning up temporary files..."
+    cd /
+    rm -rf "$TEMP_DIR"
+    exit 1
+fi
+
+# Clean up temporary files
+echo "🧹 Cleaning up temporary files..."
+cd /
+rm -rf "$TEMP_DIR"
+
 # Create launcher script for one-step execution
 echo "🚀 Creating launcher script..."
 LAUNCHER_PATH="$HOME/.local/bin/kwaainet"
