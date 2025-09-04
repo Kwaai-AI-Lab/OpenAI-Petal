@@ -16,51 +16,34 @@
 
 **OpenAI-Petal** is an OpenAI API-compatible server that bridges to the Petals distributed inference network. It enables you to run large language models through Petals' distributed network while maintaining full compatibility with OpenAI's API format, making it easy to integrate into existing applications.
 
-## Development Status & Todo
+## ✅ Recent Updates (September 2025)
 
-### Current Sprint: Windows Installer Development
+### 🚀 **Daemon Mode Complete**
+- ✅ **Stable daemon operation** with PID tracking and process supervision
+- ✅ **Full daemon management**: `start`, `stop`, `restart`, `status`, `logs` commands
+- ✅ **Cross-platform compatibility** (macOS, Linux, Windows)
+- ✅ **Network connectivity fixes** with working KwaaiNet bootstrap peers
+- ✅ **Beautiful CLI interface** with enhanced visual design and Unicode borders
 
-- [x] Research Windows installer requirements and analyze Linux installer structure
-- [x] Design Windows installer architecture (PowerShell vs Batch vs MSI)
-- [x] Fix Linux installer tokenizers build failure (wheel compilation error) - ✅ Fixed in v0.2.0
-- [ ] Implement Windows version and architecture detection
-- [ ] Implement Windows GPU detection (NVIDIA, AMD, Intel)
-- [ ] Implement Python/conda environment setup for Windows
-- [ ] Implement Windows dependency installation and package management
-- [ ] Create progress indicators and user feedback system
-- [ ] Implement comprehensive error handling and recovery
-- [ ] Create Windows uninstaller script
-- [ ] Update README.md with Windows installation instructions
-- [ ] Test installer on different Windows versions and configurations
+### 🛠️ **Installer Improvements**  
+- ✅ **Windows installer** with comprehensive error handling and GPU detection
+- ✅ **Linux installer** with enhanced dependency management and error recovery
+- ✅ **macOS installer** with development mode installation to prevent version conflicts
+- ✅ **Version conflict fixes** across all platforms using development mode installation
+- ✅ **Automatic setup integration** in all installers
 
-### Security & Infrastructure Sprint (January 2025)
+### 🎨 **User Experience Enhancements**
+- ✅ **Beautified CLI output** with elegant borders, emojis, and visual hierarchy
+- ✅ **Enhanced status display** with contextual icons and smart uptime formatting
+- ✅ **Professional help system** with organized examples and clear documentation
+- ✅ **Improved error handling** and user feedback across all components
 
-- [x] Analyze GitHub security vulnerabilities (41 total: 2 critical, 11 high, 23 moderate, 5 low)
-- [x] Document transformers vulnerability trade-offs with Petals compatibility
-- [x] Update all non-conflicting dependencies to secure versions
-- [ ] Monitor Petals project for transformers 4.50.0+ compatibility updates
-- [ ] Investigate alternative distributed inference solutions
-- [ ] Implement additional security hardening measures
-
-### Current Sprint: Daemon Mode Implementation
-
-- [x] Implement basic daemon mode with PID management
-- [x] Add daemon control commands (start, stop, restart, status, logs)
-- [x] Add process monitoring and health checks
-- [ ] Add FastAPI web server integration
-- [ ] Create web dashboard for daemon control
-- [ ] Add real-time WebSocket monitoring
-- [ ] Test complete daemon and dashboard integration
-
-### Future Enhancements
-
-- [ ] Automate ClickUp task updates from git commits/GitHub Actions
-- [ ] Launch on OS reboot (system service integration)
-- [ ] Auto-reconnect if disconnected from network
-- [ ] Automated testing for installation process
-- [ ] Enhanced GPU-specific optimizations
-- [ ] Comprehensive logging options
-- [ ] Performance benchmarking tools
+### 📊 **Current Status**
+All core features are **complete and stable**:
+- **Cross-platform installers** working on Windows, Linux, macOS
+- **Daemon mode** with full management capabilities
+- **Network connectivity** to KwaaiNet distributed inference network
+- **Beautiful CLI interface** with professional visual design
 
 ### Key Features
 - **🔌 OpenAI API Compatibility**: Drop-in replacement supporting standard endpoints
@@ -68,9 +51,11 @@
 - **🛠️ Advanced Tool Calling**: Function calling with model-specific formatting (Hermes, Llama 3, Mistral, etc.)
 - **💻 Cross-Platform**: Windows, Linux and macOS support with automatic GPU detection (NVIDIA, AMD, Intel, Apple Silicon)
 - **⚡ High Performance**: FastAPI backend with streaming support and smart token processing
-- **📦 Easy Setup**: One-step installers handle all dependencies automatically
-- **🤖 Daemon Mode**: Background operation with process monitoring and automatic restart
-- **🌐 Web Dashboard**: Real-time monitoring and control via web interface (coming soon)
+- **📦 Easy Setup**: One-step installers handle all dependencies automatically with development mode installation
+- **🤖 Stable Daemon Mode**: Background operation with PID tracking, process supervision, and automatic restart
+- **🎨 Beautiful CLI Interface**: Professional visual design with Unicode borders, contextual icons, and enhanced UX
+- **🔧 Comprehensive Management**: Full daemon control with `start`, `stop`, `restart`, `status`, `logs` commands
+- **📊 Smart Status Monitoring**: Real-time process metrics with CPU, memory, uptime, and connection tracking
 
 ### Architecture
 - **FastAPI Backend**: High-performance async web server with CORS support
@@ -171,9 +156,9 @@ pip install -e ./Installer/windows/
 pip install -e ./Installer/linux/
 ```
 
-#### macOS
+#### macOS  
 ```bash
-pip install https://github.com/Kwaai-AI-Lab/OpenAI-Petal/raw/main/Installer/macOS/dist/kwaainet_mac-0.8.0.tar.gz
+pip install -e ./Installer/macOS/
 ```
 
 > ⚠️ Make sure you are using **Python 3.8+** and `pip` is from the correct environment (virtualenv, conda, or system Python).
@@ -198,6 +183,69 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Pe
 #### macOS
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macuninstaller.sh)"
+```
+
+## 🚀 Usage
+
+### Beautiful CLI Interface
+KwaaiNet features a professional, visually appealing CLI with elegant borders and contextual icons:
+
+```bash
+# Get help with beautiful formatting
+kwaainet --help
+
+# Start daemon mode
+kwaainet start --daemon
+
+# Check status with visual indicators
+kwaainet status
+```
+
+**Status Output Example:**
+```
+╭─────────────────────────────────────────────────────────────────────╮
+│                      📊 KwaaiNet Daemon Status                       │
+╰─────────────────────────────────────────────────────────────────────╯
+
+  🟢 Status: Running (PID: 12345)
+  ⏰ Uptime: 2.3 hours
+  🖥️  CPU: 15.2%
+  💾 Memory: 8.5% (1024.0 MB)
+  🔗 Connections: 12
+  🧵 Threads: 29
+─────────────────────────────────────────────────────────────────────
+```
+
+### Daemon Management
+KwaaiNet runs as a stable background daemon with full process management:
+
+```bash
+# Start in daemon mode (background)
+kwaainet start --daemon
+
+# Check daemon status  
+kwaainet status
+
+# View logs with beautiful formatting
+kwaainet logs --lines 50
+
+# Restart daemon
+kwaainet restart
+
+# Stop daemon
+kwaainet stop
+```
+
+### Configuration Management
+View and modify configuration with a clean interface:
+
+```bash
+# View current configuration
+kwaainet config --view
+
+# Set configuration values
+kwaainet config --set model "meta-llama/Llama-2-7b-hf"
+kwaainet config --set blocks 4
 ```
 
 ### Initial Setup
