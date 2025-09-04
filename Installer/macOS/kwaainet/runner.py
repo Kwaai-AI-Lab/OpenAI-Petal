@@ -237,15 +237,20 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="KwaaiNet for macOS - Distributed AI node with daemon support",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""Daemon Mode Examples:
-  kwaainet start --daemon                    # Start in background
-  kwaainet start --daemon --model "meta-llama/Llama-2-7b-hf" --blocks 4
-  kwaainet stop                              # Stop daemon
-  kwaainet status                            # Check daemon status
-  kwaainet logs --lines 100                  # View recent logs
-  kwaainet restart                           # Restart daemon
+        epilog="""╭─────────────────────────────────────────────────────────────────────╮
+│                        🚀 Daemon Mode Examples                         │
+╰─────────────────────────────────────────────────────────────────────╯
 
-For more information: https://github.com/Kwaai-AI-Lab/OpenAI-Petal"""
+  kwaainet start --daemon                    # 🟢 Start in background
+  kwaainet start --daemon --model "meta-llama/Llama-2-7b-hf" --blocks 4
+  kwaainet stop                              # 🛑 Stop daemon  
+  kwaainet status                            # 📊 Check daemon status
+  kwaainet logs --lines 100                  # 📜 View recent logs
+  kwaainet restart                           # 🔄 Restart daemon
+
+╭─────────────────────────────────────────────────────────────────────╮
+│  📚 More info: https://github.com/Kwaai-AI-Lab/OpenAI-Petal          │
+╰─────────────────────────────────────────────────────────────────────╯"""
     )
     
     # Command subparsers
@@ -353,29 +358,57 @@ def main():
             
     elif args.command == "status":
         status = runner.status()
+        print()
+        print("╭─────────────────────────────────────────────────────────────────────╮")
+        print("│                      📊 KwaaiNet Daemon Status                       │")
+        print("╰─────────────────────────────────────────────────────────────────────╯")
+        print()
+        
         if status.get("running"):
-            print(f"✅ KwaaiNet daemon is running (PID: {status.get('pid')})")
+            print(f"  🟢 Status: Running (PID: {status.get('pid')})")
+            
             uptime_seconds = status.get('uptime', 0)
             uptime_hours = uptime_seconds / 3600
-            if uptime_hours > 1:
-                print(f"   Uptime: {uptime_hours:.1f} hours")
+            if uptime_hours >= 24:
+                days = uptime_hours / 24
+                print(f"  ⏰ Uptime: {days:.1f} days")
+            elif uptime_hours > 1:
+                print(f"  ⏰ Uptime: {uptime_hours:.1f} hours")
             else:
-                print(f"   Uptime: {uptime_seconds:.1f} seconds")
-            print(f"   CPU: {status.get('cpu_percent', 0):.1f}%")
-            print(f"   Memory: {status.get('memory_percent', 0):.1f}% ({status.get('memory_mb', 0):.1f} MB)")
-            print(f"   Connections: {status.get('connections', 0)}")
-            print(f"   Threads: {status.get('threads', 0)}")
+                uptime_minutes = uptime_seconds / 60
+                if uptime_minutes > 1:
+                    print(f"  ⏰ Uptime: {uptime_minutes:.1f} minutes")
+                else:
+                    print(f"  ⏰ Uptime: {uptime_seconds:.1f} seconds")
+            
+            print(f"  🖥️  CPU: {status.get('cpu_percent', 0):.1f}%")
+            print(f"  💾 Memory: {status.get('memory_percent', 0):.1f}% ({status.get('memory_mb', 0):.1f} MB)")
+            print(f"  🔗 Connections: {status.get('connections', 0)}")
+            print(f"  🧵 Threads: {status.get('threads', 0)}")
         else:
-            print("❌ KwaaiNet daemon is not running")
+            print(f"  🔴 Status: Not running")
             if status.get("error"):
-                print(f"   Error: {status['error']}")
+                print(f"  ⚠️  Error: {status['error']}")
+        
+        print()
+        print("─────────────────────────────────────────────────────────────────────")
     
     elif args.command == "logs":
         lines = getattr(args, 'lines', 50)
         follow = getattr(args, 'follow', False)
         
+        print()
+        print("╭─────────────────────────────────────────────────────────────────────╮")
         if follow:
-            print("Following log output (Ctrl+C to stop)...")
+            print("│                       📜 Following KwaaiNet Logs                     │")
+        else:
+            print(f"│                  📜 KwaaiNet Logs (last {lines} lines)                  │")
+        print("╰─────────────────────────────────────────────────────────────────────╯")
+        print()
+        
+        if follow:
+            print("🔄 Following log output (Ctrl+C to stop)...")
+            print("─────────────────────────────────────────────────────────────────────")
             import time
             try:
                 while True:
@@ -385,20 +418,48 @@ def main():
                             print(line.rstrip())
                     time.sleep(2)
             except KeyboardInterrupt:
-                print("\nStopped following logs.")
+                print()
+                print("─────────────────────────────────────────────────────────────────────")
+                print("⏹️  Stopped following logs.")
         else:
             log_lines = runner.get_logs(lines)
             if log_lines:
+                print("─────────────────────────────────────────────────────────────────────")
                 for line in log_lines:
                     print(line.rstrip())
+                print("─────────────────────────────────────────────────────────────────────")
             else:
-                print("No logs available. Start the daemon to generate logs.")
+                print("  📭 No logs available. Start the daemon to generate logs.")
+                print("─────────────────────────────────────────────────────────────────────")
         
     elif args.command == "config":
         if args.view:
+            print()
+            print("╭─────────────────────────────────────────────────────────────────────╮")
+            print("│                       ⚙️ KwaaiNet Configuration                      │")
+            print("╰─────────────────────────────────────────────────────────────────────╯")
+            print()
+            
             config = runner.config.as_dict()
-            for key, value in config.items():
-                print(f"{key}: {value}")
+            if config:
+                print("─────────────────────────────────────────────────────────────────────")
+                for key, value in config.items():
+                    # Add appropriate icons for different config types
+                    if key in ['model']:
+                        icon = "🤖"
+                    elif key in ['port']:
+                        icon = "🔌"
+                    elif key in ['use_gpu']:
+                        icon = "🖥️"
+                    elif key in ['blocks']:
+                        icon = "🧱"
+                    else:
+                        icon = "📋"
+                    print(f"  {icon} {key}: {value}")
+                print("─────────────────────────────────────────────────────────────────────")
+            else:
+                print("  📭 No configuration found.")
+                print("─────────────────────────────────────────────────────────────────────")
         elif args.set:
             key, value = args.set
             # Convert value type if needed
@@ -410,7 +471,13 @@ def main():
                 value = False
                 
             runner.config.set(key, value)
-            logger.info(f"Set {key} = {value}")
+            print()
+            print("╭─────────────────────────────────────────────────────────────────────╮")
+            print("│                     ⚙️ Configuration Updated                         │")
+            print("╰─────────────────────────────────────────────────────────────────────╯")
+            print()
+            print(f"  ✅ Set {key} = {value}")
+            print("─────────────────────────────────────────────────────────────────────")
         else:
             logger.error("No action specified for config command")
             sys.exit(1)
