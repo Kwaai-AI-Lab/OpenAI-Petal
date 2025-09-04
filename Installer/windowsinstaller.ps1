@@ -24,6 +24,10 @@ $script:PythonMethod = ""
 $script:GpuType = "none"
 $script:GpuInfo = ""
 $script:UseElevated = $false
+$script:Quiet = $Quiet
+$script:UseConda = $UseConda
+$script:UseSystemPython = $UseSystemPython
+$script:Force = $Force
 
 # Function to write colored output
 function Write-ColorOutput {
@@ -33,7 +37,7 @@ function Write-ColorOutput {
         [string]$Prefix = ""
     )
     
-    if (-not $Quiet) {
+    if (-not $script:Quiet) {
         if ($Prefix) {
             Write-Host "$Prefix " -NoNewline -ForegroundColor $Color
         }
@@ -258,11 +262,11 @@ function Set-PythonEnvironment {
     
     try {
         # Determine which Python method to use
-        if ($UseConda) {
+        if ($script:UseConda) {
             $script:PythonMethod = "conda"
             Write-Info "Using conda (forced by --UseConda flag)"
         }
-        elseif ($UseSystemPython) {
+        elseif ($script:UseSystemPython) {
             $script:PythonMethod = "system"
             Write-Info "Using system Python (forced by --UseSystemPython flag)"
         }
