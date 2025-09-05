@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 
 # Add the linux module to Python path
-sys.path.insert(0, str(Path(__file__).parent / "linux"))
+sys.path.insert(0, str(Path(__file__).parent))
 
 def test_imports():
     """Test that all modules can be imported"""

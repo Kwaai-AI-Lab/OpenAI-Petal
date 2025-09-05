@@ -18,11 +18,11 @@ if %ERRORLEVEL% NEQ 0 (
 
 REM Get the directory of this batch file
 set "INSTALLER_DIR=%~dp0"
-set "PS_SCRIPT=%INSTALLER_DIR%windowsinstaller.ps1"
+set "PS_SCRIPT=%INSTALLER_DIR%windows\windowsinstaller.ps1"
 
 REM Check if the PowerShell script exists
 if not exist "%PS_SCRIPT%" (
-    echo ERROR: windowsinstaller.ps1 not found in %INSTALLER_DIR%
+    echo ERROR: windowsinstaller.ps1 not found in %INSTALLER_DIR%windows\
     echo Please ensure both files are in the same directory.
     pause
     exit /b 1

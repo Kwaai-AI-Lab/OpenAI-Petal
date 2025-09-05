@@ -88,14 +88,14 @@ For a complete one-step installation that handles Python, dependencies, and envi
 #### Windows
 ```powershell
 # Download and run the installer
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windowsinstaller.ps1" -OutFile "windowsinstaller.ps1"; powershell.exe -ExecutionPolicy Bypass -File "windowsinstaller.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windows/windowsinstaller.ps1" -OutFile "windowsinstaller.ps1"; powershell.exe -ExecutionPolicy Bypass -File "windowsinstaller.ps1"
 ```
 
 Or use the batch file launcher:
 ```cmd
 # Download both files to the same directory and run
 curl -L -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/install.bat
-curl -L -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windowsinstaller.ps1
+curl -L -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windows/windowsinstaller.ps1
 install.bat
 ```
 
@@ -114,25 +114,25 @@ The Windows installer supports additional options:
 
 #### Linux
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxinstaller.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/linuxinstaller.sh)"
 ```
 
 The Linux installer supports additional options:
 ```bash
 # Skip system package installation (if you already have dependencies)
-curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxinstaller.sh | bash -s -- --no-system-packages
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/linuxinstaller.sh | bash -s -- --no-system-packages
 
 # Force specific Python environment
-curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxinstaller.sh | bash -s -- --force-venv
-curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxinstaller.sh | bash -s -- --force-conda
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/linuxinstaller.sh | bash -s -- --force-venv
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/linuxinstaller.sh | bash -s -- --force-conda
 
 # Show help
-curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxinstaller.sh | bash -s -- --help
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/linuxinstaller.sh | bash -s -- --help
 ```
 
 #### macOS
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macinstaller.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macOS/macinstaller.sh)"
 ```
 
 This will:
@@ -420,7 +420,7 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 - **🚨 IMMEDIATE WORKAROUND** (if issues persist in v0.2.0):
   ```bash
   # Use the --no-build-tools flag to force pre-built wheels only
-  curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxinstaller.sh | bash -s -- --no-build-tools
+  curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/linuxinstaller.sh | bash -s -- --no-build-tools
   ```
 - **Long-term solutions**:
   ```bash
