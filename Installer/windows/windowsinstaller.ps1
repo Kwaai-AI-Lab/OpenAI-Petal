@@ -1,4 +1,4 @@
-# KwaaiNet for Windows - One-Step Installer v0.2.5
+# KwaaiNet for Windows - One-Step Installer v0.2.6
 # This script handles the entire installation process for KwaaiNet on Windows
 
 # Ensure we can run PowerShell scripts
@@ -12,7 +12,7 @@ param(
 )
 
 # Installer version
-$script:InstallerVersion = "0.2.5"
+$script:InstallerVersion = "0.2.6"
 
 # Output version immediately for debugging
 Write-Host "KwaaiNet Windows Installer v$script:InstallerVersion starting..." -ForegroundColor Green
@@ -420,22 +420,64 @@ function Setup-CondaEnvironment {
     }
     else {
         Write-Info "Creating Python 3.10 environment for KwaaiNet..."
+        Write-Info "This may take several minutes to download packages..."
+        
         try {
-            $condaOutput = & conda create -y -n kwaainet python=3.10 2>&1
+            # Check conda is working first
+            Write-Info "Testing conda installation..."
+            $condaVersion = & conda --version 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                Write-ErrorMessage "Conda command failed. Exit code: $LASTEXITCODE"
+                Write-Info "Trying to refresh conda installation..."
+                $condaPath = "$env:USERPROFILE\Miniconda3"
+                $env:PATH = "$condaPath;$condaPath\Scripts;$condaPath\Library\bin;$env:PATH"
+                $condaVersion = & conda --version 2>$null
+            }
+            Write-Info "Conda version: $condaVersion"
             
-            # Check if environment was actually created by verifying it exists
+            # Create environment with verbose output and better error handling
+            Write-Info "Creating conda environment (this may take 5-10 minutes)..."
+            $condaOutput = & conda create -y -n kwaainet python=3.10 2>&1
+            $condaExitCode = $LASTEXITCODE
+            
+            Write-Info "Conda create exit code: $condaExitCode"
+            
+            if ($condaExitCode -ne 0) {
+                Write-ErrorMessage "Conda environment creation failed with exit code: $condaExitCode"
+                Write-ErrorMessage "Conda output:"
+                Write-Host $condaOutput -ForegroundColor Red
+                
+                # Try alternative approach
+                Write-Info "Trying with conda-forge channel as fallback..."
+                $condaOutput = & conda create -y -n kwaainet python=3.10 -c conda-forge 2>&1
+                $condaExitCode = $LASTEXITCODE
+                
+                if ($condaExitCode -ne 0) {
+                    Write-ErrorMessage "Alternative conda environment creation also failed"
+                    Write-ErrorMessage "Fallback output:"
+                    Write-Host $condaOutput -ForegroundColor Red
+                    exit 1
+                }
+            }
+            
+            # Verify environment was created
+            Start-Sleep -Seconds 3  # Allow conda to finalize
             $envCheck = & conda env list 2>$null
-            if ($envCheck -match "kwaainet") {
+            if ($LASTEXITCODE -eq 0 -and $envCheck -match "kwaainet") {
                 Write-Success "Created Python 3.10 environment for KwaaiNet"
             }
             else {
                 Write-ErrorMessage "Failed to create conda environment - environment not found after creation"
-                Write-ErrorMessage "Conda output: $condaOutput"
+                Write-ErrorMessage "Environment check output:"
+                Write-Host $envCheck -ForegroundColor Red
+                Write-ErrorMessage "Creation output:"  
+                Write-Host $condaOutput -ForegroundColor Red
                 exit 1
             }
         }
         catch {
             Write-ErrorMessage "Failed to create conda environment: $($_.Exception.Message)"
+            Write-ErrorMessage "Exception details: $($_.Exception)"
             exit 1
         }
     }
