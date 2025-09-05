@@ -1,4 +1,4 @@
-# KwaaiNet for Windows - One-Step Installer v0.2.10
+# KwaaiNet for Windows - One-Step Installer v0.2.11
 # This script handles the entire installation process for KwaaiNet on Windows
 
 # Ensure we can run PowerShell scripts
@@ -12,7 +12,7 @@ param(
 )
 
 # Installer version
-$script:InstallerVersion = "0.2.10"
+$script:InstallerVersion = "0.2.11"
 
 # Output version immediately for debugging
 Write-Host "KwaaiNet Windows Installer v$script:InstallerVersion starting..." -ForegroundColor Green
@@ -734,18 +734,35 @@ function Install-PythonPackages {
             Write-Info "Installing Petals 2.3.0.dev2 with rope_scaling support..."
             Write-Info "This may take several minutes as it builds from source..."
             
-            $petalsResult = & conda run -n kwaainet pip install "git+https://github.com/bigscience-workshop/petals.git" 2>$null
-            if ($LASTEXITCODE -eq 0) {
-                Write-Success "Petals installed successfully from git"
+            # First verify git is available for git+https installation
+            if (Test-Command "git") {
+                $petalsResult = & conda run -n kwaainet pip install "git+https://github.com/bigscience-workshop/petals.git" 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Petals installed successfully from git"
+                }
+                else {
+                    Write-Warning "Failed to install petals from git. Trying fallback installation..."
+                    & conda run -n kwaainet pip install petals 2>$null
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Success "Petals installed from PyPI"
+                    }
+                    else {
+                        Write-ErrorMessage "Failed to install petals. This is required for distributed inference."
+                        Write-Info "Please ensure git is working and try manual installation:"
+                        Write-Info "  conda run -n kwaainet pip install petals"
+                        exit 1
+                    }
+                }
             }
             else {
-                Write-Warning "Failed to install petals from git. Trying fallback installation..."
+                Write-Warning "Git not found. Installing Petals from PyPI instead..."
                 & conda run -n kwaainet pip install petals 2>$null
                 if ($LASTEXITCODE -eq 0) {
                     Write-Success "Petals installed from PyPI"
                 }
                 else {
-                    Write-Warning "Failed to install petals. Continuing with PyTorch installation..."
+                    Write-ErrorMessage "Failed to install petals from PyPI. This is required for distributed inference."
+                    exit 1
                 }
             }
             
@@ -795,22 +812,31 @@ function Install-PythonPackages {
             
             # Install KwaaiNet from GitHub
             Write-Info "Installing KwaaiNet from GitHub..."
-            $githubUrl = "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/windows"
+            
+            # Verify git is available before attempting GitHub installation
+            if (-not (Test-Command "git")) {
+                Write-ErrorMessage "Git is required to install KwaaiNet from GitHub but was not found"
+                Write-Info "Please install Git and re-run the installer"
+                exit 1
+            }
+            
+            # Try installing with proper subdirectory syntax
+            $githubUrl = "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#egg=kwaainet&subdirectory=Installer/windows"
             & conda run -n kwaainet pip install $githubUrl 2>$null
             if ($LASTEXITCODE -eq 0) {
                 Write-Success "KwaaiNet Windows package installed successfully from GitHub"
             }
             else {
-                Write-Warning "Failed to install KwaaiNet from GitHub, trying fallback installation..."
-                # Try installing the main package without subdirectory
-                & conda run -n kwaainet pip install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git" 2>$null
+                Write-Warning "Failed to install KwaaiNet subdirectory package, trying main package..."
+                # Try installing the main package 
+                & conda run -n kwaainet pip install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#egg=kwaainet" 2>$null
                 if ($LASTEXITCODE -eq 0) {
                     Write-Success "KwaaiNet installed successfully from GitHub (main package)"
                 }
                 else {
                     Write-ErrorMessage "Failed to install KwaaiNet from GitHub"
-                    Write-Info "This may be due to missing build tools, git, or network connectivity issues."
-                    Write-Info "Please ensure git is installed and try running manually:"
+                    Write-Info "This may be due to missing build tools, git access, or network connectivity issues."
+                    Write-Info "Please ensure git is working and try running manually:"
                     Write-Info "  conda run -n kwaainet pip install 'git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git'"
                     exit 1
                 }
@@ -834,17 +860,39 @@ function Install-PythonPackages {
             # Install tokenizers first with fallback handling
             Install-TokenizersWithFallback -PipCommand $pipExec
             
-            # Install updated petals
+            # Install updated petals with rope_scaling support
             Write-Info "Installing Petals 2.3.0.dev2 with rope_scaling support..."
-            $petalsResult = & $pipExec install "git+https://github.com/bigscience-workshop/petals.git" 2>$null
-            if ($LASTEXITCODE -eq 0) {
-                Write-Success "Petals installed successfully from git"
+            Write-Info "This may take several minutes as it builds from source..."
+            
+            # First verify git is available for git+https installation
+            if (Test-Command "git") {
+                $petalsResult = & $pipExec install "git+https://github.com/bigscience-workshop/petals.git" 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Petals installed successfully from git"
+                }
+                else {
+                    Write-Warning "Failed to install petals from git. Trying fallback installation..."
+                    & $pipExec install petals 2>$null
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Success "Petals installed from PyPI"
+                    }
+                    else {
+                        Write-ErrorMessage "Failed to install petals. This is required for distributed inference."
+                        Write-Info "Please ensure git is working and try manual installation:"
+                        Write-Info "  pip install petals"
+                        exit 1
+                    }
+                }
             }
             else {
-                Write-Warning "Failed to install petals from git. Trying fallback..."
+                Write-Warning "Git not found. Installing Petals from PyPI instead..."
                 & $pipExec install petals 2>$null
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Warning "Failed to install petals. Continuing with PyTorch..."
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Petals installed from PyPI"
+                }
+                else {
+                    Write-ErrorMessage "Failed to install petals from PyPI. This is required for distributed inference."
+                    exit 1
                 }
             }
             
@@ -882,22 +930,31 @@ function Install-PythonPackages {
             
             # Install KwaaiNet from GitHub
             Write-Info "Installing KwaaiNet from GitHub..."
-            $githubUrl = "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/windows"
+            
+            # Verify git is available before attempting GitHub installation
+            if (-not (Test-Command "git")) {
+                Write-ErrorMessage "Git is required to install KwaaiNet from GitHub but was not found"
+                Write-Info "Please install Git and re-run the installer"
+                exit 1
+            }
+            
+            # Try installing with proper subdirectory syntax
+            $githubUrl = "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#egg=kwaainet&subdirectory=Installer/windows"
             & $pipExec install $githubUrl 2>$null
             if ($LASTEXITCODE -eq 0) {
                 Write-Success "KwaaiNet Windows package installed successfully from GitHub"
             }
             else {
-                Write-Warning "Failed to install KwaaiNet from GitHub, trying fallback installation..."
-                # Try installing the main package without subdirectory
-                & $pipExec install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git" 2>$null
+                Write-Warning "Failed to install KwaaiNet subdirectory package, trying main package..."
+                # Try installing the main package
+                & $pipExec install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#egg=kwaainet" 2>$null
                 if ($LASTEXITCODE -eq 0) {
                     Write-Success "KwaaiNet installed successfully from GitHub (main package)"
                 }
                 else {
                     Write-ErrorMessage "Failed to install KwaaiNet from GitHub"
-                    Write-Info "This may be due to missing build tools, git, or network connectivity issues."
-                    Write-Info "Please ensure git is installed and try running manually:"
+                    Write-Info "This may be due to missing build tools, git access, or network connectivity issues."
+                    Write-Info "Please ensure git is working and try running manually:"
                     Write-Info "  pip install 'git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git'"
                     exit 1
                 }
