@@ -1,4 +1,4 @@
-# KwaaiNet for Windows - One-Step Installer v0.2.4
+# KwaaiNet for Windows - One-Step Installer v0.2.5
 # This script handles the entire installation process for KwaaiNet on Windows
 
 # Ensure we can run PowerShell scripts
@@ -12,7 +12,7 @@ param(
 )
 
 # Installer version
-$script:InstallerVersion = "0.2.4"
+$script:InstallerVersion = "0.2.5"
 
 # Output version immediately for debugging
 Write-Host "KwaaiNet Windows Installer v$script:InstallerVersion starting..." -ForegroundColor Green
@@ -347,9 +347,37 @@ function Install-Conda {
         $installerPath = "$env:TEMP\$installerName"
         
         Write-Info "Downloading Miniconda installer..."
-        $webClient = New-Object System.Net.WebClient
-        $webClient.DownloadFile($downloadUrl, $installerPath)
+        try {
+            # Use Invoke-WebRequest with proper headers to avoid 403 errors
+            $progressPreference = $ProgressPreference
+            $ProgressPreference = 'SilentlyContinue'  # Suppress progress bar for faster download
+            
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $installerPath -UserAgent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36" -UseBasicParsing
+            
+            $ProgressPreference = $progressPreference  # Restore original setting
+        }
+        catch {
+            Write-Warning "Failed to download with Invoke-WebRequest, trying WebClient with headers..."
+            try {
+                $webClient = New-Object System.Net.WebClient
+                $webClient.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+                $webClient.DownloadFile($downloadUrl, $installerPath)
+            }
+            catch {
+                Write-ErrorMessage "Failed to download Miniconda installer: $($_.Exception.Message)"
+                Write-Info "Please try downloading manually from: $downloadUrl"
+                throw
+            }
+        }
         
+        # Verify download was successful
+        if (-not (Test-Path $installerPath) -or (Get-Item $installerPath).Length -eq 0) {
+            Write-ErrorMessage "Miniconda installer download failed or file is empty"
+            Write-Info "Please check your internet connection and try again"
+            exit 1
+        }
+        
+        Write-Success "Miniconda installer downloaded successfully ($('{0:N2}' -f ((Get-Item $installerPath).Length / 1MB)) MB)"
         Write-Info "Installing Miniconda (this may take a few minutes)..."
         $installArgs = @(
             "/S",  # Silent install
