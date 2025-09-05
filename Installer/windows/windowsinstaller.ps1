@@ -1,11 +1,11 @@
-# KwaaiNet for Windows - One-Step Installer v0.2.0
+# KwaaiNet for Windows - One-Step Installer v0.2.3
 # This script handles the entire installation process for KwaaiNet on Windows
 
 # Ensure we can run PowerShell scripts
 #Requires -Version 5.1
 
 # Installer version
-$script:InstallerVersion = "0.2.0"
+$script:InstallerVersion = "0.2.3"
 
 param(
     [switch]$UseSystemPython,
@@ -460,7 +460,8 @@ function Install-Dependencies {
     
     $dependencies = @(
         @{ PackageId = "Git.Git"; DisplayName = "Git for Windows"; Required = $true },
-        @{ PackageId = "Microsoft.VCRedist.2015+.x64"; DisplayName = "Visual C++ Redistributable"; Required = $true }
+        @{ PackageId = "Microsoft.VCRedist.2015+.x64"; DisplayName = "Visual C++ Redistributable"; Required = $true },
+        @{ PackageId = "Microsoft.VisualStudio.2022.BuildTools"; DisplayName = "Visual Studio Build Tools 2022"; Required = $false }
     )
     
     foreach ($dep in $dependencies) {
@@ -476,6 +477,12 @@ function Install-Dependencies {
             "Microsoft.VCRedist.2015+.x64" {
                 # Check if VC++ runtime is installed
                 $installed = Test-Path "$env:SystemRoot\System32\vcruntime140.dll"
+            }
+            "Microsoft.VisualStudio.2022.BuildTools" {
+                # Check if VS Build Tools are installed
+                $installed = (Test-Path "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools") -or 
+                            (Test-Path "${env:ProgramFiles}\Microsoft Visual Studio\2022\BuildTools") -or
+                            (Test-Command "cl")
             }
         }
         
@@ -493,6 +500,72 @@ function Install-Dependencies {
     
     # Refresh PATH after installations
     $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
+    
+    # Check if build tools are available for package compilation
+    if (-not (Test-Command "cl") -and -not (Test-Path "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools")) {
+        Write-Warning "Visual Studio Build Tools not detected."
+        Write-Info "Some Python packages (like tokenizers) may fail to install if they need compilation."
+        Write-Info "The installer will try to use pre-built wheels, but if installation fails, consider installing:"
+        Write-Info "   - Visual Studio Build Tools 2022 with C++ support"
+        Write-Info "   - Or use 'winget install Microsoft.VisualStudio.2022.BuildTools'"
+    }
+}
+
+# Function to install tokenizers with fallback handling  
+function Install-TokenizersWithFallback {
+    param(
+        [string]$PipCommand
+    )
+    
+    Write-Step "Installing tokenizers with build fallback handling..."
+    
+    # Strategy 1: Try pre-built wheels first (most likely to work on Windows)
+    Write-Info "Attempting to install tokenizers (pre-built wheels only)..."
+    $result = & $PipCommand install --only-binary=tokenizers "tokenizers>=0.19.0,<0.20.0" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Success "tokenizers installed successfully (pre-built wheels)"
+        return $true
+    }
+    Write-Warning "Failed to install tokenizers pre-built wheels."
+    
+    # Strategy 2: Try latest version with pre-built wheels
+    Write-Info "Attempting to install latest tokenizers (pre-built wheels only)..."
+    $result = & $PipCommand install --only-binary=tokenizers tokenizers 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Success "tokenizers installed successfully (pre-built wheels)"
+        return $true
+    }
+    Write-Warning "Failed to install latest tokenizers pre-built wheels."
+    
+    # Strategy 3: Try older stable version
+    Write-Info "Attempting to install tokenizers 0.19.1 (pre-built wheels only)..."
+    $result = & $PipCommand install --only-binary=tokenizers "tokenizers==0.19.1" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Success "tokenizers 0.19.1 installed successfully (pre-built wheels)"
+        return $true
+    }
+    Write-Warning "Failed to install tokenizers 0.19.1 pre-built wheels."
+    
+    # Strategy 4: Last resort - try conda if available
+    if ($script:PythonMethod -eq "conda") {
+        Write-Info "Attempting to install tokenizers via conda..."
+        $result = & conda install -y tokenizers -c conda-forge 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "tokenizers installed via conda"
+            return $true
+        }
+        Write-Warning "Failed to install tokenizers via conda."
+    }
+    
+    Write-ErrorMessage "All tokenizers installation strategies failed."
+    Write-Info "This is likely due to missing Rust compiler or build tools on Windows."
+    Write-Info "Manual installation options:"
+    Write-Info "   1. Install Visual Studio Build Tools with C++ support"
+    Write-Info "   2. Install Rust compiler: https://rustup.rs/"
+    Write-Info "   3. Force pre-built wheels: pip install --only-binary=tokenizers tokenizers"
+    Write-Warning "Installation will continue, but tokenizers may not work properly."
+    
+    return $false
 }
 
 # Function to install Python packages
@@ -513,6 +586,10 @@ function Install-PythonPackages {
             Write-Info "Installing basic dependencies..."
             & conda run -n kwaainet pip install pyyaml 2>$null
             
+            # Install tokenizers first with fallback handling
+            $pipCmd = "conda run -n kwaainet pip"
+            Install-TokenizersWithFallback -PipCommand $pipCmd
+            
             # Install updated petals with rope_scaling support
             Write-Info "Installing Petals 2.3.0.dev2 with rope_scaling support..."
             Write-Info "This may take several minutes as it builds from source..."
@@ -532,14 +609,21 @@ function Install-PythonPackages {
                 }
             }
             
-            # Install compatible versions of transformers and huggingface_hub
+            # Install compatible versions of transformers and huggingface_hub with tokenizers pinning
             Write-Info "Installing compatible transformers and huggingface_hub versions..."
-            & conda run -n kwaainet pip install "transformers==4.43.1" "huggingface_hub>=0.20.0" 2>$null
+            $transformersResult = & conda run -n kwaainet pip install "transformers==4.43.1" "tokenizers>=0.19.0,<0.20.0" "huggingface_hub>=0.20.0" 2>$null
             if ($LASTEXITCODE -eq 0) {
-                Write-Success "Successfully installed compatible transformers and huggingface_hub"
+                Write-Success "Successfully installed compatible transformers and huggingface_hub with tokenizers"
             }
             else {
-                Write-Warning "Failed to install transformers/huggingface_hub. May have compatibility issues..."
+                Write-Warning "Failed to install transformers/huggingface_hub with tokenizers pinning. Trying without tokenizers pinning..."
+                & conda run -n kwaainet pip install "transformers==4.43.1" "huggingface_hub>=0.20.0" 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Successfully installed transformers and huggingface_hub (without tokenizers pinning)"
+                }
+                else {
+                    Write-Warning "Failed to install transformers/huggingface_hub. May have compatibility issues..."
+                }
             }
             
             # Install PyTorch
@@ -579,6 +663,8 @@ function Install-PythonPackages {
                 }
                 else {
                     Write-ErrorMessage "Failed to install KwaaiNet Windows package"
+                    Write-Info "This may be due to missing build tools or tokenizers compilation issues."
+                    Write-Info "Try installing Visual Studio Build Tools or using pre-built wheels."
                     exit 1
                 }
             }
@@ -601,6 +687,9 @@ function Install-PythonPackages {
             # Install basic dependencies
             & $pipExec install pyyaml 2>$null
             
+            # Install tokenizers first with fallback handling
+            Install-TokenizersWithFallback -PipCommand $pipExec
+            
             # Install updated petals
             Write-Info "Installing Petals 2.3.0.dev2 with rope_scaling support..."
             $petalsResult = & $pipExec install "git+https://github.com/bigscience-workshop/petals.git" 2>$null
@@ -615,9 +704,13 @@ function Install-PythonPackages {
                 }
             }
             
-            # Install compatible versions of transformers and huggingface_hub
+            # Install compatible versions of transformers and huggingface_hub with tokenizers pinning
             Write-Info "Installing compatible transformers and huggingface_hub versions..."
-            & $pipExec install "transformers==4.43.1" "huggingface_hub>=0.20.0" 2>$null
+            $transformersResult = & $pipExec install "transformers==4.43.1" "tokenizers>=0.19.0,<0.20.0" "huggingface_hub>=0.20.0" 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning "Failed to install with tokenizers pinning. Trying without tokenizers pinning..."
+                & $pipExec install "transformers==4.43.1" "huggingface_hub>=0.20.0" 2>$null
+            }
             
             # Install PyTorch
             Write-Info "Installing PyTorch (CPU version)..."
@@ -653,6 +746,8 @@ function Install-PythonPackages {
                 }
                 else {
                     Write-ErrorMessage "Failed to install KwaaiNet Windows package"
+                    Write-Info "This may be due to missing build tools or tokenizers compilation issues."
+                    Write-Info "Try installing Visual Studio Build Tools or using pre-built wheels."
                     exit 1
                 }
             }
