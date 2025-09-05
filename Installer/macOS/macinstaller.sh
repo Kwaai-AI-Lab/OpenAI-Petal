@@ -142,6 +142,25 @@ else
     fi
 fi
 
+# Configure conda channels to avoid Terms of Service issues
+echo "🔧 Configuring conda channels..."
+# First try to accept TOS for existing channels if possible
+echo "📝 Attempting to accept conda Terms of Service..."
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main 2>/dev/null || true
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r 2>/dev/null || true
+
+# If TOS acceptance fails, remove problematic channels and configure conda-forge only
+if ! conda create -n temp_test_env python=3.10 -y --dry-run 2>/dev/null; then
+    echo "⚠️ TOS acceptance failed, configuring conda-forge as exclusive channel..."
+    conda config --remove channels https://repo.anaconda.com/pkgs/main 2>/dev/null || true
+    conda config --remove channels https://repo.anaconda.com/pkgs/r 2>/dev/null || true
+    conda config --remove channels defaults 2>/dev/null || true
+    # Add conda-forge as primary and only channel
+    conda config --add channels conda-forge
+    conda config --set channel_priority strict
+fi
+echo "✅ Configured conda channels (avoids Terms of Service issues)"
+
 # Create environment and install KwaaiNet
 echo "⚙️ Setting up KwaaiNet environment..."
 if ! conda info --envs | grep -q kwaainet; then
@@ -150,15 +169,6 @@ if ! conda info --envs | grep -q kwaainet; then
 else
     echo "✅ Using existing kwaainet environment"
 fi
-
-# Configure conda channels to avoid Terms of Service issues
-echo "🔧 Configuring conda channels..."
-conda config --env --add channels conda-forge
-conda config --env --set channel_priority strict
-# Remove problematic Anaconda commercial channels if they exist
-conda config --env --remove channels https://repo.anaconda.com/pkgs/main 2>/dev/null || true
-conda config --env --remove channels https://repo.anaconda.com/pkgs/r 2>/dev/null || true
-echo "✅ Configured conda-forge as primary channel (avoids Terms of Service issues)"
 
 # Activate the environment
 # First make sure conda is initialized for this session
