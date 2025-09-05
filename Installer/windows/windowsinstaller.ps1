@@ -1,4 +1,4 @@
-# KwaaiNet for Windows - One-Step Installer v0.2.12
+# KwaaiNet for Windows - One-Step Installer v0.2.13
 # This script handles the entire installation process for KwaaiNet on Windows
 
 # Ensure we can run PowerShell scripts
@@ -12,7 +12,7 @@ param(
 )
 
 # Installer version
-$script:InstallerVersion = "0.2.12"
+$script:InstallerVersion = "0.2.13"
 
 # Output version immediately for debugging
 Write-Host "KwaaiNet Windows Installer v$script:InstallerVersion starting..." -ForegroundColor Green
@@ -733,34 +733,56 @@ function Install-PythonPackages {
             Write-Info "Installing Petals 2.3.0.dev2 with rope_scaling support..."
             Write-Info "This may take several minutes as it builds from source..."
             
-            # First verify git is available for git+https installation
+            # Test git connectivity before attempting GitHub installation
+            $useGitInstall = $false
             if (Test-Command "git") {
-                $petalsResult = & conda run -n kwaainet pip install "git+https://github.com/bigscience-workshop/petals.git" 2>$null
+                Write-Info "Testing git connectivity to GitHub..."
+                # Test git connectivity with a simple command
+                $gitTest = & git ls-remote --heads --exit-code https://github.com/bigscience-workshop/petals.git 2>$null
                 if ($LASTEXITCODE -eq 0) {
-                    Write-Success "Petals installed successfully from git"
+                    Write-Success "Git connectivity to GitHub verified"
+                    $useGitInstall = $true
                 }
                 else {
-                    Write-Warning "Failed to install petals from git. Trying fallback installation..."
+                    Write-Warning "Git connectivity test failed. Will use PyPI installation instead."
+                    Write-Info "This may be due to network restrictions, proxy settings, or firewall blocking git."
+                }
+            }
+            else {
+                Write-Warning "Git not found. Will use PyPI installation."
+            }
+            
+            if ($useGitInstall) {
+                Write-Info "Installing Petals from GitHub (may take several minutes)..."
+                $petalsResult = & conda run -n kwaainet pip install "git+https://github.com/bigscience-workshop/petals.git" 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Petals installed successfully from GitHub"
+                }
+                else {
+                    Write-Warning "GitHub installation failed despite connectivity test. Trying PyPI fallback..."
                     & conda run -n kwaainet pip install petals 2>$null
                     if ($LASTEXITCODE -eq 0) {
                         Write-Success "Petals installed from PyPI"
                     }
                     else {
-                        Write-ErrorMessage "Failed to install petals. This is required for distributed inference."
-                        Write-Info "Please ensure git is working and try manual installation:"
+                        Write-ErrorMessage "Failed to install petals from both GitHub and PyPI."
+                        Write-Info "Manual installation options:"
                         Write-Info "  conda run -n kwaainet pip install petals"
+                        Write-Info "  conda run -n kwaainet pip install 'git+https://github.com/bigscience-workshop/petals.git'"
                         exit 1
                     }
                 }
             }
             else {
-                Write-Warning "Git not found. Installing Petals from PyPI instead..."
+                Write-Info "Installing Petals from PyPI..."
                 & conda run -n kwaainet pip install petals 2>$null
                 if ($LASTEXITCODE -eq 0) {
                     Write-Success "Petals installed from PyPI"
                 }
                 else {
                     Write-ErrorMessage "Failed to install petals from PyPI. This is required for distributed inference."
+                    Write-Info "Please check your internet connection and try manual installation:"
+                    Write-Info "  conda run -n kwaainet pip install petals"
                     exit 1
                 }
             }
@@ -862,34 +884,56 @@ function Install-PythonPackages {
             Write-Info "Installing Petals 2.3.0.dev2 with rope_scaling support..."
             Write-Info "This may take several minutes as it builds from source..."
             
-            # First verify git is available for git+https installation
+            # Test git connectivity before attempting GitHub installation
+            $useGitInstall = $false
             if (Test-Command "git") {
-                $petalsResult = & $pipExec install "git+https://github.com/bigscience-workshop/petals.git" 2>$null
+                Write-Info "Testing git connectivity to GitHub..."
+                # Test git connectivity with a simple command
+                $gitTest = & git ls-remote --heads --exit-code https://github.com/bigscience-workshop/petals.git 2>$null
                 if ($LASTEXITCODE -eq 0) {
-                    Write-Success "Petals installed successfully from git"
+                    Write-Success "Git connectivity to GitHub verified"
+                    $useGitInstall = $true
                 }
                 else {
-                    Write-Warning "Failed to install petals from git. Trying fallback installation..."
+                    Write-Warning "Git connectivity test failed. Will use PyPI installation instead."
+                    Write-Info "This may be due to network restrictions, proxy settings, or firewall blocking git."
+                }
+            }
+            else {
+                Write-Warning "Git not found. Will use PyPI installation."
+            }
+            
+            if ($useGitInstall) {
+                Write-Info "Installing Petals from GitHub (may take several minutes)..."
+                $petalsResult = & $pipExec install "git+https://github.com/bigscience-workshop/petals.git" 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Petals installed successfully from GitHub"
+                }
+                else {
+                    Write-Warning "GitHub installation failed despite connectivity test. Trying PyPI fallback..."
                     & $pipExec install petals 2>$null
                     if ($LASTEXITCODE -eq 0) {
                         Write-Success "Petals installed from PyPI"
                     }
                     else {
-                        Write-ErrorMessage "Failed to install petals. This is required for distributed inference."
-                        Write-Info "Please ensure git is working and try manual installation:"
+                        Write-ErrorMessage "Failed to install petals from both GitHub and PyPI."
+                        Write-Info "Manual installation options:"
                         Write-Info "  pip install petals"
+                        Write-Info "  pip install 'git+https://github.com/bigscience-workshop/petals.git'"
                         exit 1
                     }
                 }
             }
             else {
-                Write-Warning "Git not found. Installing Petals from PyPI instead..."
+                Write-Info "Installing Petals from PyPI..."
                 & $pipExec install petals 2>$null
                 if ($LASTEXITCODE -eq 0) {
                     Write-Success "Petals installed from PyPI"
                 }
                 else {
                     Write-ErrorMessage "Failed to install petals from PyPI. This is required for distributed inference."
+                    Write-Info "Please check your internet connection and try manual installation:"
+                    Write-Info "  pip install petals"
                     exit 1
                 }
             }
