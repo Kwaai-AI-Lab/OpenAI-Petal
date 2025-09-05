@@ -1,4 +1,4 @@
-# KwaaiNet for Windows - One-Step Installer v0.2.7
+# KwaaiNet for Windows - One-Step Installer v0.2.8
 # This script handles the entire installation process for KwaaiNet on Windows
 
 # Ensure we can run PowerShell scripts
@@ -12,7 +12,7 @@ param(
 )
 
 # Installer version
-$script:InstallerVersion = "0.2.7"
+$script:InstallerVersion = "0.2.8"
 
 # Output version immediately for debugging
 Write-Host "KwaaiNet Windows Installer v$script:InstallerVersion starting..." -ForegroundColor Green
@@ -461,11 +461,39 @@ function Setup-CondaEnvironment {
         }
         Write-Info "Conda version: $condaVersion"
         
+        # Configure conda channels to avoid Terms of Service issues BEFORE creating environment
+        Write-Info "Configuring conda channels to avoid Terms of Service issues..."
+        try {
+            # Remove problematic Anaconda commercial channels
+            $channelRemoveArgs = @("config", "--remove", "channels", "https://repo.anaconda.com/pkgs/main")
+            Start-Process -FilePath $condaExe -ArgumentList $channelRemoveArgs -Wait -NoNewWindow -PassThru | Out-Null
+            
+            $channelRemoveArgs = @("config", "--remove", "channels", "https://repo.anaconda.com/pkgs/r")  
+            Start-Process -FilePath $condaExe -ArgumentList $channelRemoveArgs -Wait -NoNewWindow -PassThru | Out-Null
+            
+            $channelRemoveArgs = @("config", "--remove", "channels", "https://repo.anaconda.com/pkgs/msys2")
+            Start-Process -FilePath $condaExe -ArgumentList $channelRemoveArgs -Wait -NoNewWindow -PassThru | Out-Null
+            
+            # Add conda-forge as the primary channel
+            $channelAddArgs = @("config", "--add", "channels", "conda-forge")
+            Start-Process -FilePath $condaExe -ArgumentList $channelAddArgs -Wait -NoNewWindow -PassThru | Out-Null
+            
+            # Set channel priority to strict
+            $channelPriorityArgs = @("config", "--set", "channel_priority", "strict")
+            Start-Process -FilePath $condaExe -ArgumentList $channelPriorityArgs -Wait -NoNewWindow -PassThru | Out-Null
+            
+            Write-Success "Configured conda to use conda-forge channel (avoids Terms of Service issues)"
+        }
+        catch {
+            Write-Warning "Could not configure conda channels, but continuing installation..."
+        }
+        
         # Create environment using direct executable path to avoid PowerShell execution context issues
         Write-Info "Creating conda environment (this may take 5-10 minutes)..."
         
         # Use Start-Process instead of & operator to avoid RemoteException
-        $processArgs = @("create", "-y", "-n", "kwaainet", "python=3.10")
+        # Explicitly use conda-forge channel to avoid Terms of Service issues
+        $processArgs = @("create", "-y", "-n", "kwaainet", "python=3.10", "-c", "conda-forge", "--override-channels")
         Write-Info "Running: $condaExe $($processArgs -join ' ')"
         
         $process = Start-Process -FilePath $condaExe -ArgumentList $processArgs -Wait -NoNewWindow -PassThru -RedirectStandardOutput "$env:TEMP\conda_out.txt" -RedirectStandardError "$env:TEMP\conda_err.txt"
@@ -490,26 +518,10 @@ function Setup-CondaEnvironment {
             Write-ErrorMessage "Conda stderr:"
             Write-Host $condaError -ForegroundColor Red
             
-            # Try alternative approach with conda-forge
-            Write-Info "Trying with conda-forge channel as fallback..."
-            $processArgs = @("create", "-y", "-n", "kwaainet", "python=3.10", "-c", "conda-forge")
-            $process = Start-Process -FilePath $condaExe -ArgumentList $processArgs -Wait -NoNewWindow -PassThru -RedirectStandardOutput "$env:TEMP\conda_out2.txt" -RedirectStandardError "$env:TEMP\conda_err2.txt"
-            $condaExitCode = $process.ExitCode
-            
-            if ($condaExitCode -ne 0) {
-                Write-ErrorMessage "Alternative conda environment creation also failed"
-                if (Test-Path "$env:TEMP\conda_out2.txt") {
-                    $condaOutput = Get-Content "$env:TEMP\conda_out2.txt" -Raw
-                    Write-ErrorMessage "Fallback stdout:"
-                    Write-Host $condaOutput -ForegroundColor Yellow
-                }
-                if (Test-Path "$env:TEMP\conda_err2.txt") {
-                    $condaError = Get-Content "$env:TEMP\conda_err2.txt" -Raw
-                    Write-ErrorMessage "Fallback stderr:"
-                    Write-Host $condaError -ForegroundColor Red
-                }
-                exit 1
-            }
+            Write-ErrorMessage "Conda environment creation failed even with conda-forge channel"
+            Write-Info "Please try manually running:"
+            Write-Info "  conda create -y -n kwaainet python=3.10 -c conda-forge --override-channels"
+            exit 1
         }
         
         # Verify environment was created
@@ -527,29 +539,13 @@ function Setup-CondaEnvironment {
         
         # Clean up temp files
         Remove-Item "$env:TEMP\conda_out.txt" -ErrorAction SilentlyContinue
-        Remove-Item "$env:TEMP\conda_err.txt" -ErrorAction SilentlyContinue  
-        Remove-Item "$env:TEMP\conda_out2.txt" -ErrorAction SilentlyContinue
-        Remove-Item "$env:TEMP\conda_err2.txt" -ErrorAction SilentlyContinue
+        Remove-Item "$env:TEMP\conda_err.txt" -ErrorAction SilentlyContinue
     }
     catch {
         Write-ErrorMessage "Failed to create conda environment: $($_.Exception.Message)"
         Write-ErrorMessage "Exception type: $($_.Exception.GetType().FullName)"
         Write-ErrorMessage "Exception details: $($_.Exception)"
         exit 1
-    }
-    
-    # Configure conda channels to avoid Terms of Service issues
-    Write-Info "Configuring conda channels..."
-    try {
-        & conda config --env --add channels conda-forge 2>$null
-        & conda config --env --set channel_priority strict 2>$null
-        # Remove problematic Anaconda commercial channels if they exist
-        & conda config --env --remove channels https://repo.anaconda.com/pkgs/main 2>$null
-        & conda config --env --remove channels https://repo.anaconda.com/pkgs/r 2>$null
-        Write-Success "Configured conda-forge as primary channel (avoids Terms of Service issues)"
-    }
-    catch {
-        Write-Warning "Could not configure conda channels, but continuing installation..."
     }
     
     Write-Success "Conda environment setup complete"
