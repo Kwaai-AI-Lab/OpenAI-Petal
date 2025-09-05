@@ -1,4 +1,4 @@
-# KwaaiNet for Windows - One-Step Installer v0.2.8
+# KwaaiNet for Windows - One-Step Installer v0.2.9
 # This script handles the entire installation process for KwaaiNet on Windows
 
 # Ensure we can run PowerShell scripts
@@ -12,7 +12,7 @@ param(
 )
 
 # Installer version
-$script:InstallerVersion = "0.2.8"
+$script:InstallerVersion = "0.2.9"
 
 # Output version immediately for debugging
 Write-Host "KwaaiNet Windows Installer v$script:InstallerVersion starting..." -ForegroundColor Green
@@ -646,7 +646,16 @@ function Install-TokenizersWithFallback {
     
     # Strategy 1: Try pre-built wheels first (most likely to work on Windows)
     Write-Info "Attempting to install tokenizers (pre-built wheels only)..."
-    $result = & $PipCommand install --only-binary=tokenizers "tokenizers>=0.19.0,<0.20.0" 2>$null
+    
+    # Execute pip command properly
+    if ($PipCommand -like "*conda run*") {
+        # Handle conda run command
+        $result = & conda run -n kwaainet pip install --only-binary=tokenizers "tokenizers>=0.19.0,<0.20.0" 2>$null
+    } else {
+        # Handle direct pip command
+        $result = & $PipCommand install --only-binary=tokenizers "tokenizers>=0.19.0,<0.20.0" 2>$null
+    }
+    
     if ($LASTEXITCODE -eq 0) {
         Write-Success "tokenizers installed successfully (pre-built wheels)"
         return $true
@@ -655,7 +664,11 @@ function Install-TokenizersWithFallback {
     
     # Strategy 2: Try latest version with pre-built wheels
     Write-Info "Attempting to install latest tokenizers (pre-built wheels only)..."
-    $result = & $PipCommand install --only-binary=tokenizers tokenizers 2>$null
+    if ($PipCommand -like "*conda run*") {
+        $result = & conda run -n kwaainet pip install --only-binary=tokenizers tokenizers 2>$null
+    } else {
+        $result = & $PipCommand install --only-binary=tokenizers tokenizers 2>$null
+    }
     if ($LASTEXITCODE -eq 0) {
         Write-Success "tokenizers installed successfully (pre-built wheels)"
         return $true
@@ -664,7 +677,11 @@ function Install-TokenizersWithFallback {
     
     # Strategy 3: Try older stable version
     Write-Info "Attempting to install tokenizers 0.19.1 (pre-built wheels only)..."
-    $result = & $PipCommand install --only-binary=tokenizers "tokenizers==0.19.1" 2>$null
+    if ($PipCommand -like "*conda run*") {
+        $result = & conda run -n kwaainet pip install --only-binary=tokenizers "tokenizers==0.19.1" 2>$null
+    } else {
+        $result = & $PipCommand install --only-binary=tokenizers "tokenizers==0.19.1" 2>$null
+    }
     if ($LASTEXITCODE -eq 0) {
         Write-Success "tokenizers 0.19.1 installed successfully (pre-built wheels)"
         return $true
@@ -712,8 +729,7 @@ function Install-PythonPackages {
             & conda run -n kwaainet pip install pyyaml 2>$null
             
             # Install tokenizers first with fallback handling
-            $pipCmd = "conda run -n kwaainet pip"
-            Install-TokenizersWithFallback -PipCommand $pipCmd
+            Install-TokenizersWithFallback -PipCommand "conda run -n kwaainet pip"
             
             # Install updated petals with rope_scaling support
             Write-Info "Installing Petals 2.3.0.dev2 with rope_scaling support..."
@@ -778,23 +794,27 @@ function Install-PythonPackages {
                 Write-Warning "Failed to install bitsandbytes. Quantization may not work properly."
             }
             
-            # Install KwaaiNet Windows package
-            $windowsPackagePath = "$PSScriptRoot\windows"
-            if (Test-Path $windowsPackagePath) {
-                Write-Info "Installing KwaaiNet Windows package..."
-                & conda run -n kwaainet pip install -e $windowsPackagePath 2>$null
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Success "KwaaiNet Windows package installed successfully"
-                }
-                else {
-                    Write-ErrorMessage "Failed to install KwaaiNet Windows package"
-                    Write-Info "This may be due to missing build tools or tokenizers compilation issues."
-                    Write-Info "Try installing Visual Studio Build Tools or using pre-built wheels."
-                    exit 1
-                }
+            # Install KwaaiNet from GitHub
+            Write-Info "Installing KwaaiNet from GitHub..."
+            $githubUrl = "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/windows"
+            & conda run -n kwaainet pip install $githubUrl 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "KwaaiNet Windows package installed successfully from GitHub"
             }
             else {
-                Write-Warning "KwaaiNet Windows package not found at $windowsPackagePath"
+                Write-Warning "Failed to install KwaaiNet from GitHub, trying fallback installation..."
+                # Try installing the main package without subdirectory
+                & conda run -n kwaainet pip install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git" 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "KwaaiNet installed successfully from GitHub (main package)"
+                }
+                else {
+                    Write-ErrorMessage "Failed to install KwaaiNet from GitHub"
+                    Write-Info "This may be due to missing build tools, git, or network connectivity issues."
+                    Write-Info "Please ensure git is installed and try running manually:"
+                    Write-Info "  conda run -n kwaainet pip install 'git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git'"
+                    exit 1
+                }
             }
         }
         else {
@@ -861,23 +881,27 @@ function Install-PythonPackages {
                 Write-Warning "Failed to install bitsandbytes. Quantization may not work properly."
             }
             
-            # Install KwaaiNet Windows package
-            $windowsPackagePath = "$PSScriptRoot\windows"
-            if (Test-Path $windowsPackagePath) {
-                Write-Info "Installing KwaaiNet Windows package..."
-                & $pipExec install -e $windowsPackagePath 2>$null
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Success "KwaaiNet Windows package installed successfully"
-                }
-                else {
-                    Write-ErrorMessage "Failed to install KwaaiNet Windows package"
-                    Write-Info "This may be due to missing build tools or tokenizers compilation issues."
-                    Write-Info "Try installing Visual Studio Build Tools or using pre-built wheels."
-                    exit 1
-                }
+            # Install KwaaiNet from GitHub
+            Write-Info "Installing KwaaiNet from GitHub..."
+            $githubUrl = "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/windows"
+            & $pipExec install $githubUrl 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "KwaaiNet Windows package installed successfully from GitHub"
             }
             else {
-                Write-Warning "KwaaiNet Windows package not found at $windowsPackagePath"
+                Write-Warning "Failed to install KwaaiNet from GitHub, trying fallback installation..."
+                # Try installing the main package without subdirectory
+                & $pipExec install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git" 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "KwaaiNet installed successfully from GitHub (main package)"
+                }
+                else {
+                    Write-ErrorMessage "Failed to install KwaaiNet from GitHub"
+                    Write-Info "This may be due to missing build tools, git, or network connectivity issues."
+                    Write-Info "Please ensure git is installed and try running manually:"
+                    Write-Info "  pip install 'git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git'"
+                    exit 1
+                }
             }
         }
         
