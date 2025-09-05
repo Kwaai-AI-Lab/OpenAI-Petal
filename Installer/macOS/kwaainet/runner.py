@@ -11,6 +11,7 @@ from pathlib import Path
 from .config import KwaaiNetConfig
 from .installer import setup_mac
 from .daemon import DaemonProcess, setup_signal_handlers
+from .service import get_service_manager
 
 # Configure logging
 logging.basicConfig(
@@ -247,6 +248,7 @@ def parse_args():
   kwaainet status                            # 📊 Check daemon status
   kwaainet logs --lines 100                  # 📜 View recent logs
   kwaainet restart                           # 🔄 Restart daemon
+  kwaainet service install                   # 🚀 Enable auto-start on boot
 
 ╭─────────────────────────────────────────────────────────────────────╮
 │  📚 More info: https://github.com/Kwaai-AI-Lab/OpenAI-Petal          │
@@ -301,6 +303,16 @@ def parse_args():
         description="Manage KwaaiNet configuration settings")
     config_parser.add_argument("--view", action="store_true", help="View current configuration")
     config_parser.add_argument("--set", nargs=2, metavar=("KEY", "VALUE"), help="Set configuration value")
+    
+    # Service command
+    service_parser = subparsers.add_parser("service",
+        help="🔧 Manage auto-start service",
+        description="Install, uninstall, or check status of auto-start service")
+    service_subparsers = service_parser.add_subparsers(dest="service_action", help="Service action")
+    service_subparsers.add_parser("install", help="Install auto-start service")
+    service_subparsers.add_parser("uninstall", help="Uninstall auto-start service") 
+    service_subparsers.add_parser("status", help="Check service status")
+    service_subparsers.add_parser("restart", help="Restart auto-start service")
     
     args = parser.parse_args()
     if not args.command:
@@ -481,6 +493,89 @@ def main():
         else:
             logger.error("No action specified for config command")
             sys.exit(1)
+            
+    elif args.command == "service":
+        service_manager = get_service_manager()
+        
+        if not args.service_action:
+            print("Error: No service action specified. Use --help for available options.")
+            sys.exit(1)
+        
+        if args.service_action == "install":
+            print()
+            print("╭─────────────────────────────────────────────────────────────────────╮")
+            print("│                    🔧 Installing Auto-Start Service                   │")
+            print("╰─────────────────────────────────────────────────────────────────────╯")
+            print()
+            
+            if service_manager.install_service():
+                print("  ✅ Auto-start service installed successfully")
+                print("  🚀 KwaaiNet will now start automatically on boot")
+                print("─────────────────────────────────────────────────────────────────────")
+            else:
+                print("  ❌ Failed to install auto-start service")
+                print("─────────────────────────────────────────────────────────────────────")
+                sys.exit(1)
+        
+        elif args.service_action == "uninstall":
+            print()
+            print("╭─────────────────────────────────────────────────────────────────────╮")
+            print("│                   🔧 Uninstalling Auto-Start Service                  │")
+            print("╰─────────────────────────────────────────────────────────────────────╯")
+            print()
+            
+            if service_manager.uninstall_service():
+                print("  ✅ Auto-start service uninstalled successfully")
+                print("  🛑 KwaaiNet will no longer start automatically on boot")
+                print("─────────────────────────────────────────────────────────────────────")
+            else:
+                print("  ❌ Failed to uninstall auto-start service")
+                print("─────────────────────────────────────────────────────────────────────")
+                sys.exit(1)
+        
+        elif args.service_action == "status":
+            print()
+            print("╭─────────────────────────────────────────────────────────────────────╮")
+            print("│                      🔧 Auto-Start Service Status                     │")
+            print("╰─────────────────────────────────────────────────────────────────────╯")
+            print()
+            
+            status = service_manager.get_service_status()
+            
+            if status['installed']:
+                print("  ✅ Service: Installed")
+                
+                if status['loaded']:
+                    print("  ✅ Status: Loaded")
+                    
+                    if status['running'] and status['pid']:
+                        print(f"  🟢 Running: Yes (PID: {status['pid']})")
+                    else:
+                        print("  🔴 Running: No")
+                        if status['exit_code'] is not None:
+                            print(f"  ⚠️  Exit Code: {status['exit_code']}")
+                else:
+                    print("  🔴 Status: Not loaded")
+            else:
+                print("  ❌ Service: Not installed")
+                print("  💡 Use 'kwaainet service install' to enable auto-start")
+            
+            print("─────────────────────────────────────────────────────────────────────")
+        
+        elif args.service_action == "restart":
+            print()
+            print("╭─────────────────────────────────────────────────────────────────────╮")
+            print("│                    🔧 Restarting Auto-Start Service                   │")
+            print("╰─────────────────────────────────────────────────────────────────────╯")
+            print()
+            
+            if service_manager.restart_service():
+                print("  ✅ Auto-start service restarted successfully")
+                print("─────────────────────────────────────────────────────────────────────")
+            else:
+                print("  ❌ Failed to restart auto-start service")
+                print("─────────────────────────────────────────────────────────────────────")
+                sys.exit(1)
 
 if __name__ == "__main__":
     main()
