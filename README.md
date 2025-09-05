@@ -172,17 +172,17 @@ To completely remove KwaaiNet and its environment:
 #### Windows
 ```powershell
 # Download and run the uninstaller
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windowsuninstaller.ps1" -OutFile "windowsuninstaller.ps1"; powershell.exe -ExecutionPolicy Bypass -File "windowsuninstaller.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windows/windowsuninstaller.ps1" -OutFile "windowsuninstaller.ps1"; powershell.exe -ExecutionPolicy Bypass -File "windowsuninstaller.ps1"
 ```
 
 #### Linux
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linuxuninstaller.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/linuxuninstaller.sh)"
 ```
 
 #### macOS
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macuninstaller.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/macOS/macuninstaller.sh)"
 ```
 
 ## 🚀 Usage
