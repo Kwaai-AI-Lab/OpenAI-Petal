@@ -1266,21 +1266,27 @@ $PIP_EXEC uninstall -y kwaainet-linux kwaainet_linux &>/dev/null || true
 
 # Download and install the current project code
 echo "📦 Downloading KwaaiNet source code..."
-TEMP_DIR=$(mktemp -d)
-cd "$TEMP_DIR"
+
+# Create permanent installation directory
+INSTALL_DIR="$HOME/.kwaainet/source"
+mkdir -p "$INSTALL_DIR"
+cd "$INSTALL_DIR"
+
+# Remove any existing installation
+rm -rf OpenAI-Petal* 2>/dev/null || true
 
 if command -v git >/dev/null 2>&1; then
     echo "📡 Cloning repository with git..."
     git clone --depth 1 https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git
-    PROJECT_PATH="$TEMP_DIR/OpenAI-Petal"
+    PROJECT_PATH="$INSTALL_DIR/OpenAI-Petal"
 else
     echo "📡 Downloading repository archive..."
     curl -L https://github.com/Kwaai-AI-Lab/OpenAI-Petal/archive/main.tar.gz -o main.tar.gz
     tar -xzf main.tar.gz
-    PROJECT_PATH="$TEMP_DIR/OpenAI-Petal-main"
+    PROJECT_PATH="$INSTALL_DIR/OpenAI-Petal-main"
 fi
 
-# Install the current project in development mode
+# Install the current project in development mode from permanent location
 echo "📦 Installing KwaaiNet for Linux in development mode..."
 cd "$PROJECT_PATH/Installer/linux"
 $PIP_EXEC install -e .
@@ -1289,16 +1295,8 @@ if [ $? -eq 0 ]; then
     echo "✅ KwaaiNet Linux package installed successfully"
 else
     echo "❌ Failed to install KwaaiNet Linux package"
-    echo "🧹 Cleaning up temporary files..."
-    cd /
-    rm -rf "$TEMP_DIR"
     exit 1
 fi
-
-# Clean up temporary files
-echo "🧹 Cleaning up temporary files..."
-cd /
-rm -rf "$TEMP_DIR"
 
 # Create launcher script for one-step execution
 echo "🚀 Creating launcher script..."
@@ -1361,7 +1359,26 @@ if command -v nvidia-smi >/dev/null 2>&1; then
 fi
 
 # Activate the environment and run the command
-conda activate kwaainet && python -m kwaainet.runner "$@"
+conda activate kwaainet
+
+# Try to run the module, with fallback to direct execution
+if ! python -m kwaainet.runner "$@" 2>/dev/null; then
+    # Fallback: try running from the source installation directory
+    if [ -d "$HOME/.kwaainet/source" ]; then
+        echo "⚠️ Module import failed, trying fallback from source directory..."
+        SOURCE_DIR=\$(find "$HOME/.kwaainet/source" -name "OpenAI-Petal*" -type d | head -1)
+        if [ -n "\$SOURCE_DIR" ] && [ -f "\$SOURCE_DIR/Installer/linux/kwaainet/runner.py" ]; then
+            export PYTHONPATH="\$SOURCE_DIR/Installer/linux:\$PYTHONPATH"
+            python -m kwaainet.runner "$@"
+        else
+            echo "❌ Error: Could not find KwaaiNet installation. Please run the installer again."
+            exit 1
+        fi
+    else
+        echo "❌ Error: KwaaiNet module not found. Please run the installer again."
+        exit 1
+    fi
+fi
 EOF
 
 else
@@ -1400,7 +1417,26 @@ if command -v nvidia-smi >/dev/null 2>&1; then
 fi
 
 # Activate virtual environment and run the command
-source "\$VENV_PATH/bin/activate" && python -m kwaainet.runner "\$@"
+source "\$VENV_PATH/bin/activate"
+
+# Try to run the module, with fallback to direct execution
+if ! python -m kwaainet.runner "\$@" 2>/dev/null; then
+    # Fallback: try running from the source installation directory
+    if [ -d "\$HOME/.kwaainet/source" ]; then
+        echo "⚠️ Module import failed, trying fallback from source directory..."
+        SOURCE_DIR=\$(find "\$HOME/.kwaainet/source" -name "OpenAI-Petal*" -type d | head -1)
+        if [ -n "\$SOURCE_DIR" ] && [ -f "\$SOURCE_DIR/Installer/linux/kwaainet/runner.py" ]; then
+            export PYTHONPATH="\$SOURCE_DIR/Installer/linux:\$PYTHONPATH"
+            python -m kwaainet.runner "\$@"
+        else
+            echo "❌ Error: Could not find KwaaiNet installation. Please run the installer again."
+            exit 1
+        fi
+    else
+        echo "❌ Error: KwaaiNet module not found. Please run the installer again."
+        exit 1
+    fi
+fi
 EOF
 fi
 
