@@ -11,7 +11,7 @@ if os.path.exists(readme_path):
         long_description = f.read()
 
 setup(
-    name="kwaainet-windows",
+    name="kwaainet",
     version="0.2.2",
     author="Kwaai Labs",
     author_email="contact@kwaai.ai",
@@ -59,7 +59,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "kwaainet-windows=kwaainet.runner:main",
+            "kwaainet=kwaainet.runner:main",
         ],
     },
     include_package_data=True,

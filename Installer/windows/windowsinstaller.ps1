@@ -1,4 +1,4 @@
-# KwaaiNet for Windows - One-Step Installer v0.2.11
+# KwaaiNet for Windows - One-Step Installer v0.2.12
 # This script handles the entire installation process for KwaaiNet on Windows
 
 # Ensure we can run PowerShell scripts
@@ -12,7 +12,7 @@ param(
 )
 
 # Installer version
-$script:InstallerVersion = "0.2.11"
+$script:InstallerVersion = "0.2.12"
 
 # Output version immediately for debugging
 Write-Host "KwaaiNet Windows Installer v$script:InstallerVersion starting..." -ForegroundColor Green
@@ -719,9 +719,8 @@ function Install-PythonPackages {
             # Activate conda environment and install packages
             Write-Info "Activating conda environment and installing packages..."
             
-            # Clear pip cache to ensure fresh installation
-            Write-Info "Clearing pip cache for fresh installation..."
-            & conda run -n kwaainet pip cache purge 2>$null
+            # Skip cache clearing to avoid potential package pattern issues
+            Write-Info "Preparing package installation environment..."
             
             # Install basic dependencies
             Write-Info "Installing basic dependencies..."
@@ -850,9 +849,8 @@ function Install-PythonPackages {
             
             Write-Info "Installing packages in virtual environment..."
             
-            # Clear pip cache to ensure fresh installation  
-            Write-Info "Clearing pip cache for fresh installation..."
-            & $pipExec cache purge 2>$null
+            # Skip cache clearing to avoid potential package pattern issues
+            Write-Info "Preparing package installation environment..."
             
             # Install basic dependencies
             & $pipExec install pyyaml 2>$null
