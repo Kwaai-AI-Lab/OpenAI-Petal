@@ -978,6 +978,15 @@ if [ "$PYTHON_METHOD" = "conda" ]; then
             conda install -y -n kwaainet gcc_linux-64 gxx_linux-64 make || echo "⚠️ Some build tools may already be installed"
         fi
     fi
+
+    # Configure conda channels to avoid Terms of Service issues
+    echo "🔧 Configuring conda channels..."
+    conda config --env --add channels conda-forge
+    conda config --env --set channel_priority strict
+    # Remove problematic Anaconda commercial channels if they exist
+    conda config --env --remove channels https://repo.anaconda.com/pkgs/main 2>/dev/null || true
+    conda config --env --remove channels https://repo.anaconda.com/pkgs/r 2>/dev/null || true
+    echo "✅ Configured conda-forge as primary channel (avoids Terms of Service issues)"
     
     # Determine conda installation path
     CONDA_BASE=""

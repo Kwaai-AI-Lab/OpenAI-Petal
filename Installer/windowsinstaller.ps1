@@ -409,6 +409,20 @@ function Setup-CondaEnvironment {
         }
     }
     
+    # Configure conda channels to avoid Terms of Service issues
+    Write-Info "Configuring conda channels..."
+    try {
+        & conda config --env --add channels conda-forge 2>$null
+        & conda config --env --set channel_priority strict 2>$null
+        # Remove problematic Anaconda commercial channels if they exist
+        & conda config --env --remove channels https://repo.anaconda.com/pkgs/main 2>$null
+        & conda config --env --remove channels https://repo.anaconda.com/pkgs/r 2>$null
+        Write-Success "Configured conda-forge as primary channel (avoids Terms of Service issues)"
+    }
+    catch {
+        Write-Warning "Could not configure conda channels, but continuing installation..."
+    }
+    
     Write-Success "Conda environment setup complete"
 }
 

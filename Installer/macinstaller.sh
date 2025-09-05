@@ -151,6 +151,15 @@ else
     echo "✅ Using existing kwaainet environment"
 fi
 
+# Configure conda channels to avoid Terms of Service issues
+echo "🔧 Configuring conda channels..."
+conda config --env --add channels conda-forge
+conda config --env --set channel_priority strict
+# Remove problematic Anaconda commercial channels if they exist
+conda config --env --remove channels https://repo.anaconda.com/pkgs/main 2>/dev/null || true
+conda config --env --remove channels https://repo.anaconda.com/pkgs/r 2>/dev/null || true
+echo "✅ Configured conda-forge as primary channel (avoids Terms of Service issues)"
+
 # Activate the environment
 # First make sure conda is initialized for this session
 if command_exists conda; then
