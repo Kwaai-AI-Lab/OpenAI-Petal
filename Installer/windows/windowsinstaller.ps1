@@ -4,15 +4,15 @@
 # Ensure we can run PowerShell scripts
 #Requires -Version 5.1
 
-# Installer version
-$script:InstallerVersion = "0.2.3"
-
 param(
     [switch]$UseSystemPython,
     [switch]$UseConda,
     [switch]$Force,
     [switch]$Quiet
 )
+
+# Installer version
+$script:InstallerVersion = "0.2.3"
 
 # Set strict mode for better error handling
 Set-StrictMode -Version Latest
@@ -24,10 +24,10 @@ $script:PythonMethod = ""
 $script:GpuType = "none"
 $script:GpuInfo = ""
 $script:UseElevated = $false
-$script:Quiet = $Quiet
-$script:UseConda = $UseConda
-$script:UseSystemPython = $UseSystemPython
-$script:Force = $Force
+$script:Quiet = $Quiet.IsPresent
+$script:UseConda = $UseConda.IsPresent
+$script:UseSystemPython = $UseSystemPython.IsPresent
+$script:Force = $Force.IsPresent
 
 # Function to write colored output
 function Write-ColorOutput {
