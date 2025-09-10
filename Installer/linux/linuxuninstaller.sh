@@ -100,7 +100,7 @@ fi
 # Remove installed packages using pip
 echo "🧹 Removing kwaainet packages..."
 if command_exists pip; then
-    if pip uninstall kwaainet-linux kwaainet_linux -y 2>/dev/null; then
+    if pip uninstall kwaainet kwaainet_linux -y 2>/dev/null; then
         echo "  ✓ Removed kwaainet packages with pip"
     else
         echo "  ✓ No kwaainet packages found with pip"
@@ -108,7 +108,7 @@ if command_exists pip; then
 fi
 
 if command_exists pip3; then
-    if pip3 uninstall kwaainet-linux kwaainet_linux -y 2>/dev/null; then
+    if pip3 uninstall kwaainet kwaainet_linux -y 2>/dev/null; then
         echo "  ✓ Removed kwaainet packages with pip3"
     else
         echo "  ✓ No kwaainet packages found with pip3"
@@ -152,7 +152,7 @@ fi
 # Clean pip cache
 if command_exists pip; then
     echo "🧹 Cleaning pip cache..."
-    pip cache remove kwaainet-linux 2>/dev/null || echo "  ✓ No kwaainet-linux cache found"
+    pip cache remove kwaainet 2>/dev/null || echo "  ✓ No kwaainet cache found"
     pip cache remove kwaainet_linux 2>/dev/null || echo "  ✓ No kwaainet_linux cache found"
     pip cache remove petals 2>/dev/null || echo "  ✓ No petals cache found"
     echo "  ✓ Pip cache cleanup completed"

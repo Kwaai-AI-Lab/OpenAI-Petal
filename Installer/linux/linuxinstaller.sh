@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.2.2
+# KwaaiNet for Linux - One-Step Installer v0.2.3
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.2"
+INSTALLER_VERSION="0.2.3"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -1068,7 +1068,7 @@ test_huggingface_connectivity() {
 
 # Clear cached versions of the package
 echo "🧹 Clearing any cached versions of KwaaiNet..."
-$PIP_EXEC cache remove kwaainet-linux &>/dev/null || true
+$PIP_EXEC cache remove kwaainet &>/dev/null || true
 $PIP_EXEC cache remove kwaainet_linux &>/dev/null || true
 rm -rf /tmp/pip-* 2>/dev/null || true
 
@@ -1224,7 +1224,7 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
         
         # Install KwaaiNet Linux package from GitHub as fallback
         echo "📦 Installing KwaaiNet Linux package from GitHub..."
-        if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/macOS" 2>/dev/null; then
+        if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux" 2>/dev/null; then
             echo "✅ KwaaiNet Linux package installed successfully"
         else
             echo "❌ Failed to install KwaaiNet Linux package from GitHub"
@@ -1282,7 +1282,7 @@ else
     
     # Install KwaaiNet Linux package from GitHub
     echo "📦 Installing KwaaiNet Linux package..."
-    if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/macOS" 2>/dev/null; then
+    if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux" 2>/dev/null; then
         echo "✅ KwaaiNet Linux package installed successfully"
     else
         echo "❌ Failed to install KwaaiNet Linux package from GitHub"
@@ -1299,9 +1299,9 @@ echo "📦 Installing KwaaiNet for Linux..."
 
 # Clear cached versions and uninstall existing packages to avoid conflicts
 echo "🧹 Clearing any cached versions and removing existing packages..."
-$PIP_EXEC cache remove kwaainet-linux &>/dev/null || true
+$PIP_EXEC cache remove kwaainet &>/dev/null || true
 $PIP_EXEC cache remove kwaainet_linux &>/dev/null || true
-$PIP_EXEC uninstall -y kwaainet-linux kwaainet_linux &>/dev/null || true
+$PIP_EXEC uninstall -y kwaainet kwaainet_linux &>/dev/null || true
 
 # Download and install the current project code
 echo "📦 Downloading KwaaiNet source code..."

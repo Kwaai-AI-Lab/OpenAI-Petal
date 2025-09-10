@@ -59,7 +59,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "kwaainet-linux=kwaainet.runner:main",
+            "kwaainet=kwaainet.runner:main",
         ],
     },
     include_package_data=True,
