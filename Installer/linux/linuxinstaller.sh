@@ -299,8 +299,10 @@ install_system_deps() {
     echo "🔍 Debug: Starting install_system_deps function"
     
     # Check what we need to install
+    set +e  # Temporarily disable exit on error
     check_system_deps
     local dep_status=$?
+    set -e  # Re-enable exit on error
     
     echo "🔍 Debug: Dependency check status: $dep_status"
     
@@ -502,8 +504,10 @@ install_system_deps() {
     fi
     
     # Final dependency check with more lenient pip detection
+    set +e  # Temporarily disable exit on error
     check_system_deps
     local final_status=$?
+    set -e  # Re-enable exit on error
     
     if [ $final_status -eq 1 ]; then
         # Still failing - try to provide more helpful error information
