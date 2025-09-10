@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.2.3
+# KwaaiNet for Linux - One-Step Installer v0.2.4
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.3"
+INSTALLER_VERSION="0.2.4"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -1177,26 +1177,26 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
     else
         echo "⚠️ Failed to install local development version. Installing from GitHub..."
         
-        # Install PyTorch based on GPU availability
+        # Install PyTorch based on GPU availability (using compatible version)
         if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
-            echo "📦 Installing PyTorch (CUDA version for NVIDIA GPU)..."
+            echo "📦 Installing PyTorch 2.3.1+cu121 (CUDA version compatible with hivemind)..."
             echo "   This may take a few minutes to download..."
-            if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121; then
-                echo "✅ PyTorch CUDA installed successfully"
+            if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cu121" "torchvision==0.18.1+cu121" "torchaudio==2.3.1+cu121" --index-url https://download.pytorch.org/whl/cu121; then
+                echo "✅ PyTorch CUDA 2.3.1 installed successfully"
             else
-                echo "⚠️ Failed to install CUDA PyTorch. Falling back to CPU version..."
-                if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
-                    echo "✅ PyTorch CPU installed successfully"
+                echo "⚠️ Failed to install CUDA PyTorch 2.3.1. Falling back to CPU version..."
+                if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu" --index-url https://download.pytorch.org/whl/cpu; then
+                    echo "✅ PyTorch CPU 2.3.1 installed successfully"
                 else
                     echo "❌ Failed to install PyTorch. Please check your internet connection."
                     exit 1
                 fi
             fi
         else
-            echo "📦 Installing PyTorch (CPU version)..."
+            echo "📦 Installing PyTorch 2.3.1+cpu (compatible with hivemind)..."
             echo "   This may take a few minutes to download..."
-            if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
-                echo "✅ PyTorch CPU installed successfully"
+            if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu" --index-url https://download.pytorch.org/whl/cpu; then
+                echo "✅ PyTorch CPU 2.3.1 installed successfully"
             else
                 echo "❌ Failed to install PyTorch. Please check your internet connection."
                 exit 1
@@ -1235,26 +1235,26 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
 else
     echo "⚠️ Local development version not found. Installing from GitHub repository..."
     
-    # Install PyTorch based on GPU availability
+    # Install PyTorch based on GPU availability (using compatible version)
     if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
-        echo "📦 Installing PyTorch (CUDA version for NVIDIA GPU)..."
+        echo "📦 Installing PyTorch 2.3.1+cu121 (CUDA version compatible with hivemind)..."
         echo "   This may take a few minutes to download..."
-        if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121; then
-            echo "✅ PyTorch CUDA installed successfully"
+        if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cu121" "torchvision==0.18.1+cu121" "torchaudio==2.3.1+cu121" --index-url https://download.pytorch.org/whl/cu121; then
+            echo "✅ PyTorch CUDA 2.3.1 installed successfully"
         else
-            echo "⚠️ Failed to install CUDA PyTorch. Falling back to CPU version..."
-            if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
-                echo "✅ PyTorch CPU installed successfully"
+            echo "⚠️ Failed to install CUDA PyTorch 2.3.1. Falling back to CPU version..."
+            if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu" --index-url https://download.pytorch.org/whl/cpu; then
+                echo "✅ PyTorch CPU 2.3.1 installed successfully"
             else
                 echo "❌ Failed to install PyTorch. Please check your internet connection."
                 exit 1
             fi
         fi
     else
-        echo "📦 Installing PyTorch (CPU version)..."
+        echo "📦 Installing PyTorch 2.3.1+cpu (compatible with hivemind)..."
         echo "   This may take a few minutes to download..."
-        if $PIP_EXEC install $BINARY_FLAG torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; then
-            echo "✅ PyTorch CPU installed successfully"
+        if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu" --index-url https://download.pytorch.org/whl/cpu; then
+            echo "✅ PyTorch CPU 2.3.1 installed successfully"
         else
             echo "❌ Failed to install PyTorch. Please check your internet connection."
             exit 1
