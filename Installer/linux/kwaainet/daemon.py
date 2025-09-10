@@ -191,7 +191,20 @@ class DaemonProcess:
                 
                 # If we get here, the process has ended
                 if self.process:
-                    logger.warning(f"Process ended with return code: {self.process.returncode}")
+                    return_code = self.process.returncode
+                    logger.warning(f"Process ended with return code: {return_code}")
+                    
+                    # Capture and log any error output for debugging
+                    if return_code != 0:
+                        try:
+                            stdout, stderr = self.process.communicate(timeout=5)
+                            if stderr:
+                                logger.error(f"Process stderr: {stderr.decode('utf-8', errors='replace')}")
+                            if stdout:
+                                logger.info(f"Process stdout: {stdout.decode('utf-8', errors='replace')}")
+                        except (subprocess.TimeoutExpired, Exception) as e:
+                            logger.warning(f"Could not capture process output: {e}")
+                            
                 self._cleanup_pid_file()
             
             return True
@@ -210,6 +223,20 @@ class DaemonProcess:
                     # Process has terminated
                     return_code = self.process.returncode
                     logger.warning(f"Process terminated with code {return_code}")
+                    
+                    # Capture error output if process failed
+                    if return_code != 0:
+                        try:
+                            stdout, stderr = self.process.communicate(timeout=2)
+                            if stderr:
+                                stderr_text = stderr.decode('utf-8', errors='replace').strip()
+                                logger.error(f"Process error output: {stderr_text}")
+                            if stdout:
+                                stdout_text = stdout.decode('utf-8', errors='replace').strip()
+                                if stdout_text:
+                                    logger.info(f"Process output: {stdout_text}")
+                        except Exception as comm_error:
+                            logger.warning(f"Could not capture process output: {comm_error}")
                     
                     # Update status
                     self.write_status({

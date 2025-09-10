@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.0"
+INSTALLER_VERSION="0.2.1"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -1039,11 +1039,37 @@ elif [ "$PYTHON_METHOD" = "system" ]; then
     PIP_EXEC="$(get_pip_command)"
 fi
 
+# Test Hugging Face connectivity before proceeding
+test_huggingface_connectivity() {
+    echo "🌐 Testing Hugging Face model download connectivity..."
+    
+    # Test basic HF connectivity
+    if ! curl -s --connect-timeout 10 "https://huggingface.co" > /dev/null; then
+        echo "⚠️ Warning: Cannot reach huggingface.co"
+        echo "   Model downloads may fail due to network connectivity issues"
+        return 1
+    fi
+    
+    # Test model file access (small config file)
+    if curl -s --connect-timeout 10 "https://huggingface.co/gpt2/resolve/main/config.json" > /dev/null; then
+        echo "✅ Hugging Face model download connectivity verified"
+        return 0
+    else
+        echo "⚠️ Warning: Cannot access Hugging Face model files"
+        echo "   This may be due to network restrictions or firewall settings"
+        echo "   Model downloads may fail, but installation will continue"
+        return 1
+    fi
+}
+
 # Clear cached versions of the package
 echo "🧹 Clearing any cached versions of KwaaiNet..."
 $PIP_EXEC cache remove kwaainet-linux &>/dev/null || true
 $PIP_EXEC cache remove kwaainet_linux &>/dev/null || true
 rm -rf /tmp/pip-* 2>/dev/null || true
+
+# Test connectivity
+test_huggingface_connectivity
 
 # Install the package
 echo "📦 Installing KwaaiNet for Linux..."
@@ -1117,20 +1143,20 @@ if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -eq 7 ]; then
         echo "✅ Successfully installed Python 3.7 compatible transformers and huggingface_hub"
     else
         echo "⚠️ Failed to install Python 3.7 compatible versions. Trying default versions..."
-        if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "huggingface_hub>=0.20.0"; then
+        if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "huggingface_hub>=0.34.0" "tokenizers>=0.15.0"; then
             echo "✅ Successfully installed default transformers and huggingface_hub"
         else
             echo "⚠️ Failed to install transformers/huggingface_hub. May have compatibility issues..."
         fi
     fi
 else
-    # Python 3.8+ - use the secure version with tokenizers pinning
-    echo "📦 Installing transformers with tokenizers dependency pinning..."
-    if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "tokenizers>=0.19.0,<0.20.0" "huggingface_hub>=0.20.0"; then
+    # Python 3.8+ - use updated versions that work with current HF infrastructure
+    echo "📦 Installing transformers with compatible dependency versions..."
+    if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "tokenizers>=0.15.0" "huggingface_hub>=0.34.0"; then
         echo "✅ Successfully installed compatible transformers and huggingface_hub"
     else
         echo "⚠️ Failed to install transformers/huggingface_hub. Trying without tokenizers pinning..."
-        if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "huggingface_hub>=0.20.0"; then
+        if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "huggingface_hub>=0.34.0"; then
             echo "✅ Successfully installed compatible transformers and huggingface_hub (fallback)"
         else
             echo "⚠️ Failed to install transformers/huggingface_hub. May have compatibility issues..."
