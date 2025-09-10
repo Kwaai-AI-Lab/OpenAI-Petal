@@ -842,7 +842,7 @@ function Install-PythonPackages {
             }
             
             # Try installing with proper subdirectory syntax
-            $githubUrl = "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#egg=kwaainet&subdirectory=Installer/windows"
+            $githubUrl = "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#egg=kwaainet&subdirectory=Installer/macOS"
             & conda run -n kwaainet pip install $githubUrl 2>$null
             if ($LASTEXITCODE -eq 0) {
                 Write-Success "KwaaiNet Windows package installed successfully from GitHub"
@@ -981,7 +981,7 @@ function Install-PythonPackages {
             }
             
             # Try installing with proper subdirectory syntax
-            $githubUrl = "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#egg=kwaainet&subdirectory=Installer/windows"
+            $githubUrl = "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#egg=kwaainet&subdirectory=Installer/macOS"
             & $pipExec install $githubUrl 2>$null
             if ($LASTEXITCODE -eq 0) {
                 Write-Success "KwaaiNet Windows package installed successfully from GitHub"
