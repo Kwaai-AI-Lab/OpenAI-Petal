@@ -40,13 +40,11 @@ class KwaaiNetRunner:
         
     def check_system(self):
         """Check if system meets requirements"""
-        if platform.system() != "Darwin":
-            logger.error("This package is only for Mac systems.")
-            return False
+        # Cross-platform support - no macOS restriction
             
-        # Check Python version
-        if sys.version_info.major != 3 or sys.version_info.minor < 10:
-            logger.error("Python 3.10+ is required.")
+        # Check Python version (relaxed requirement for Linux compatibility)
+        if sys.version_info.major != 3 or sys.version_info.minor < 8:
+            logger.error("Python 3.8+ is required.")
             return False
             
         # Additional system checks can be added here

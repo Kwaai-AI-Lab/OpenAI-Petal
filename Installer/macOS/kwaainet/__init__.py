@@ -22,13 +22,11 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-# Check if running on Mac
-if platform.system() != "Darwin":
-    logger.warning("This package is designed for macOS systems only.")
+# Cross-platform support - no system restrictions
 
 # Check Python version
-if sys.version_info < (3, 10):
-    logger.warning("Python 3.10 or newer is recommended for this package.")
+if sys.version_info < (3, 8):
+    logger.warning("Python 3.8 or newer is required for this package.")
 
 # Import core components
 from .config import KwaaiNetConfig
