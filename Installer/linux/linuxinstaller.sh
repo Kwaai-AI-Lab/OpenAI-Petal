@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.2.4
+# KwaaiNet for Linux - One-Step Installer v0.2.5
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.4"
+INSTALLER_VERSION="0.2.5"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -1203,6 +1203,14 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
             fi
         fi
         
+        # Install compatible hivemind version for PyTorch 2.3.1
+        echo "📦 Installing compatible hivemind version for PyTorch 2.3.1..."
+        if $PIP_EXEC install $BINARY_FLAG "hivemind>=1.1.11"; then
+            echo "✅ hivemind 1.1.11+ installed successfully (PyTorch 2.3+ compatible)"
+        else
+            echo "⚠️ Failed to install hivemind 1.1.11+. Petals may not work properly."
+        fi
+        
         # Install bitsandbytes for quantization support
         echo "📦 Installing bitsandbytes for quantization support..."
         if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
@@ -1259,6 +1267,14 @@ else
             echo "❌ Failed to install PyTorch. Please check your internet connection."
             exit 1
         fi
+    fi
+    
+    # Install compatible hivemind version for PyTorch 2.3.1
+    echo "📦 Installing compatible hivemind version for PyTorch 2.3.1..."
+    if $PIP_EXEC install $BINARY_FLAG "hivemind>=1.1.11"; then
+        echo "✅ hivemind 1.1.11+ installed successfully (PyTorch 2.3+ compatible)"
+    else
+        echo "⚠️ Failed to install hivemind 1.1.11+. Petals may not work properly."
     fi
     
     # Install bitsandbytes for quantization support
