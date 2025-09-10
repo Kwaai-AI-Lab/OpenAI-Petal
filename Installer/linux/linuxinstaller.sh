@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.2.5
+# KwaaiNet for Linux - One-Step Installer v0.2.6
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.5"
+INSTALLER_VERSION="0.2.6"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -1203,13 +1203,6 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
             fi
         fi
         
-        # Install compatible hivemind version for PyTorch 2.3.1
-        echo "📦 Installing compatible hivemind version for PyTorch 2.3.1..."
-        if $PIP_EXEC install $BINARY_FLAG "hivemind>=1.1.11"; then
-            echo "✅ hivemind 1.1.11+ installed successfully (PyTorch 2.3+ compatible)"
-        else
-            echo "⚠️ Failed to install hivemind 1.1.11+. Petals may not work properly."
-        fi
         
         # Install bitsandbytes for quantization support
         echo "📦 Installing bitsandbytes for quantization support..."
@@ -1269,13 +1262,6 @@ else
         fi
     fi
     
-    # Install compatible hivemind version for PyTorch 2.3.1
-    echo "📦 Installing compatible hivemind version for PyTorch 2.3.1..."
-    if $PIP_EXEC install $BINARY_FLAG "hivemind>=1.1.11"; then
-        echo "✅ hivemind 1.1.11+ installed successfully (PyTorch 2.3+ compatible)"
-    else
-        echo "⚠️ Failed to install hivemind 1.1.11+. Petals may not work properly."
-    fi
     
     # Install bitsandbytes for quantization support
     echo "📦 Installing bitsandbytes for quantization support..."
@@ -1305,6 +1291,14 @@ else
         echo "Please check your internet connection and try again."
         exit 1
     fi
+fi
+
+# Force upgrade hivemind to compatible version (must be after Petals installation)
+echo "📦 Upgrading hivemind to PyTorch 2.3+ compatible version..."
+if $PIP_EXEC install --upgrade --force-reinstall "hivemind>=1.1.11"; then
+    echo "✅ hivemind upgraded to 1.1.11+ (PyTorch 2.3+ compatible)"
+else
+    echo "⚠️ Failed to upgrade hivemind. Daemon may fail to start."
 fi
 
 # Configure CUDA library paths for bitsandbytes (NVIDIA GPUs only)
@@ -1533,6 +1527,14 @@ fi
 
 # Update current session PATH
 export PATH="$HOME/.local/bin:$PATH"
+
+# Also update the parent shell's PATH if running via curl/bash
+if [ -n "$BASH_VERSION" ] && [ -f "$HOME/.bashrc" ]; then
+    echo "🔄 Reloading shell configuration to update PATH..."
+    set +e  # Don't exit on source errors
+    source "$HOME/.bashrc" 2>/dev/null || true
+    set -e  # Re-enable exit on error
+fi
 
 # Try to create system-wide symlink if possible
 if [ -w "/usr/local/bin" ]; then
