@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.1"
+INSTALLER_VERSION="0.2.2"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -1224,7 +1224,7 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
         
         # Install KwaaiNet Linux package from GitHub as fallback
         echo "📦 Installing KwaaiNet Linux package from GitHub..."
-        if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux" 2>/dev/null; then
+        if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/macOS" 2>/dev/null; then
             echo "✅ KwaaiNet Linux package installed successfully"
         else
             echo "❌ Failed to install KwaaiNet Linux package from GitHub"
@@ -1282,7 +1282,7 @@ else
     
     # Install KwaaiNet Linux package from GitHub
     echo "📦 Installing KwaaiNet Linux package..."
-    if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux" 2>/dev/null; then
+    if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/macOS" 2>/dev/null; then
         echo "✅ KwaaiNet Linux package installed successfully"
     else
         echo "❌ Failed to install KwaaiNet Linux package from GitHub"
