@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.2.1
+# KwaaiNet for Linux - One-Step Installer v0.2.2
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
