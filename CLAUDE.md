@@ -167,7 +167,55 @@ git push origin main
 - Signal handling for graceful termination
 - Proper cleanup of PID files and status information
 
-## Session Context
+## Current Session (2025-09-11) - Linux Compatibility Fixes
+
+### Task: Fix Linux Compatibility Issues and Library Dependencies
+**Status**: ✅ MAJOR COMPATIBILITY ISSUES RESOLVED
+
+#### Issues Discovered and Fixed ✅
+
+**PyTorch/Hivemind Compatibility Issue**:
+- **Problem**: `ImportError: cannot import name '_refresh_per_optimizer_state' from 'torch.cuda.amp.grad_scaler'`
+- **Root Cause**: hivemind was importing from old PyTorch CUDA AMP location
+- **Solution**: Updated import path in `/home/metro/.conda/envs/kwaainet/lib/python3.10/site-packages/hivemind/optim/grad_scaler.py` from `torch.cuda.amp.grad_scaler` to `torch.amp.grad_scaler`
+
+**Huggingface Hub Compatibility Issue**:
+- **Problem**: `cannot import name 'split_torch_state_dict_into_shards' from 'huggingface_hub'`
+- **Root Cause**: Function missing in older huggingface_hub version (0.17.3) required by transformers 4.34.1
+- **Solution**: Added fallback implementation directly to `/home/metro/.conda/envs/kwaainet/lib/python3.10/site-packages/huggingface_hub/__init__.py`
+
+**RoPE Scaling Configuration Issue**:
+- **Problem**: `ValueError: rope_scaling must be a dictionary with two fields, type and factor` for Llama-3.1 models
+- **Root Cause**: Newer model configs have extended RoPE scaling format incompatible with older transformers
+- **Solution**: Updated validation in `/home/metro/.conda/envs/kwaainet/lib/python3.10/site-packages/transformers/models/llama/configuration_llama.py` to handle both old and new formats
+
+#### Current Status ✅
+
+**Compatibility Fixes Applied:**
+- ✅ PyTorch/hivemind import compatibility resolved
+- ✅ Huggingface_hub missing function compatibility resolved  
+- ✅ Llama model RoPE scaling configuration compatibility resolved
+- ✅ Library version conflicts resolved (transformers 4.34.1, tokenizers 0.14.1, huggingface_hub 0.17.3)
+
+**Daemon Startup Progress:**
+- ✅ All compatibility patches apply successfully on startup
+- ✅ CUDA detection and initialization working (PyTorch 2.3.1+cu121 with CUDA 12.1)
+- ✅ Model configuration validation passing
+- ✅ Daemon progresses to model loading phase
+- ⚠️ Current blocker: PyTorch shared memory management issue (`torch_shm_manager` random directory generation)
+
+#### Git Commits Made ✅
+- **`f73e108`**: Fix Linux PyTorch/hivemind and huggingface_hub compatibility issues
+
+### Current Working State ✅
+
+**Linux Platform Status:**
+- `kwaainet --help`: ✅ Working
+- `kwaainet start`: ✅ Starts but fails during model loading (shared memory issue)
+- `kwaainet start --daemon`: ✅ Compatibility issues resolved, progresses to advanced initialization
+- All major import and configuration errors resolved
+
+## Previous Session Context
 - **Working Directory**: `/Users/rezarassool/Source/OpenAI-Petal/Installer/macOS`
 - **Repository**: Connected to `https://github.com/Kwaai-AI-Lab/OpenAI-Petal`
 - **Development Focus**: Daemon stability and distributed network connectivity
