@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.2.11
+# KwaaiNet for Linux - One-Step Installer v0.2.12
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.11"
+INSTALLER_VERSION="0.2.12"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
