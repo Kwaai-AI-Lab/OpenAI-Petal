@@ -35,7 +35,42 @@ def patch_huggingface_hub():
                     # Return single shard for simplicity
                     return {filename_pattern.format(1, 1): state_dict}, {filename_pattern.format(1, 1): list(state_dict.keys())}
                 
+                # Add function to module namespace
                 huggingface_hub.split_torch_state_dict_into_shards = split_torch_state_dict_into_shards
+                
+                # Also patch the __init__.py file to export it
+                init_path = huggingface_hub.__file__.replace('__init__.py', '__init__.py')
+                if init_path.endswith('__init__.py'):
+                    try:
+                        with open(init_path, 'r') as f:
+                            init_content = f.read()
+                        
+                        # Check if function is already exported
+                        if 'def split_torch_state_dict_into_shards(' not in init_content:
+                            # Add the fallback function at the end
+                            fallback_code = '''
+# Fallback implementation for split_torch_state_dict_into_shards
+def split_torch_state_dict_into_shards(state_dict, max_shard_size='5GB', filename_pattern='pytorch_model-{:05d}-of-{:05d}.bin'):
+    """Fallback implementation for compatibility with transformers >= 4.32.0"""
+    # Simple fallback: return the full state dict as a single shard
+    if isinstance(max_shard_size, str):
+        if max_shard_size.endswith('GB'):
+            max_shard_size = int(max_shard_size[:-2]) * 1024 * 1024 * 1024
+        elif max_shard_size.endswith('MB'):
+            max_shard_size = int(max_shard_size[:-2]) * 1024 * 1024
+        else:
+            max_shard_size = int(max_shard_size)
+    
+    # For simplicity, always return a single shard
+    return [state_dict], {filename_pattern.format(1, 1): state_dict}
+'''
+                            init_content += fallback_code
+                            
+                            with open(init_path, 'w') as f:
+                                f.write(init_content)
+                    except Exception as e:
+                        logger.warning(f"Could not patch huggingface_hub __init__.py: {e}")
+                
                 logger.info("Applied fallback implementation for huggingface_hub.split_torch_state_dict_into_shards")
                 return True
         else:
@@ -93,6 +128,128 @@ def patch_torch_rocm():
             
     except ImportError:
         logger.warning("PyTorch not installed")
+        return False
+
+def patch_hivemind_compatibility():
+    """Patch hivemind for PyTorch 2.x compatibility"""
+    try:
+        import hivemind.optim.grad_scaler
+        import torch
+        
+        # Check if we need to patch the import path
+        torch_version = torch.__version__.split("+")[0]
+        from packaging import version
+        
+        if version.parse(torch_version) >= version.parse("2.3.0"):
+            # Patch the file directly if needed
+            grad_scaler_path = hivemind.optim.grad_scaler.__file__
+            
+            with open(grad_scaler_path, 'r') as f:
+                content = f.read()
+            
+            # Check if already patched
+            if 'from torch.amp.grad_scaler import' in content:
+                logger.info("hivemind already patched for PyTorch 2.x")
+                return True
+            
+            # Apply the patch
+            old_import = 'from torch.cuda.amp.grad_scaler import OptState, _refresh_per_optimizer_state'
+            new_import = 'from torch.amp.grad_scaler import OptState, _refresh_per_optimizer_state'
+            
+            if old_import in content:
+                content = content.replace(old_import, new_import)
+                
+                with open(grad_scaler_path, 'w') as f:
+                    f.write(content)
+                
+                logger.info("Applied hivemind PyTorch 2.x compatibility patch")
+                return True
+        else:
+            logger.info("PyTorch version < 2.3.0, no hivemind patch needed")
+            return True
+            
+    except Exception as e:
+        logger.warning(f"Could not apply hivemind patch: {e}")
+        return False
+
+def patch_transformers_llama():
+    """Patch transformers for Llama-3.1 RoPE scaling compatibility"""
+    try:
+        import transformers.models.llama.configuration_llama
+        import transformers.models.llama.modeling_llama
+        
+        # Patch configuration validation
+        config_path = transformers.models.llama.configuration_llama.__file__
+        
+        with open(config_path, 'r') as f:
+            content = f.read()
+        
+        # Check if already patched
+        if 'rope_type' in content and 'llama3' in content:
+            logger.info("transformers Llama config already patched")
+        else:
+            # Apply configuration patch
+            old_validation = 'if not isinstance(self.rope_scaling, dict) or len(self.rope_scaling) != 2:'
+            new_validation = 'if not isinstance(self.rope_scaling, dict) or len(self.rope_scaling) < 2:'
+            
+            old_type_check = 'rope_scaling_type = self.rope_scaling.get("type", None)'
+            new_type_check = 'rope_scaling_type = self.rope_scaling.get("type", None) or self.rope_scaling.get("rope_type", None)'
+            
+            old_type_list = 'if rope_scaling_type is None or rope_scaling_type not in ["linear", "dynamic"]:'
+            new_type_list = 'if rope_scaling_type is None or rope_scaling_type not in ["linear", "dynamic", "llama3"]:'
+            
+            if old_validation in content:
+                content = content.replace(old_validation, new_validation)
+                content = content.replace(old_type_check, new_type_check)
+                content = content.replace(old_type_list, new_type_list)
+                
+                with open(config_path, 'w') as f:
+                    f.write(content)
+                
+                logger.info("Applied transformers Llama configuration patch")
+        
+        # Patch modeling for RoPE scaling
+        modeling_path = transformers.models.llama.modeling_llama.__file__
+        
+        with open(modeling_path, 'r') as f:
+            content = f.read()
+        
+        # Check if already patched
+        if 'rope_type' in content and 'llama3' in content:
+            logger.info("transformers Llama modeling already patched")
+        else:
+            # Apply modeling patch
+            old_scaling_type = 'scaling_type = self.config.rope_scaling["type"]'
+            new_scaling_type = 'scaling_type = self.config.rope_scaling.get("type", None) or self.config.rope_scaling.get("rope_type", None)'
+            
+            if old_scaling_type in content:
+                content = content.replace(old_scaling_type, new_scaling_type)
+                
+                # Add llama3 scaling type support
+                llama3_scaling = '''            elif scaling_type == "llama3":
+                # Fallback to linear scaling for llama3 type
+                self.rotary_emb = LlamaLinearScalingRotaryEmbedding(
+                    self.head_dim,
+                    max_position_embeddings=self.max_position_embeddings,
+                    scaling_factor=scaling_factor,
+                    base=self.rope_theta,
+                )'''
+                
+                old_else = '            else:\n                raise ValueError(f"Unknown RoPE scaling type {scaling_type}")'
+                new_else = llama3_scaling + '\n            else:\n                raise ValueError(f"Unknown RoPE scaling type {scaling_type}")'
+                
+                if old_else in content:
+                    content = content.replace(old_else, new_else)
+                
+                with open(modeling_path, 'w') as f:
+                    f.write(content)
+                
+                logger.info("Applied transformers Llama modeling patch")
+        
+        return True
+        
+    except Exception as e:
+        logger.warning(f"Could not apply transformers patch: {e}")
         return False
 
 def detect_gpu_detailed():
@@ -394,6 +551,8 @@ def setup_linux():
     
     # 4. Apply compatibility patches
     patch_huggingface_hub()
+    patch_hivemind_compatibility()
+    patch_transformers_llama()
     
     # 5. Apply optimizations
     gpu_mode = installer.optimize_for_gpu()
