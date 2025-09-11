@@ -1743,9 +1743,9 @@ if ! python -m kwaainet.runner "$@" 2>/dev/null; then
     # Fallback: try running from the source installation directory
     if [ -d "$HOME/.kwaainet/source" ]; then
         echo "⚠️ Module import failed, trying fallback from source directory..."
-        SOURCE_DIR=\$(find "$HOME/.kwaainet/source" -name "OpenAI-Petal*" -type d | head -1)
-        if [ -n "\$SOURCE_DIR" ] && [ -f "\$SOURCE_DIR/Installer/linux/kwaainet/runner.py" ]; then
-            export PYTHONPATH="\$SOURCE_DIR/Installer/linux:\$PYTHONPATH"
+        SOURCE_DIR=$(find "$HOME/.kwaainet/source" -name "OpenAI-Petal*" -type d | head -1)
+        if [ -n "$SOURCE_DIR" ] && [ -f "$SOURCE_DIR/Installer/linux/kwaainet/runner.py" ]; then
+            export PYTHONPATH="$SOURCE_DIR/Installer/linux:$PYTHONPATH"
             python -m kwaainet.runner "$@"
         else
             echo "❌ Error: Could not find KwaaiNet installation. Please run the installer again."
@@ -1801,9 +1801,9 @@ if ! python -m kwaainet.runner "\$@" 2>/dev/null; then
     # Fallback: try running from the source installation directory
     if [ -d "\$HOME/.kwaainet/source" ]; then
         echo "⚠️ Module import failed, trying fallback from source directory..."
-        SOURCE_DIR=\$(find "\$HOME/.kwaainet/source" -name "OpenAI-Petal*" -type d | head -1)
-        if [ -n "\$SOURCE_DIR" ] && [ -f "\$SOURCE_DIR/Installer/linux/kwaainet/runner.py" ]; then
-            export PYTHONPATH="\$SOURCE_DIR/Installer/linux:\$PYTHONPATH"
+        SOURCE_DIR=$(find "$HOME/.kwaainet/source" -name "OpenAI-Petal*" -type d | head -1)
+        if [ -n "$SOURCE_DIR" ] && [ -f "$SOURCE_DIR/Installer/linux/kwaainet/runner.py" ]; then
+            export PYTHONPATH="$SOURCE_DIR/Installer/linux:$PYTHONPATH"
             python -m kwaainet.runner "\$@"
         else
             echo "❌ Error: Could not find KwaaiNet installation. Please run the installer again."
