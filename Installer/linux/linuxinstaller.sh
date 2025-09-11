@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.2.6
+# KwaaiNet for Linux - One-Step Installer v0.2.7
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.6"
+INSTALLER_VERSION="0.2.7"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -161,6 +161,234 @@ check_root() {
         USE_SUDO=""
     else
         USE_SUDO="sudo"
+    fi
+}
+
+# Function to apply PyTorch 2.3+ compatibility patch for hivemind
+apply_hivemind_pytorch_patch() {
+    echo "🔧 Checking for hivemind PyTorch compatibility issues..."
+    
+    # Locate hivemind installation
+    local hivemind_path=$($PYTHON_EXEC -c "
+try:
+    import hivemind
+    import os
+    print(os.path.dirname(hivemind.__file__))
+except ImportError:
+    print('NOT_FOUND')
+" 2>/dev/null)
+    
+    if [[ "$hivemind_path" == "NOT_FOUND" || -z "$hivemind_path" ]]; then
+        echo "⚠️ Could not locate hivemind installation for patching"
+        return 1
+    fi
+    
+    local grad_scaler_file="$hivemind_path/optim/grad_scaler.py"
+    if [[ ! -f "$grad_scaler_file" ]]; then
+        echo "⚠️ Could not locate hivemind grad_scaler.py file"
+        return 1
+    fi
+    
+    # Check PyTorch version to determine if patch needed
+    local pytorch_version=$($PYTHON_EXEC -c "
+try:
+    import torch
+    print(torch.__version__.split('+')[0])
+except ImportError:
+    print('NOT_FOUND')
+" 2>/dev/null)
+    
+    if [[ "$pytorch_version" == "NOT_FOUND" ]]; then
+        echo "⚠️ PyTorch not found for compatibility check"
+        return 1
+    fi
+    
+    # Check if PyTorch 2.3+ (needs patch)
+    local needs_patch=$($PYTHON_EXEC -c "
+try:
+    from packaging import version
+    torch_ver = '$pytorch_version'
+    needs = version.parse(torch_ver) >= version.parse('2.3.0')
+    print('YES' if needs else 'NO')
+except:
+    print('UNKNOWN')
+" 2>/dev/null)
+    
+    if [[ "$needs_patch" == "YES" ]]; then
+        echo "   PyTorch $pytorch_version detected - applying compatibility patch..."
+        
+        # Create backup
+        cp "$grad_scaler_file" "$grad_scaler_file.backup" 2>/dev/null
+        
+        # Apply patches for PyTorch 2.3+ import locations
+        sed -i 's/from torch\.cuda\.amp import GradScaler as TorchGradScaler/from torch.amp import GradScaler as TorchGradScaler/' "$grad_scaler_file"
+        sed -i 's/from torch\.cuda\.amp\.grad_scaler import OptState, _refresh_per_optimizer_state/from torch.amp.grad_scaler import OptState, _refresh_per_optimizer_state/' "$grad_scaler_file"
+        
+        # Verify patch applied correctly
+        if $PYTHON_EXEC -c "import hivemind; print('✅ hivemind imports successfully')" 2>/dev/null >/dev/null; then
+            echo "   ✅ Compatibility patch applied successfully"
+            rm -f "$grad_scaler_file.backup"  # Clean up backup
+            return 0
+        else
+            echo "   ❌ Patch failed, restoring backup..."
+            if [[ -f "$grad_scaler_file.backup" ]]; then
+                mv "$grad_scaler_file.backup" "$grad_scaler_file"
+            fi
+            return 1
+        fi
+    elif [[ "$needs_patch" == "NO" ]]; then
+        echo "   ✅ PyTorch $pytorch_version - no patch needed"
+        return 0
+    else
+        echo "   ⚠️ Cannot determine if patch needed - applying anyway..."
+        # Apply patch as a safeguard
+        sed -i 's/from torch\.cuda\.amp import GradScaler as TorchGradScaler/from torch.amp import GradScaler as TorchGradScaler/' "$grad_scaler_file" 2>/dev/null || true
+        sed -i 's/from torch\.cuda\.amp\.grad_scaler import OptState, _refresh_per_optimizer_state/from torch.amp.grad_scaler import OptState, _refresh_per_optimizer_state/' "$grad_scaler_file" 2>/dev/null || true
+        return 0
+    fi
+}
+
+# Function to verify package versions are correct
+verify_package_versions() {
+    echo "🔍 Verifying package versions..."
+    
+    local expected_versions=(
+        "torch:2.3.1"
+        "hivemind:1.1.10.post2"  
+        "petals:2.2.0.post1"
+        "transformers:4.34.1"
+    )
+    
+    local all_good=true
+    for package_version in "${expected_versions[@]}"; do
+        local package=$(echo $package_version | cut -d: -f1)
+        local expected=$(echo $package_version | cut -d: -f2)
+        
+        local actual=$($PYTHON_EXEC -c "
+try:
+    import $package
+    print($package.__version__.split('+')[0])
+except ImportError:
+    print('NOT_FOUND')
+except AttributeError:
+    print('NO_VERSION')
+" 2>/dev/null)
+        
+        if [[ "$actual" == "NOT_FOUND" ]]; then
+            echo "   ❌ $package: not installed"
+            all_good=false
+        elif [[ "$actual" == "NO_VERSION" ]]; then
+            echo "   ⚠️ $package: installed but version unknown"
+        elif [[ "$actual" != "$expected"* ]]; then
+            echo "   ❌ $package: expected $expected, got $actual"
+            all_good=false
+        else
+            echo "   ✅ $package: $actual"
+        fi
+    done
+    
+    if [[ "$all_good" == "true" ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to verify import compatibility
+verify_import_compatibility() {
+    echo "🔍 Testing import compatibility..."
+    
+    # Test critical imports that were failing
+    local imports=(
+        "torch:import torch; print(f'PyTorch {torch.__version__}')"
+        "hivemind:import hivemind; print(f'hivemind {hivemind.__version__}')"
+        "petals:import petals; print('petals imported successfully')"
+        "transformers:from transformers import AutoModel; print('transformers imports working')"
+    )
+    
+    local all_imports_good=true
+    for import_test in "${imports[@]}"; do
+        local package=$(echo "$import_test" | cut -d: -f1)
+        local test_code=$(echo "$import_test" | cut -d: -f2-)
+        
+        if $PYTHON_EXEC -c "$test_code" 2>/dev/null >/dev/null; then
+            echo "   ✅ $package imports successfully"
+        else
+            echo "   ❌ $package import failed"
+            all_imports_good=false
+        fi
+    done
+    
+    if [[ "$all_imports_good" == "true" ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to verify KwaaiNet functionality
+verify_kwaainet_functionality() {
+    echo "🔍 Testing KwaaiNet functionality..."
+    
+    # Test basic command availability
+    if ! command_exists kwaainet; then
+        echo "   ❌ kwaainet command not found"
+        return 1
+    fi
+    
+    # Test help command
+    if kwaainet --help >/dev/null 2>&1; then
+        echo "   ✅ kwaainet command accessible"
+    else
+        echo "   ❌ kwaainet command failed"
+        return 1
+    fi
+    
+    # Test configuration system (without starting daemon)
+    if $PYTHON_EXEC -c "
+import sys
+sys.path.insert(0, '/home/metro/Source/OpenAI-Petal')
+try:
+    from kwaainet.config import load_config
+    config = load_config()
+    print('✅ Configuration system working')
+except Exception as e:
+    print(f'❌ Configuration failed: {e}')
+    exit(1)
+" 2>/dev/null >/dev/null; then
+        echo "   ✅ Configuration system functional"
+        return 0
+    else
+        echo "   ❌ Configuration system failed"
+        return 1
+    fi
+}
+
+# Master verification function
+run_comprehensive_verification() {
+    echo "🧪 Running comprehensive installation verification..."
+    
+    local tests=(
+        "verify_package_versions"
+        "verify_import_compatibility" 
+        "verify_kwaainet_functionality"
+    )
+    
+    local all_tests_passed=true
+    for test in "${tests[@]}"; do
+        if ! $test; then
+            echo "❌ Verification failed at: $test"
+            all_tests_passed=false
+        fi
+    done
+    
+    if [[ "$all_tests_passed" == "true" ]]; then
+        echo "✅ All verification tests passed!"
+        echo "🎉 Installation completed successfully and is ready for daemon startup"
+        return 0
+    else
+        echo "⚠️ Some verification tests failed. Installation may have issues."
+        return 1
     fi
 }
 
@@ -1147,7 +1375,7 @@ if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -eq 7 ]; then
         echo "✅ Successfully installed Python 3.7 compatible transformers and huggingface_hub"
     else
         echo "⚠️ Failed to install Python 3.7 compatible versions. Trying default versions..."
-        if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "huggingface_hub>=0.34.0" "tokenizers>=0.15.0"; then
+        if $PIP_EXEC install $BINARY_FLAG "transformers==4.34.1" "huggingface_hub==0.34.0" "tokenizers==0.14.1"; then
             echo "✅ Successfully installed default transformers and huggingface_hub"
         else
             echo "⚠️ Failed to install transformers/huggingface_hub. May have compatibility issues..."
@@ -1156,11 +1384,11 @@ if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -eq 7 ]; then
 else
     # Python 3.8+ - use updated versions that work with current HF infrastructure
     echo "📦 Installing transformers with compatible dependency versions..."
-    if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "tokenizers>=0.15.0" "huggingface_hub>=0.34.0"; then
+    if $PIP_EXEC install $BINARY_FLAG "transformers==4.34.1" "tokenizers==0.14.1" "huggingface_hub==0.34.0"; then
         echo "✅ Successfully installed compatible transformers and huggingface_hub"
     else
         echo "⚠️ Failed to install transformers/huggingface_hub. Trying without tokenizers pinning..."
-        if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "huggingface_hub>=0.34.0"; then
+        if $PIP_EXEC install $BINARY_FLAG "transformers==4.34.1" "huggingface_hub==0.34.0"; then
             echo "✅ Successfully installed compatible transformers and huggingface_hub (fallback)"
         else
             echo "⚠️ Failed to install transformers/huggingface_hub. May have compatibility issues..."
@@ -1183,10 +1411,26 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
             echo "   This may take a few minutes to download..."
             if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cu121" "torchvision==0.18.1+cu121" "torchaudio==2.3.1+cu121" --index-url https://download.pytorch.org/whl/cu121; then
                 echo "✅ PyTorch CUDA 2.3.1 installed successfully"
+                
+                # CRITICAL: Lock PyTorch version to prevent auto-upgrade
+                echo "🔒 Locking PyTorch version to prevent dependency conflicts..."
+                $PIP_EXEC install --force-reinstall --no-deps "torch==2.3.1+cu121" "torchvision==0.18.1+cu121" "torchaudio==2.3.1+cu121"
+                
+                # Verify version lock
+                PYTORCH_VERSION=$($PYTHON_EXEC -c "import torch; print(torch.__version__)" 2>/dev/null || echo "failed")
+                if [[ "$PYTORCH_VERSION" == "2.3.1+cu121" ]]; then
+                    echo "✅ PyTorch version locked at 2.3.1+cu121"
+                else
+                    echo "⚠️ PyTorch version lock may have failed: $PYTORCH_VERSION"
+                fi
             else
                 echo "⚠️ Failed to install CUDA PyTorch 2.3.1. Falling back to CPU version..."
                 if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu" --index-url https://download.pytorch.org/whl/cpu; then
                     echo "✅ PyTorch CPU 2.3.1 installed successfully"
+                    
+                    # CRITICAL: Lock PyTorch version to prevent auto-upgrade
+                    echo "🔒 Locking PyTorch CPU version to prevent dependency conflicts..."
+                    $PIP_EXEC install --force-reinstall --no-deps "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu"
                 else
                     echo "❌ Failed to install PyTorch. Please check your internet connection."
                     exit 1
@@ -1197,6 +1441,10 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
             echo "   This may take a few minutes to download..."
             if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu" --index-url https://download.pytorch.org/whl/cpu; then
                 echo "✅ PyTorch CPU 2.3.1 installed successfully"
+                
+                # CRITICAL: Lock PyTorch version to prevent auto-upgrade
+                echo "🔒 Locking PyTorch CPU version to prevent dependency conflicts..."
+                $PIP_EXEC install --force-reinstall --no-deps "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu"
             else
                 echo "❌ Failed to install PyTorch. Please check your internet connection."
                 exit 1
@@ -1293,12 +1541,26 @@ else
     fi
 fi
 
-# Force upgrade hivemind to compatible version (must be after Petals installation)
-echo "📦 Upgrading hivemind to PyTorch 2.3+ compatible version..."
-if $PIP_EXEC install --upgrade --force-reinstall "hivemind>=1.1.11"; then
-    echo "✅ hivemind upgraded to 1.1.11+ (PyTorch 2.3+ compatible)"
+# Ensure correct hivemind version for petals compatibility
+echo "📦 Installing hivemind compatible with petals (v1.1.10.post2)..."
+if $PIP_EXEC install --upgrade --force-reinstall "hivemind==1.1.10.post2"; then
+    echo "✅ hivemind 1.1.10.post2 installed (required by petals)"
+    
+    # Apply PyTorch 2.3+ compatibility patch for hivemind
+    echo "🔧 Applying PyTorch compatibility patches for hivemind..."
+    apply_hivemind_pytorch_patch
 else
-    echo "⚠️ Failed to upgrade hivemind. Daemon may fail to start."
+    echo "⚠️ Failed to install correct hivemind version. Daemon may fail to start."
+fi
+
+# Run comprehensive verification of the installation
+echo ""
+echo "🧪 Running installation verification..."
+if run_comprehensive_verification; then
+    echo "✅ Installation verification completed successfully!"
+else
+    echo "⚠️ Installation verification found issues - daemon may not work properly"
+    echo "   Check the logs above for specific problems"
 fi
 
 # Configure CUDA library paths for bitsandbytes (NVIDIA GPUs only)
