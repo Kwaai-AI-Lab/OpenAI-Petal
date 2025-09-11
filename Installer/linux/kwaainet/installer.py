@@ -21,9 +21,23 @@ def patch_huggingface_hub():
                 huggingface_hub.split_torch_state_dict_into_shards = split_torch_state_dict_into_shards
                 logger.info("Patched huggingface_hub.split_torch_state_dict_into_shards")
                 return True
-            except ImportError as e:
-                logger.warning(f"Could not patch huggingface_hub: {e}")
-                return False
+            except ImportError:
+                # Fallback implementation for older huggingface_hub versions
+                def split_torch_state_dict_into_shards(state_dict, max_shard_size='5GB', filename_pattern='pytorch_model-{:05d}-of-{:05d}.bin'):
+                    """Fallback implementation for compatibility"""
+                    # Simple fallback: return the full state dict as a single shard
+                    if isinstance(max_shard_size, str):
+                        if max_shard_size.endswith('GB'):
+                            max_shard_size = int(max_shard_size[:-2]) * 1024 * 1024 * 1024
+                        elif max_shard_size.endswith('MB'):
+                            max_shard_size = int(max_shard_size[:-2]) * 1024 * 1024
+                    
+                    # Return single shard for simplicity
+                    return {filename_pattern.format(1, 1): state_dict}, {filename_pattern.format(1, 1): list(state_dict.keys())}
+                
+                huggingface_hub.split_torch_state_dict_into_shards = split_torch_state_dict_into_shards
+                logger.info("Applied fallback implementation for huggingface_hub.split_torch_state_dict_into_shards")
+                return True
         else:
             logger.info("huggingface_hub.split_torch_state_dict_into_shards already available")
             return True
