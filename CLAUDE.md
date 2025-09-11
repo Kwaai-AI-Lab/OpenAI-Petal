@@ -286,6 +286,31 @@ git push origin main
 
 **Linux installer is now production-ready** with all compatibility issues resolved and integrated into the installer code. No manual patches required for fresh installations.
 
+## Current Session (2025-09-11) - Test Script Repository Integration
+
+### Task: Add Linux Installer Test Script to Repository
+**Status**: ✅ COMPLETED
+
+#### Test Script Integration ✅
+
+**Test Script Added:**
+- **Location**: `Installer/linux/test_kwaainet_installer.sh`
+- **Source**: Copied from `/home/metro/test_kwaainet_installer.sh`
+- **Purpose**: Complete validation protocol for Linux installer functionality
+- **Features**: Automated uninstall/reinstall/validation testing with comprehensive checks
+
+**Git Operations Completed:**
+- ✅ Script copied to repository directory
+- ✅ Added to git staging area
+- ✅ Committed with descriptive message
+- ✅ Successfully pushed after rebase (commit `05eac90`)
+
+**Current Repository State:**
+- **Branch**: `main` 
+- **Latest Commit**: `05eac90` - "Add Linux installer test script for validation protocol"
+- **Status**: Clean working tree, all changes committed and pushed
+- **Test Script**: Available at `Installer/linux/test_kwaainet_installer.sh` for future validation
+
 ## Previous Session Context
 - **Working Directory**: `/Users/rezarassool/Source/OpenAI-Petal/Installer/macOS`
 - **Repository**: Connected to `https://github.com/Kwaai-AI-Lab/OpenAI-Petal`
