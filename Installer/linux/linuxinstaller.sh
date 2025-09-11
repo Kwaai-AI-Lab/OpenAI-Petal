@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.2.8
+# KwaaiNet for Linux - One-Step Installer v0.2.9
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.8"
+INSTALLER_VERSION="0.2.9"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -168,10 +168,20 @@ check_root() {
 apply_hivemind_pytorch_patch() {
     echo "🔧 Checking for hivemind PyTorch compatibility issues..."
     
+    # Ensure we're in the right environment
+    if [[ -n "$CONDA_BASE" ]]; then
+        # Activate conda environment explicitly
+        source "$CONDA_BASE/etc/profile.d/conda.sh" 2>/dev/null || true
+        conda activate kwaainet 2>/dev/null || true
+    fi
+    
     # Locate hivemind installation - try multiple Python executables
     local hivemind_path=""
-    for python_cmd in "$PYTHON_EXEC" "python3" "python" "/home/metro/.conda/envs/kwaainet/bin/python"; do
+    local python_candidates=("$PYTHON_EXEC" "python3" "python" "/home/metro/.conda/envs/kwaainet/bin/python")
+    
+    for python_cmd in "${python_candidates[@]}"; do
         if [[ -n "$python_cmd" ]] && command -v "$python_cmd" >/dev/null 2>&1; then
+            echo "   Trying Python: $python_cmd"
             hivemind_path=$($python_cmd -c "
 try:
     import hivemind
@@ -179,10 +189,16 @@ try:
     print(os.path.dirname(hivemind.__file__))
 except ImportError:
     print('NOT_FOUND')
+except Exception as e:
+    print('ERROR: ' + str(e))
 " 2>/dev/null)
-            if [[ "$hivemind_path" != "NOT_FOUND" && -n "$hivemind_path" ]]; then
+            echo "   Result: $hivemind_path"
+            if [[ "$hivemind_path" != "NOT_FOUND" && "$hivemind_path" != ERROR* && -n "$hivemind_path" ]]; then
+                echo "   ✅ Found hivemind at: $hivemind_path"
                 break
             fi
+        else
+            echo "   Skipping: $python_cmd (not available)"
         fi
     done
     
@@ -1583,7 +1599,10 @@ if $PIP_EXEC install --upgrade --force-reinstall "hivemind==1.1.10.post2" "torch
     
     # Apply PyTorch 2.3+ compatibility patch for hivemind
     echo "🔧 Applying PyTorch compatibility patches for hivemind..."
-    apply_hivemind_pytorch_patch
+    if ! apply_hivemind_pytorch_patch; then
+        echo "⚠️ Patching failed, but continuing installation..."
+        echo "   Manual patching may be required for full functionality"
+    fi
 else
     echo "⚠️ Failed to install correct hivemind version. Daemon may fail to start."
 fi
@@ -1592,6 +1611,13 @@ fi
 echo ""
 echo "🔒 Final PyTorch version lock to prevent any auto-upgrades..."
 $PIP_EXEC install --force-reinstall --no-deps "torch>=2.3.0,<2.4.0" 2>/dev/null || echo "   ⚠️ Version lock may have failed"
+
+# Final post-installation patch attempt (in case earlier patching failed)
+echo ""
+echo "🔧 Final compatibility check and patching..."
+if ! apply_hivemind_pytorch_patch; then
+    echo "⚠️ Final patching failed - manual patch may be needed for optimal performance"
+fi
 
 # Run comprehensive verification of the installation
 echo ""
