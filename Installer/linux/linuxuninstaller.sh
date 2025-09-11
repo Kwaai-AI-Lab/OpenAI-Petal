@@ -75,10 +75,32 @@ if command_exists conda; then
     if conda info --envs 2>/dev/null | grep -q kwaainet; then
         echo "🗑️ Removing kwaainet conda environment..."
         conda deactivate 2>/dev/null || true
+        
+        # Try standard removal first
         if conda env remove -n kwaainet -y 2>/dev/null; then
-            echo "  ✓ Environment removed"
+            echo "  ✓ Environment removed with conda command"
         else
-            echo "  ⚠️ Failed to remove environment automatically. You may need to run: conda env remove -n kwaainet -y"
+            echo "  ⚠️ Standard removal failed, trying force removal..."
+            
+            # Force removal by deleting directory
+            ENV_PATH=$(conda info --envs 2>/dev/null | grep kwaainet | awk '{print $NF}' | head -n1)
+            if [[ -n "$ENV_PATH" && -d "$ENV_PATH" ]]; then
+                echo "  🧹 Force removing environment directory: $ENV_PATH"
+                rm -rf "$ENV_PATH" 2>/dev/null || {
+                    echo "  ⚠️ Need elevated permissions to remove environment"
+                    $USE_SUDO rm -rf "$ENV_PATH" 2>/dev/null || true
+                }
+                
+                # Verify removal
+                if conda info --envs 2>/dev/null | grep -q kwaainet; then
+                    echo "  ⚠️ Environment may still be registered. Try running: conda env remove -n kwaainet -y"
+                else
+                    echo "  ✓ Environment force removed successfully"
+                fi
+            else
+                echo "  ⚠️ Could not locate environment path for force removal"
+                echo "     You may need to manually run: conda env remove -n kwaainet -y"
+            fi
         fi
     else
         echo "  ✓ No kwaainet environment found"

@@ -36,26 +36,29 @@ This document outlines the requirements for implementing a lightweight, cross-pl
   - Service survives system reboots and user logouts
   - Unified command-line interface across platforms (`kwaainet install-service`, `kwaainet start`, etc.)
 
-#### FR-002: Cross-Platform Container Orchestration
-- **Requirement**: Daemon MUST manage containers for KwaaiNet nodes across different container runtimes
-- **Rationale**: Eliminates dependency conflicts and ensures consistent environment regardless of platform
+#### FR-002: Zero-Dependency Container Orchestration
+- **Requirement**: Daemon MUST manage containers using CLI tools without API libraries
+- **Rationale**: Eliminates dependency conflicts while ensuring consistent environment
 - **Acceptance Criteria**:
-  - **Linux**: Docker Engine, Podman, or containerd support
-  - **macOS**: Docker Desktop integration with proper resource allocation
-  - **Windows**: Docker Desktop with Windows containers and/or WSL2 Linux containers
-  - Automatic container runtime detection and adaptation
-  - Container health monitoring with automatic restart across all platforms
-  - Container image updates without manual intervention
-  - GPU passthrough when available (NVIDIA on Linux/Windows, Metal on macOS)
+  - **Container Runtime Detection**: Auto-detect docker/podman/containerd via subprocess
+  - **CLI-Based Management**: Use container CLI tools directly (no docker-py, no API libraries)
+  - **Linux**: Docker Engine, Podman, or containerd via command-line interface
+  - **macOS**: Docker Desktop integration via docker CLI commands
+  - **Windows**: Docker Desktop with containers via docker.exe or podman.exe
+  - **Health Monitoring**: Container status via `docker ps` / `podman ps` parsing
+  - **Image Management**: Pull/update via `docker pull` / `podman pull` subprocess calls
+  - **GPU Passthrough**: Configure via CLI arguments (--gpus all, --device, etc.)
 
-#### FR-003: Configuration Management
-- **Requirement**: System MUST provide declarative configuration for node parameters
-- **Rationale**: Enables easy deployment customization and automation
+#### FR-003: Zero-Dependency Configuration Management
+- **Requirement**: System MUST provide declarative configuration using only standard library
+- **Rationale**: Enables easy deployment customization without external dependencies
 - **Acceptance Criteria**:
-  - YAML-based configuration file
+  - **JSON-based configuration** (standard library json module, no YAML dependency)
+  - **Optional**: Embedded minimal YAML parser (pure Python, no external library)
   - Support for model selection, block count, network settings
   - Configuration changes apply without code modification
-  - Validation of configuration parameters
+  - Built-in validation using standard library only
+  - Graceful fallback to defaults when configuration is missing or invalid
 
 #### FR-004: Network Integration
 - **Requirement**: Node MUST automatically connect to KwaaiNet P2P network
@@ -90,17 +93,18 @@ This document outlines the requirements for implementing a lightweight, cross-pl
   - Silent/unattended installation modes for automation
   - Automatic updates with rollback capability
 
-#### FR-007: Network Resilience and Reconnection
-- **Requirement**: System MUST handle network disruptions and automatically reconnect to the KwaaiNet P2P network
-- **Rationale**: Ensures continuous operation in unstable network environments and mobile deployments
+#### FR-007: Zero-Dependency Network Resilience
+- **Requirement**: System MUST handle network disruptions using only standard library networking
+- **Rationale**: Ensures continuous operation without external networking libraries
 - **Acceptance Criteria**:
-  - **Connection Loss Detection**: Monitor network connectivity with configurable timeout (default: 30s)
-  - **Exponential Backoff**: Retry connections with increasing delays (1s, 2s, 4s, 8s, 16s, 30s max)
-  - **Bootstrap Peer Rotation**: Try different bootstrap peers on successive failures
-  - **Container Health Monitoring**: Restart container if P2P network stack becomes unresponsive
-  - **Graceful Degradation**: Continue operation in isolated mode until network restored
-  - **Network Change Adaptation**: Detect network interface changes (WiFi to Ethernet, VPN, etc.)
-  - **IPv4/IPv6 Dual Stack**: Handle IP address changes and protocol switching
+  - **Connection Monitoring**: Use `socket` module for basic connectivity checks
+  - **DNS Resolution**: Use `socket.gethostbyname()` for bootstrap peer resolution
+  - **Ping Functionality**: Use `subprocess` to call system ping command
+  - **Network Interface Detection**: Parse `ifconfig`/`ip addr`/`ipconfig` via subprocess
+  - **Exponential Backoff**: Built-in `time.sleep()` with exponential delay calculation
+  - **Bootstrap Peer Rotation**: Simple list rotation using standard library
+  - **Container Health**: Parse `docker logs` and `docker stats` output via subprocess
+  - **No External HTTP Libraries**: Use container CLI for health checks instead of HTTP requests
 
 #### FR-008: Power Management and Sleep/Wake Handling
 - **Requirement**: System MUST properly handle system sleep/wake cycles and power management events
@@ -133,15 +137,17 @@ This document outlines the requirements for implementing a lightweight, cross-pl
 
 ### Non-Functional Requirements
 
-#### NFR-001: Cross-Platform Minimal Footprint
-- **Requirement**: Daemon binary MUST be lightweight and require minimal dependencies across all platforms
-- **Rationale**: Easy deployment and minimal system impact regardless of OS
+#### NFR-001: Zero External Dependencies Architecture
+- **Requirement**: Daemon MUST use only Python standard library with zero external dependencies
+- **Rationale**: Maximum reliability, security, and deployment simplicity across all platforms
 - **Acceptance Criteria**:
-  - **Linux**: Single Python script < 500 lines, system Python 3.7+ compatibility
-  - **macOS**: Single Python script or compiled binary < 2MB, macOS 10.14+ support
-  - **Windows**: Single Python script or .exe < 2MB, Windows 10+ support
-  - No ML library dependencies in daemon code
-  - Standard library dependencies only (no pip install required for daemon itself)
+  - **Python Standard Library Only**: os, sys, json, subprocess, logging, platform, pathlib, socket, threading
+  - **Forbidden External Dependencies**: No requests, yaml, psutil, docker, pydantic, or any pip packages
+  - **Single File Deployment**: Complete daemon functionality in one Python script
+  - **No Package Manager**: Works with system Python 3.7+ without pip install
+  - **File Size**: Complete daemon < 1MB (typically ~300-500 lines of Python)
+  - **Installation**: Single file download + chmod +x (no virtual environments, no conda)
+  - **Cross-Platform**: Same script works on Linux, macOS, Windows without modifications
 
 #### NFR-002: Reliability
 - **Requirement**: System MUST achieve 99.9% uptime in normal operating conditions
@@ -196,14 +202,15 @@ This document outlines the requirements for implementing a lightweight, cross-pl
 
 #### Components
 
-1. **KwaaiNet Daemon** (Cross-Platform)
-   - **Linux**: `/usr/local/bin/kwaainet-daemon` or `/opt/kwaainet/bin/kwaainet-daemon`
-   - **macOS**: `/usr/local/bin/kwaainet-daemon` or `/Applications/KwaaiNet.app/Contents/MacOS/kwaainet-daemon`
-   - **Windows**: `C:\Program Files\KwaaiNet\kwaainet-daemon.exe` or Python script
-   - Lightweight Python script (~300 lines) with platform abstractions
-   - Container runtime abstraction (Docker, Podman, containerd)
-   - Health monitoring and restart logic with OS-specific process management
-   - Cross-platform configuration management
+1. **KwaaiNet Daemon** (Zero Dependencies, Cross-Platform)
+   - **Linux**: `/usr/local/bin/kwaainet-daemon` (single Python file)
+   - **macOS**: `/usr/local/bin/kwaainet-daemon` (same Python file)
+   - **Windows**: `C:\Program Files\KwaaiNet\kwaainet-daemon.py` (same Python file)
+   - **Single Python Script**: ~400-500 lines, zero external dependencies
+   - **Standard Library Only**: os, sys, json, subprocess, logging, platform, pathlib, socket
+   - **Container CLI Integration**: Direct subprocess calls to docker/podman commands
+   - **Built-in Configuration**: JSON parsing with embedded validation logic
+   - **Cross-Platform Logic**: Platform detection with conditional behavior
 
 2. **Service Integration** (Platform-Specific)
    - **Linux**: systemd service (`/etc/systemd/system/kwaainet.service`)
@@ -367,13 +374,14 @@ C:\ProgramData\KwaaiNet\logs\                                    # Logs
 
 ## Success Criteria
 
-1. **Cross-Platform Installation Simplicity**: Single command installation across all platforms
-2. **Zero Dependency Conflicts**: No manual patching or library version issues on any OS
-3. **Reliable Cross-Platform Operation**: Automatic recovery from platform-specific failure modes
-4. **Unified Operational Interface**: Consistent commands and behavior across platforms
-5. **Network Resilience**: Automatic reconnection with < 30 second recovery time
-6. **Power Management Integration**: Proper sleep/wake handling without user intervention
-7. **Production Ready**: Suitable for headless deployment on Linux servers, desktop deployment on Windows/macOS
+1. **Zero-Dependency Installation**: Single file download with no pip/conda/package manager required
+2. **Universal Compatibility**: Same Python script works on Python 3.7+ across all platforms
+3. **Instant Deployment**: `curl script && python3 script install` - operational in < 30 seconds
+4. **No External Dependencies**: No requests, yaml, psutil, docker libraries - pure stdlib only
+5. **Minimal Resource Usage**: < 10MB memory footprint, single Python process
+6. **Network Resilience**: Automatic reconnection with < 30 second recovery time using stdlib
+7. **Power Management Integration**: Sleep/wake handling via platform-specific subprocess calls
+8. **Production Ready**: Suitable for any environment with Python 3.7+ and container runtime
 
 ## Risk Assessment
 
@@ -397,22 +405,25 @@ C:\ProgramData\KwaaiNet\logs\                                    # Logs
 
 ## Metrics for Success
 
-- **Installation time**: < 5 minutes from curl command to running node
-- **Memory footprint**: Daemon < 50MB, total system impact minimal
-- **Network recovery time**: < 30 seconds from failure detection to healthy restart
+- **Installation time**: < 30 seconds from curl command to running node
+- **Download size**: Single file < 500KB (pure Python, no dependencies)
+- **Memory footprint**: Daemon < 10MB, minimal system impact
+- **Startup time**: < 5 seconds from script execution to operational daemon
+- **Network recovery time**: < 30 seconds using only standard library networking
 - **Sleep/wake cycle**: < 30 seconds from wake to full operation
-- **Reconnection success rate**: > 99% successful reconnections within 10 seconds
-- **Power efficiency**: < 5% CPU usage in idle state, < 1% during network monitoring
-- **Configuration errors**: Clear error messages with suggested fixes
-- **Cross-platform consistency**: Same behavior and performance across Linux/macOS/Windows
-- **Documentation completeness**: Installation and operation without external help
+- **Reconnection success rate**: > 99% successful reconnections using subprocess tools
+- **Power efficiency**: < 2% CPU usage in idle state
+- **Zero external dependencies**: No pip packages required, works with any Python 3.7+
+- **Cross-platform identical**: Same script behavior on Linux/macOS/Windows
+- **Container compatibility**: Works with docker, podman, containerd via CLI
 
 ---
 
-**Document Version**: 2.1 - Network Resilience & Power Management Edition  
+**Document Version**: 2.2 - Zero Dependency Architecture Edition  
 **Date**: 2025-01-14  
 **Author**: Development Team  
-**Status**: Planning Phase - Complete Requirements Defined  
+**Status**: Planning Phase - Minimal Dependency Architecture Defined  
 **Platforms**: Linux, macOS, Windows  
-**Container Runtimes**: Docker, Podman, containerd  
-**Key Features**: Cross-platform daemon, network resilience, power management, wake-on-network
+**Container Runtimes**: Docker, Podman, containerd (via CLI)  
+**Architecture**: Single Python file, zero external dependencies, standard library only  
+**Key Features**: Zero-dependency daemon, CLI-based container management, stdlib networking, JSON config

@@ -1,7 +1,9 @@
 README.md
 setup.py
 kwaainet/__init__.py
+kwaainet/__main__.py
 kwaainet/config.py
+kwaainet/daemon.py
 kwaainet/data_structures.py
 kwaainet/installer.py
 kwaainet/runner.py

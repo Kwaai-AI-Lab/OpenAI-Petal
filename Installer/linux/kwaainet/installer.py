@@ -133,16 +133,26 @@ def patch_torch_rocm():
 def patch_hivemind_compatibility():
     """Patch hivemind for PyTorch 2.x compatibility"""
     try:
-        import hivemind.optim.grad_scaler
         import torch
+        import os
+        import site
         
         # Check if we need to patch the import path
         torch_version = torch.__version__.split("+")[0]
         from packaging import version
         
         if version.parse(torch_version) >= version.parse("2.3.0"):
-            # Patch the file directly if needed
-            grad_scaler_path = hivemind.optim.grad_scaler.__file__
+            # Find hivemind directory without importing it
+            grad_scaler_path = None
+            for site_path in site.getsitepackages():
+                potential_path = os.path.join(site_path, 'hivemind', 'optim', 'grad_scaler.py')
+                if os.path.exists(potential_path):
+                    grad_scaler_path = potential_path
+                    break
+            
+            if not grad_scaler_path:
+                logger.warning("Could not locate hivemind grad_scaler.py file")
+                return False
             
             with open(grad_scaler_path, 'r') as f:
                 content = f.read()

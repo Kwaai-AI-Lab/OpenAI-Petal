@@ -97,9 +97,14 @@ class KwaaiNetRunner:
         config_env = self.config.as_env_dict()
         env.update(config_env)
         
+        # Fix PyTorch shared memory manager issue
+        env["TMPDIR"] = "/tmp"
+        
         # Apply compatibility patches
-        from .installer import patch_huggingface_hub, patch_torch_cuda, patch_torch_rocm
+        from .installer import patch_huggingface_hub, patch_torch_cuda, patch_torch_rocm, patch_hivemind_compatibility, patch_transformers_llama
         patch_huggingface_hub()
+        patch_hivemind_compatibility() 
+        patch_transformers_llama()
         
         # Apply GPU patches if needed
         if self.config.get("use_gpu", True):
@@ -246,6 +251,9 @@ class KwaaiNetRunner:
             env = os.environ.copy()
             config_env = self.config.as_env_dict()
             env.update(config_env)
+            
+            # Fix PyTorch shared memory manager issue
+            env["TMPDIR"] = "/tmp"
             
             return self.daemon.restart_process(command, env)
         else:
