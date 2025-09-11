@@ -206,6 +206,8 @@ git push origin main
 
 #### Git Commits Made ✅
 - **`f73e108`**: Fix Linux PyTorch/hivemind and huggingface_hub compatibility issues
+- **`d9ef0f7`**: Document Linux compatibility fixes for v0.2.11
+- **`a3909c5`**: Bump Linux and macOS installer versions to v0.2.11
 
 ### Current Working State ✅
 
@@ -214,6 +216,12 @@ git push origin main
 - `kwaainet start`: ✅ Starts but fails during model loading (shared memory issue)
 - `kwaainet start --daemon`: ✅ Compatibility issues resolved, progresses to advanced initialization
 - All major import and configuration errors resolved
+
+**Version Status:**
+- Linux installer: v0.2.11 ✅
+- macOS installer: v0.2.11 ✅
+- Windows installer: v0.2.13 ✅
+- Installed kwaainet package: v0.2.2 (runtime compatibility fixes applied via patches)
 
 ## Previous Session Context
 - **Working Directory**: `/Users/rezarassool/Source/OpenAI-Petal/Installer/macOS`
