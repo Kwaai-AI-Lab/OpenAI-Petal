@@ -12,11 +12,41 @@
 </p>
 
 
+## Table of Contents
+
+- [📋 Overview](#overview)
+- [🚀 Recent Updates](#recent-updates)
+- [⚡ Key Features](#key-features)
+- [🏗️ Architecture](#architecture)
+- [📡 API Endpoints](#api-endpoints)
+- [💾 Installation and Setup](#installation-and-setup)
+  - [Installation Options](#installation-options)
+  - [One-Step Installation](#one-step-installation)
+  - [Container-Based Installation (Docker/Podman)](#container-based-installation-dockerpodman)
+  - [Manual Installation](#manual-installation)
+- [🗑️ Uninstallation](#uninstallation)
+- [🚀 Usage](#usage)
+  - [Beautiful CLI Interface](#beautiful-cli-interface)
+  - [Daemon Management](#daemon-management)
+  - [Configuration Management](#configuration-management)
+  - [Starting a Node](#starting-a-node)
+- [⚙️ Configuration](#configuration)
+- [🛠️ Available Command-line Options](#available-command-line-options)
+- [🐍 Python API](#python-api)
+- [🌍 Environment Variables](#environment-variables)
+- [⚡ Performance Considerations](#performance-considerations)
+- [🔧 Troubleshooting](#troubleshooting)
+- [🔒 Security Considerations](#security-considerations)
+- [📝 Recent Fixes and Improvements](#recent-fixes-and-improvements)
+- [🤖 Daemon Mode](#daemon-mode)
+- [🤝 Contributing](#contributing)
+- [📄 License](#license)
+
 ## Overview
 
 **OpenAI-Petal** is an OpenAI API-compatible server that bridges to the Petals distributed inference network. It enables you to run large language models through Petals' distributed network while maintaining full compatibility with OpenAI's API format, making it easy to integrate into existing applications.
 
-## ✅ Recent Updates (September 2025)
+## 🚀 Recent Updates
 
 ### 🚀 **Daemon Mode Complete**
 - ✅ **Stable daemon operation** with PID tracking and process supervision
@@ -45,7 +75,7 @@ All core features are **complete and stable**:
 - **Network connectivity** to KwaaiNet distributed inference network
 - **Beautiful CLI interface** with professional visual design
 
-### Key Features
+## ⚡ Key Features
 - **🔌 OpenAI API Compatibility**: Drop-in replacement supporting standard endpoints
 - **🌐 Petals Integration**: Leverages distributed inference for efficient model serving  
 - **🛠️ Advanced Tool Calling**: Function calling with model-specific formatting (Hermes, Llama 3, Mistral, etc.)
@@ -57,13 +87,13 @@ All core features are **complete and stable**:
 - **🔧 Comprehensive Management**: Full daemon control with `start`, `stop`, `restart`, `status`, `logs` commands
 - **📊 Smart Status Monitoring**: Real-time process metrics with CPU, memory, uptime, and connection tracking
 
-### Architecture
+## 🏗️ Architecture
 - **FastAPI Backend**: High-performance async web server with CORS support
 - **Model Management**: Automatic model loading/unloading with graceful shutdown  
 - **Streaming Support**: Real-time response streaming for both completions and chat
 - **Token Processing**: Smart special token handling and cleanup with configurable stop sequences
 
-### API Endpoints
+## 📡 API Endpoints
 - `v1/models` - List available models
 - `v1/completions` - Text completion endpoint
 - `v1/chat/completions` - Chat completion endpoint with tool calling support
@@ -73,14 +103,21 @@ All core features are **complete and stable**:
 The best way to support is to give us a ⭐ on [GitHub](https://github.com/KWAAI-ai-lab/paiassistant), [join the Kwaai community](https://www.kwaai.ai/home/sign-up), and connect with us on [slack](https://kwaaiailab.slack.com)!
 
 
-## Installation and Setup
+## 💾 Installation and Setup
 The steps below can be used to setup the enviroment for this project. The install will run with or without GPU. If you are running a private swarm node, you might need some gpu support to share the load with community inference servers. This project needs some resources for the tokenizer part of inference. It will run on cpu or gpu supported machines.
 
 > **Note:** The default setup and run process provided here will allow you to connect to Petals' public swarm. Data you send will be public. Please be aware!
 
 
 
-### Installation process.
+### Installation Options
+
+Choose the installation method that best fits your environment:
+
+1. **One-Step Installation (Recommended)** - Automated installers for each platform
+2. **Container-Based Installation** - Docker/Podman with pre-built images 
+3. **Manual Installation** - Direct pip installation for advanced users
+
 ### One-Step Installation (Recommended)
 
 For a complete one-step installation that handles Python, dependencies, and environment setup:
@@ -142,6 +179,78 @@ This will:
 - Create a launcher for easy usage
 - Detect and configure GPU support (NVIDIA, AMD, Intel)
 
+### Container-Based Installation (Docker/Podman)
+
+For containerized deployment, you can use Docker or Podman with the provided compose configuration:
+
+#### Using Docker
+```bash
+# Download the compose file
+curl -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/compose.yml
+
+# Start the services
+docker-compose up -d
+
+# Check status
+docker-compose ps
+```
+
+#### Using Podman (Rootless - Recommended)
+```bash
+# Download the compose file
+curl -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/compose.yml
+
+# Start the services (no sudo required)
+podman-compose up -d
+
+# Check status
+podman-compose ps
+```
+
+**Container Services:**
+- **kwaainet-node**: Distributed inference node (port 8081)
+  - Connects to KwaaiNet bootstrap peers
+  - Serves 4 blocks of Llama-3.1-8B-Instruct (configurable)
+  - Public name defaults to your username
+  - GPU-accelerated (NVIDIA support included)
+- **kwaainet-api**: OpenAI-compatible API server (port 8000)
+  - Fully compatible with OpenAI API format
+  - Supports completions and chat endpoints
+
+**Container Advantages:**
+- ✅ **No system dependencies** - everything runs in containers
+- ✅ **Rootless operation** with Podman (enhanced security)
+- ✅ **Easy cleanup** and management
+- ✅ **GPU support** included for NVIDIA devices
+- ✅ **Automatic restarts** with `unless-stopped` policy
+
+**Quick Start with Containers:**
+```bash
+# Download and start in one command (Podman)
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/compose.yml | podman-compose -f - up -d
+
+# Access the services
+curl http://localhost:8000/v1/models     # API endpoint
+curl http://localhost:8081/health        # Node health check
+```
+
+**Testing Container Installation:**
+```bash
+# Download and run the comprehensive test script
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/test_container_installation.sh | bash
+
+# Or quick test for running containers
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/test_container_quick.sh | bash
+```
+
+The test script automatically:
+- Detects Docker or Podman
+- Downloads and validates the compose file
+- Starts containers and validates all services
+- Tests API endpoints and network connectivity
+- Checks GPU access and performance
+- Provides detailed logging and results
+
 ### Manual Installation
 
 If you prefer to handle the environment yourself, you can install directly:
@@ -165,7 +274,7 @@ pip install -e ./Installer/macOS/
 > 
 > **Windows Requirements:** Windows 10+ (64-bit), PowerShell 5.1+
 
-## Uninstallation
+## 🗑️ Uninstallation
 
 To completely remove KwaaiNet and its environment:
 
@@ -276,10 +385,10 @@ kwaainet start
 Or with custom settings:
 
 ```bash
-kwaainet start --model "unsloth/Llama-3.1-8B-Instruct" --blocks 2 --port 8080 --public-name "anon@kwaai"
+kwaainet start --model "unsloth/Llama-3.1-8B-Instruct" --blocks 4 --port 8080 --public-name "anon@kwaai"
 ```
 
-### Configuration
+## ⚙️ Configuration
 
 View current configuration:
 
@@ -291,16 +400,16 @@ Update configuration:
 
 ```bash
 kwaainet config --set model "unsloth/Llama-3.1-8B-Instruct"
-kwaainet config --set blocks 2
+kwaainet config --set blocks 4
 kwaainet config --set public_name "anon@kwaai"
 ```
 
-## Available Command-line Options
+## 🛠️ Available Command-line Options
 
 The kwaainet start command supports the following options:
 
 - `--model`: Model to use (default: "unsloth/Llama-3.1-8B-Instruct")
-- `--blocks`: Number of blocks to share (default: 1)
+- `--blocks`: Number of blocks to share (default: 4)
 - `--port`: Port to listen on (default: 8080)
 - `--no-gpu`: Disable GPU acceleration
 - `--public-name`: Public name for your node
@@ -308,7 +417,7 @@ The kwaainet start command supports the following options:
 - `--announce-addr`: Custom announce address for P2P networking
 - `--no-relay`: Disable automatic relay
 
-## Python API
+## 🐍 Python API
 
 You can also use KwaaiNet programmatically in your Python code:
 
@@ -321,17 +430,17 @@ kwaainet.setup()
 # Start a node
 kwaainet.start_node(
     model="unsloth/Llama-3.1-8B-Instruct",
-    blocks=2,
+    blocks=4,
     port=8080
 )
 ```
 
-## Environment Variables
+## 🌍 Environment Variables
 
 KwaaiNet respects the following environment variables:
 
 - `KWAAINET_MODEL`: Model to use (default: `"unsloth/Llama-3.1-8B-Instruct"`)  
-- `KWAAINET_BLOCKS`: Number of blocks to share (default: `1`)  
+- `KWAAINET_BLOCKS`: Number of blocks to share (default: `4`)  
 - `KWAAINET_PORT`: Port to listen on (default: `8080`)  
 - `INITIAL_PEERS`: Initial peers for connecting to the network  
 - `KWAAINET_LOG_LEVEL`: Logging level (default: `"INFO"`)  
@@ -341,7 +450,7 @@ KwaaiNet respects the following environment variables:
 - `ANNOUNCE_ADDR`: Custom announce address for P2P networking
 - `NORELAY`: Set to any value to disable automatic relay
 
-## Performance Considerations
+## ⚡ Performance Considerations
 
 ### Windows Systems
 
@@ -379,7 +488,7 @@ On Apple Silicon Macs, GPU acceleration via Metal Performance Shaders (MPS) is u
 
 Intel Macs will primarily use CPU for computation as Metal support for PyTorch on Intel is limited.
 
-## Troubleshooting
+## 🔧 Troubleshooting
 
 ### Common Issues
 
@@ -478,7 +587,7 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 - Verify the initial peers configuration
 - Ensure firewall allows the configured port
 
-## Security Considerations
+## 🔒 Security Considerations
 
 ### ⚠️ Known Security Trade-offs (January 2025)
 
@@ -510,7 +619,7 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 - ✅ Updated LangChain to address CVE-2023-46229 and CVE-2024-21513
 - ✅ Updated all other dependencies to latest secure versions
 
-## Recent Fixes and Improvements
+## 📝 Recent Fixes and Improvements
 
 ### Installer Improvements (December 2024)
 - ✅ Fixed critical Linux installer bug causing "No module named 'kwaainet'" error
@@ -524,7 +633,7 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 - ✅ Dependency conflicts resolved with Petals compatibility maintained
 - ✅ Works on Ubuntu 24.04, Windows 10+, macOS (Intel and Apple Silicon)
 
-## 🤖 Daemon Mode (Linux)
+## 🤖 Daemon Mode
 
 KwaaiNet now supports running as a daemon with advanced process management:
 
@@ -558,7 +667,7 @@ kwaainet status           # Show status with metrics
 - **Auto-Recovery**: Process monitoring with restart capability
 - **Status Reporting**: JSON status output with system metrics
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
@@ -568,7 +677,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - **Testing**: Test your changes on the target platform before submitting
 - **Documentation**: Update relevant documentation for new features
 
-## 📝 License
+## 📄 License
 
 This project is [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/) licensed.
 

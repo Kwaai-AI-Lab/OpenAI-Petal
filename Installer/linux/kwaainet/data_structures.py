@@ -60,7 +60,7 @@ class InstallationConfig:
 class NodeConfig:
     """Configuration for KwaaiNet node"""
     model: str = "unsloth/Llama-3.1-8B-Instruct"
-    blocks: int = 1
+    blocks: int = 4
     port: int = 8080
     initial_peers: List[str] = field(default_factory=lambda: [
         "/dns/bootstrap-1.kwaai.ai/tcp/8000/p2p/QmQhRuheeCLEsVD3RsnknM75gPDDqxAb8DhnWgro7KhaJc",

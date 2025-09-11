@@ -119,7 +119,7 @@ kwaainet config --set public_name "anon@kwaai"
 The kwaainet start command supports the following options:
 
 - `--model`: Model to use (default: "unsloth/Llama-3.1-8B-Instruct")
-- `--blocks`: Number of blocks to share (default: 1)
+- `--blocks`: Number of blocks to share (default: 4)
 - `--port`: Port to listen on (default: 8080)
 - `--no-gpu`: Disable GPU acceleration
 - `--public-name`: Public name for your node
@@ -150,7 +150,7 @@ kwaainet.start_node(
 KwaaiNet respects the following environment variables:
 
 - `KWAAINET_MODEL`: Model to use (default: `"unsloth/Llama-3.1-8B-Instruct"`)  
-- `KWAAINET_BLOCKS`: Number of blocks to share (default: `1`)  
+- `KWAAINET_BLOCKS`: Number of blocks to share (default: `4`)  
 - `KWAAINET_PORT`: Port to listen on (default: `8080`)  
 - `INITIAL_PEERS`: Initial peers for connecting to the network  
 - `KWAAINET_LOG_LEVEL`: Logging level (default: `"INFO"`)  

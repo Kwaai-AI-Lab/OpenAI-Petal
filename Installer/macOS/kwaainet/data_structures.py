@@ -26,7 +26,7 @@ class SystemInfo:
 class NodeConfig:
     """Configuration for KwaaiNet node"""
     model: str = "unsloth/Llama-3.1-8B-Instruct"
-    blocks: int = 1
+    blocks: int = 4
     port: int = 8080
     initial_peers: List[str] = field(default_factory=list)
     use_gpu: bool = True

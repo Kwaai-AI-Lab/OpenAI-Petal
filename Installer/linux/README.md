@@ -83,7 +83,7 @@ KwaaiNet stores its configuration in `~/.kwaainet/config.yaml`. You can edit thi
 
 ```yaml
 model: "unsloth/Llama-3.1-8B-Instruct"
-blocks: 1
+blocks: 4
 port: 8080
 use_gpu: true
 gpu_type: "auto"  # auto, cuda, rocm, cpu
