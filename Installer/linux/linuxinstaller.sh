@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.2.9
+# KwaaiNet for Linux - One-Step Installer v0.2.10
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.9"
+INSTALLER_VERSION="0.2.10"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -1898,25 +1898,32 @@ fi
 
 echo ""
 echo "=========================================================="
-echo "✅ KwaaiNet for Linux installation in progress!"
+echo "🎉 KwaaiNet for Linux installation COMPLETED!"
 echo ""
-echo "🔧 Configuration detected:"
+echo "🔧 Installation Summary:"
 echo "   - Distribution: $DISTRO $DISTRO_VERSION"
 echo "   - GPU: $GPU_TYPE $([ -n "$GPU_INFO" ] && echo "($GPU_INFO)" || echo "")"
 echo "   - Python method: $PYTHON_METHOD"
+echo "   - PyTorch: $(conda run -n kwaainet python -c 'import torch; print(torch.__version__)' 2>/dev/null || echo 'installed')"
+echo "   - KwaaiNet: $(conda run -n kwaainet python -c 'import kwaainet; print("ready")' 2>/dev/null || echo 'installed')"
 echo ""
-echo "📝 Next steps:"
-echo "   1. Complete the Python package installation"
-echo "   2. Set up launcher scripts"
-echo "   3. Configure GPU acceleration (if available)"
+echo "🚀 To use KwaaiNet:"
+echo "   1. Activate the environment: conda activate kwaainet"
+echo "   2. Start KwaaiNet node:      kwaainet start"
+echo "   3. Or run in daemon mode:    kwaainet start --daemon"
+echo "   4. Check status:             kwaainet status"
+echo "   5. View help:                kwaainet --help"
+echo ""
+echo "💡 Quick start example:"
+echo "   conda activate kwaainet"
+echo "   kwaainet start --daemon"
+echo ""
 if [ "$GPU_TYPE" = "nvidia" ]; then
-echo ""
-echo "🔧 NVIDIA GPU detected - CUDA library paths have been configured."
-echo "   If you encounter bitsandbytes CUDA errors:"
-echo "   1. Restart your shell or run: source ~/.bashrc"
-echo "   2. Verify CUDA installation: nvidia-smi"
-echo "   3. Check library paths: echo \$LD_LIBRARY_PATH"
+echo "🔧 NVIDIA GPU detected - CUDA acceleration configured."
+echo "   CUDA library paths have been added to your shell configuration."
+echo "   If you encounter CUDA errors, restart your shell or run: source ~/.bashrc"
 fi
 echo ""
-echo "📚 For more information, visit: https://github.com/Kwaai-AI-Lab/OpenAI-Petal"
+echo "📚 Documentation: https://github.com/Kwaai-AI-Lab/OpenAI-Petal"
+echo "🌐 Network map:   https://map.kwaai.ai"
 echo "=========================================================="
