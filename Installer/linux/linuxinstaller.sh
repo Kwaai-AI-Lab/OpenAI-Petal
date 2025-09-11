@@ -168,8 +168,11 @@ check_root() {
 apply_hivemind_pytorch_patch() {
     echo "🔧 Checking for hivemind PyTorch compatibility issues..."
     
-    # Locate hivemind installation
-    local hivemind_path=$($PYTHON_EXEC -c "
+    # Locate hivemind installation - try multiple Python executables
+    local hivemind_path=""
+    for python_cmd in "$PYTHON_EXEC" "python3" "python" "/home/metro/.conda/envs/kwaainet/bin/python"; do
+        if [[ -n "$python_cmd" ]] && command -v "$python_cmd" >/dev/null 2>&1; then
+            hivemind_path=$($python_cmd -c "
 try:
     import hivemind
     import os
@@ -177,6 +180,11 @@ try:
 except ImportError:
     print('NOT_FOUND')
 " 2>/dev/null)
+            if [[ "$hivemind_path" != "NOT_FOUND" && -n "$hivemind_path" ]]; then
+                break
+            fi
+        fi
+    done
     
     if [[ "$hivemind_path" == "NOT_FOUND" || -z "$hivemind_path" ]]; then
         echo "⚠️ Could not locate hivemind installation for patching"
@@ -190,21 +198,32 @@ except ImportError:
     fi
     
     # Check PyTorch version to determine if patch needed
-    local pytorch_version=$($PYTHON_EXEC -c "
+    local pytorch_version=""
+    for python_cmd in "$PYTHON_EXEC" "python3" "python" "/home/metro/.conda/envs/kwaainet/bin/python"; do
+        if [[ -n "$python_cmd" ]] && command -v "$python_cmd" >/dev/null 2>&1; then
+            pytorch_version=$($python_cmd -c "
 try:
     import torch
     print(torch.__version__.split('+')[0])
 except ImportError:
     print('NOT_FOUND')
 " 2>/dev/null)
+            if [[ "$pytorch_version" != "NOT_FOUND" && -n "$pytorch_version" ]]; then
+                break
+            fi
+        fi
+    done
     
     if [[ "$pytorch_version" == "NOT_FOUND" ]]; then
         echo "⚠️ PyTorch not found for compatibility check"
         return 1
     fi
     
-    # Check if PyTorch 2.3+ (needs patch)
-    local needs_patch=$($PYTHON_EXEC -c "
+    # Check if PyTorch 2.3+ (needs patch) - use same fallback logic
+    local needs_patch=""
+    for python_cmd in "$PYTHON_EXEC" "python3" "python" "/home/metro/.conda/envs/kwaainet/bin/python"; do
+        if [[ -n "$python_cmd" ]] && command -v "$python_cmd" >/dev/null 2>&1; then
+            needs_patch=$($python_cmd -c "
 try:
     from packaging import version
     torch_ver = '$pytorch_version'
@@ -213,6 +232,11 @@ try:
 except:
     print('UNKNOWN')
 " 2>/dev/null)
+            if [[ "$needs_patch" != "UNKNOWN" && -n "$needs_patch" ]]; then
+                break
+            fi
+        fi
+    done
     
     if [[ "$needs_patch" == "YES" ]]; then
         echo "   PyTorch $pytorch_version detected - applying compatibility patch..."
@@ -224,8 +248,18 @@ except:
         sed -i 's/from torch\.cuda\.amp import GradScaler as TorchGradScaler/from torch.amp import GradScaler as TorchGradScaler/' "$grad_scaler_file"
         sed -i 's/from torch\.cuda\.amp\.grad_scaler import OptState, _refresh_per_optimizer_state/from torch.amp.grad_scaler import OptState, _refresh_per_optimizer_state/' "$grad_scaler_file"
         
-        # Verify patch applied correctly
-        if $PYTHON_EXEC -c "import hivemind; print('✅ hivemind imports successfully')" 2>/dev/null >/dev/null; then
+        # Verify patch applied correctly - use fallback logic
+        local patch_success=false
+        for python_cmd in "$PYTHON_EXEC" "python3" "python" "/home/metro/.conda/envs/kwaainet/bin/python"; do
+            if [[ -n "$python_cmd" ]] && command -v "$python_cmd" >/dev/null 2>&1; then
+                if $python_cmd -c "import hivemind; print('✅ hivemind imports successfully')" 2>/dev/null >/dev/null; then
+                    patch_success=true
+                    break
+                fi
+            fi
+        done
+        
+        if [[ "$patch_success" == "true" ]]; then
             echo "   ✅ Compatibility patch applied successfully"
             rm -f "$grad_scaler_file.backup"  # Clean up backup
             return 0
