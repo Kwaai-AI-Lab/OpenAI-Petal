@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.2.7
+# KwaaiNet for Linux - One-Step Installer v0.2.8
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.7"
+INSTALLER_VERSION="0.2.8"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -1577,7 +1577,8 @@ fi
 
 # Ensure correct hivemind version for petals compatibility
 echo "📦 Installing hivemind compatible with petals (v1.1.10.post2)..."
-if $PIP_EXEC install --upgrade --force-reinstall "hivemind==1.1.10.post2"; then
+echo "   Constraining PyTorch version to prevent auto-upgrade..."
+if $PIP_EXEC install --upgrade --force-reinstall "hivemind==1.1.10.post2" "torch>=2.3.0,<2.4.0"; then
     echo "✅ hivemind 1.1.10.post2 installed (required by petals)"
     
     # Apply PyTorch 2.3+ compatibility patch for hivemind
@@ -1586,6 +1587,11 @@ if $PIP_EXEC install --upgrade --force-reinstall "hivemind==1.1.10.post2"; then
 else
     echo "⚠️ Failed to install correct hivemind version. Daemon may fail to start."
 fi
+
+# Final PyTorch version lock after all installations
+echo ""
+echo "🔒 Final PyTorch version lock to prevent any auto-upgrades..."
+$PIP_EXEC install --force-reinstall --no-deps "torch>=2.3.0,<2.4.0" 2>/dev/null || echo "   ⚠️ Version lock may have failed"
 
 # Run comprehensive verification of the installation
 echo ""
