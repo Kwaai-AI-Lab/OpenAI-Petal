@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Mac - One-Step Installer v0.1
+# KwaaiNet for Mac - One-Step Installer v0.2.11
 # This script handles the entire installation process for KwaaiNet on macOS
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.0"
+INSTALLER_VERSION="0.2.11"
 
 echo "=========================================================="
 echo "KwaaiNet for Mac - One-Step Installer v$INSTALLER_VERSION"
