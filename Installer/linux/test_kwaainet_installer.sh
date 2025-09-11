@@ -33,9 +33,11 @@ print_error() {
 }
 
 # Check if we're in the right directory
-if [ ! -d "/home/metro/Source/OpenAI-Petal/Installer/linux" ]; then
-    print_error "OpenAI-Petal repository not found at expected location"
-    print_error "Please ensure the repository exists at /home/metro/Source/OpenAI-Petal/"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_PATH="$(dirname "$(dirname "$SCRIPT_DIR")")"
+if [ ! -d "$SCRIPT_DIR" ] || [ ! -f "$SCRIPT_DIR/linuxinstaller.sh" ]; then
+    print_error "OpenAI-Petal installer not found in expected location"
+    print_error "Please run this script from the Installer/linux directory"
     exit 1
 fi
 
@@ -44,9 +46,9 @@ echo "================================="
 
 # Use the official uninstaller for proper cleanup
 print_status "Running official KwaaiNet uninstaller..."
-if [ -f "/home/metro/Source/OpenAI-Petal/Installer/linux/linuxuninstaller.sh" ]; then
+if [ -f "$SCRIPT_DIR/linuxuninstaller.sh" ]; then
     # Run uninstaller non-interactively (allow it to fail gracefully)
-    echo "y" | /bin/bash /home/metro/Source/OpenAI-Petal/Installer/linux/linuxuninstaller.sh || {
+    echo "y" | /bin/bash "$SCRIPT_DIR/linuxuninstaller.sh" || {
         print_warning "Uninstaller completed with warnings (this is normal if nothing was installed)"
     }
 else
@@ -77,7 +79,7 @@ conda create -n kwaainet python=3.10 -y
 
 print_status "Activating environment and installing kwaainet..."
 # Use conda run to execute in the environment
-conda run -n kwaainet pip install -e /home/metro/Source/OpenAI-Petal/Installer/linux
+conda run -n kwaainet pip install -e "$SCRIPT_DIR"
 
 print_success "Installation completed"
 echo
