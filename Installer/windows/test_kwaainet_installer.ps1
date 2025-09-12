@@ -240,11 +240,11 @@ if ($installationSuccessful) {
     try {
         # Test help command
         $helpOutput = & kwaainet --help 2>&1 | Out-String
-        if ($LASTEXITCODE -eq 0 -and $helpOutput -match "usage|help") {
+        if ($LASTEXITCODE -eq 0 -and ($helpOutput -match "usage" -or $helpOutput -match "help")) {
             Write-TestSuccess "✓ kwaainet --help command works"
             
             # Check version
-            if ($helpOutput -match "daemon|start|stop|status") {
+            if ($helpOutput -match "daemon" -or $helpOutput -match "start" -or $helpOutput -match "stop" -or $helpOutput -match "status") {
                 Write-TestSuccess "✓ Daemon management commands available"
             }
         }
@@ -272,7 +272,7 @@ if ($installationSuccessful) {
         Write-Host $daemonOutput
         Write-Host "======================" -ForegroundColor Cyan
 
-        if ($daemonOutput -match "daemon.*start|started.*daemon|running.*daemon") {
+        if ($daemonOutput -match "daemon" -or $daemonOutput -match "start" -or $daemonOutput -match "running") {
             Write-TestSuccess "✓ Daemon startup initiated"
             
             # Wait a moment for daemon to stabilize
@@ -284,13 +284,13 @@ if ($installationSuccessful) {
             Write-Host "Daemon status output:" -ForegroundColor Cyan
             Write-Host $statusOutput
             
-            if ($statusOutput -match "running|active|started") {
+            if ($statusOutput -match "running" -or $statusOutput -match "active" -or $statusOutput -match "started") {
                 Write-TestSuccess "✓ Daemon is running"
                 
                 # Test daemon stop
                 Write-Status "Testing daemon stop..."
                 $stopOutput = & kwaainet stop 2>&1 | Out-String
-                if ($stopOutput -match "stopped|stop") {
+                if ($stopOutput -match "stopped" -or $stopOutput -match "stop") {
                     Write-TestSuccess "✓ Daemon stopped successfully"
                 }
             }
