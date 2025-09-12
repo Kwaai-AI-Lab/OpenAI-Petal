@@ -9,7 +9,7 @@ param(
 )
 
 # Test script version
-$script:TestVersion = "1.0.0"
+$script:TestVersion = "1.0.1"
 
 Write-Host "🧪 KwaaiNet Windows Installer Test Protocol v$script:TestVersion" -ForegroundColor Cyan
 Write-Host "=======================================================" -ForegroundColor Cyan
@@ -117,7 +117,7 @@ Write-Status "Phase 2: Fresh Installation"
 Write-Host "============================" -ForegroundColor White
 
 # Test the current installer
-Write-Status "Running KwaaiNet Windows installer v0.2.20..."
+Write-Status "Running KwaaiNet Windows installer v0.2.21..."
 Write-Status "Expected fixes:"
 Write-Host "  ✓ Dependency version alignment (transformers 4.34.1)" -ForegroundColor White
 Write-Host "  ✓ 7-strategy tokenizers fallback system" -ForegroundColor White
@@ -326,7 +326,7 @@ if ($installationSuccessful -and $fixesApplied -ge 3) {
     Write-TestSuccess "✅ Enhanced error reporting working"
     Write-TestSuccess "✅ Installation completed successfully"
     Write-Host ""
-    Write-TestSuccess "The KwaaiNet Windows installer v0.2.20 is PRODUCTION READY! 🚀"
+    Write-TestSuccess "The KwaaiNet Windows installer v0.2.21 is PRODUCTION READY! 🚀"
     Write-Host ""
     Write-Host "Key improvements over v0.2.13:" -ForegroundColor White
     Write-Host "  • 7-strategy tokenizers fallback prevents build failures" -ForegroundColor White
