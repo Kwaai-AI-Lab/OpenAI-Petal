@@ -167,152 +167,90 @@ git push origin main
 - Signal handling for graceful termination
 - Proper cleanup of PID files and status information
 
-## Current Session (2025-09-11) - Linux Compatibility Fixes
+## Current Session (2025-09-10) - Linux Installer Hugging Face CDN Connectivity Fix
 
-### Task: Fix Linux Compatibility Issues and Library Dependencies
-**Status**: ✅ MAJOR COMPATIBILITY ISSUES RESOLVED
+### Task: Fix Linux Installer CDN Connectivity Issues and Error Reporting
+**Status**: ✅ COMPLETED - All fixes implemented and tested
 
-#### Issues Discovered and Fixed ✅
+#### Issues Discovered and Resolved ✅
 
-**PyTorch/Hivemind Compatibility Issue**:
-- **Problem**: `ImportError: cannot import name '_refresh_per_optimizer_state' from 'torch.cuda.amp.grad_scaler'`
-- **Root Cause**: hivemind was importing from old PyTorch CUDA AMP location
-- **Solution**: Updated import path in `/home/metro/.conda/envs/kwaainet/lib/python3.10/site-packages/hivemind/optim/grad_scaler.py` from `torch.cuda.amp.grad_scaler` to `torch.amp.grad_scaler`
+**Windows Installer Git Clone Error**: Reported git clone failure for Petals installation
+- **Root Cause**: Already fixed in commit `f0a0d4d` - installer now has robust connectivity testing and PyPI fallbacks
+- **Solution**: User advised to use latest installer version which handles this automatically
 
-**Huggingface Hub Compatibility Issue**:
-- **Problem**: `cannot import name 'split_torch_state_dict_into_shards' from 'huggingface_hub'`
-- **Root Cause**: Function missing in older huggingface_hub version (0.17.3) required by transformers 4.34.1
-- **Solution**: Added fallback implementation directly to `/home/metro/.conda/envs/kwaainet/lib/python3.10/site-packages/huggingface_hub/__init__.py`
+**Linux Installer CDN Connectivity Failure**: `curl: (6) Could not resolve host: cdn-lfs.huggingface.co`
+- **Root Cause**: Outdated `huggingface-hub==0.17.3` trying to access deprecated CDN subdomain
+- **Impact**: Fresh installations failed to download models, daemon started but immediately crashed
+- **Solution**: Updated to `huggingface-hub>=0.34.0` with compatible tokenizers versions
 
-**RoPE Scaling Configuration Issue**:
-- **Problem**: `ValueError: rope_scaling must be a dictionary with two fields, type and factor` for Llama-3.1 models
-- **Root Cause**: Newer model configs have extended RoPE scaling format incompatible with older transformers
-- **Solution**: Updated validation in `/home/metro/.conda/envs/kwaainet/lib/python3.10/site-packages/transformers/models/llama/configuration_llama.py` to handle both old and new formats
+**Dependency Conflicts**: Version conflicts between tokenizers and huggingface-hub
+- **Root Cause**: `tokenizers 0.14.1` required `huggingface_hub<0.18` but modern HF needs `>=0.34.0`
+- **Solution**: Updated to compatible versions: `tokenizers>=0.15.0` with `huggingface_hub>=0.34.0`
 
-#### Current Status ✅
+**Poor Error Reporting**: Daemon failures showed generic "Failed to start" without actual Petals errors
+- **Root Cause**: Daemon captured subprocess stdout/stderr but didn't log actual error messages
+- **Solution**: Enhanced daemon error reporting to capture and log actual Petals failure output
 
-**Compatibility Fixes Applied:**
-- ✅ PyTorch/hivemind import compatibility resolved
-- ✅ Huggingface_hub missing function compatibility resolved  
-- ✅ Llama model RoPE scaling configuration compatibility resolved
-- ✅ Library version conflicts resolved (transformers 4.34.1, tokenizers 0.14.1, huggingface_hub 0.17.3)
+#### Fixes Implemented ✅
 
-**Daemon Startup Progress:**
-- ✅ All compatibility patches apply successfully on startup
-- ✅ CUDA detection and initialization working (PyTorch 2.3.1+cu121 with CUDA 12.1)
-- ✅ Model configuration validation passing
-- ✅ Daemon progresses to model loading phase
-- ⚠️ Current blocker: PyTorch shared memory management issue (`torch_shm_manager` random directory generation)
+**Linux Installer Updates (v0.2.0 → v0.2.1):**
+1. **Updated dependency versions**:
+   - `huggingface-hub`: `>=0.20.0` → `>=0.34.0`
+   - `tokenizers`: `>=0.19.0,<0.20.0` → `>=0.15.0`
+   - Resolved version conflicts preventing CDN access
+
+2. **Added connectivity testing**:
+   - Pre-installation HF connectivity tests
+   - Early warning for network/firewall issues
+   - Graceful handling of CDN access failures
+
+3. **Enhanced error reporting**:
+   - Daemon now captures actual Petals error output
+   - Real-time stderr/stdout logging for failed processes
+   - Better debugging information for troubleshooting
+
+#### Technical Implementation Details ✅
+
+**Connectivity Fix:**
+```bash
+# Old (broken): huggingface-hub 0.17.3 → cdn-lfs.huggingface.co (deprecated)
+# New (working): huggingface-hub 0.34.4 → huggingface.co/model/resolve/main/ (current)
+```
+
+**Dependency Resolution:**
+- Compatible versions: `transformers==4.43.1` + `tokenizers>=0.15.0` + `huggingface_hub>=0.34.0`
+- Eliminates conflicts while maintaining Petals compatibility
+- Supports current Hugging Face infrastructure
+
+**Error Reporting Enhancement:**
+- Daemon monitoring thread captures subprocess failures
+- Process output logged for debugging failed startups
+- Clear error messages instead of generic "failed to start"
 
 #### Git Commits Made ✅
-- **`f73e108`**: Fix Linux PyTorch/hivemind and huggingface_hub compatibility issues
-- **`d9ef0f7`**: Document Linux compatibility fixes for v0.2.11
-- **`a3909c5`**: Bump Linux and macOS installer versions to v0.2.11
-
-### Current Working State ✅
-
-**Linux Platform Status:**
-- `kwaainet --help`: ✅ Working
-- `kwaainet start`: ✅ Starts but fails during model loading (shared memory issue)
-- `kwaainet start --daemon`: ✅ Compatibility issues resolved, progresses to advanced initialization
-- All major import and configuration errors resolved
-
-**Version Status:**
-- Linux installer: v0.2.11 ✅
-- macOS installer: v0.2.11 ✅
-- Windows installer: v0.2.13 ✅
-- Installed kwaainet package: v0.2.2 (runtime compatibility fixes applied via patches)
-
-## Current Session (2025-09-11) - Linux Installer Validation and Compatibility Finalization
-
-### Task: Complete Test Protocol and Integrate Manual Patches into Installer
-**Status**: ✅ COMPLETED - Linux installer fully validated and all patches integrated
-
-#### Installer Test Protocol Executed ✅
-
-**Complete Success Across All Phases:**
-
-1. **Uninstall Phase** ✅
-   - Removed existing kwaainet conda environment and launcher script
-   - Achieved clean system state
-
-2. **Reinstall Phase** ✅ 
-   - Fresh conda environment creation with Python 3.10
-   - PyTorch 2.3.1+cu121 with CUDA 12.1 support
-   - All dependencies installed successfully
-   - kwaainet v0.2.6 installed in development mode
-
-3. **Compatibility Patches Applied** ✅
-   - **hivemind**: Fixed PyTorch 2.x import path (`torch.cuda.amp` → `torch.amp`)
-   - **huggingface_hub**: Added missing `split_torch_state_dict_into_shards` fallback function
-   - **transformers**: Llama-3.1 RoPE scaling configuration compatibility
-   - All patches applied successfully on startup
-
-4. **Daemon Functionality Validation** ✅
-   - **Startup**: Daemon starts successfully with all patches ✅
-   - **Stability**: Ran stable for 68+ seconds with network activity ✅
-   - **Network Connectivity**: Connected to KwaaiNet bootstrap peers ✅  
-   - **Management**: Clean stop/start/status/logs functionality ✅
-   - **Persistence**: Maintained stable operation across multiple status checks ✅
-
-#### Installer Integration Completed ✅
-
-**Updated installer.py with enhanced huggingface_hub patch:**
-- Original patch: Added function to module namespace only (insufficient)
-- **Fixed patch**: Now also writes fallback function directly to `__init__.py` 
-- **Result**: `from huggingface_hub import split_torch_state_dict_into_shards` works reliably
-
-**All Manual Patches Now Integrated:**
-- ✅ hivemind PyTorch 2.x compatibility - fully integrated
-- ✅ transformers Llama RoPE scaling - fully integrated  
-- ✅ huggingface_hub function export - **newly integrated and fixed**
-
-#### Final Linux Status ✅
-
-**Platform**: Rocky Linux 8.10 with NVIDIA RTX A6000
-**Installer Version**: v0.2.11 
-**Package Version**: v0.2.6
-**All Features Working**:
-- `kwaainet --help`: ✅ Shows full daemon support
-- `kwaainet start`: ✅ Foreground mode with network connectivity
-- `kwaainet start --daemon`: ✅ **Stable background daemon** 
-- `kwaainet stop/status/logs/restart`: ✅ Complete daemon management
-- **Network Integration**: ✅ Connects to KwaaiNet distributed inference network
-
-### Git Commits Made ✅
-- **Next commit**: Update installer.py with complete huggingface_hub patch integration
+- **`5a26d87`**: Fix Linux installer Hugging Face CDN connectivity and error reporting
 
 ### Current Fully Working State ✅
 
-**Linux installer is now production-ready** with all compatibility issues resolved and integrated into the installer code. No manual patches required for fresh installations.
+**Linux Installer (v0.2.1):**
+- ✅ **HF CDN connectivity** works with current infrastructure  
+- ✅ **Dependency conflicts** resolved with compatible versions
+- ✅ **Network testing** prevents silent installation failures
+- ✅ **Enhanced error reporting** for daemon troubleshooting
+- ✅ **Version compatibility** maintained for Petals integration
 
-## Current Session (2025-09-11) - Test Script Repository Integration
+**Verification Results:**
+- ✅ Hugging Face model downloads work (`python -c "from huggingface_hub import snapshot_download; snapshot_download('gpt2', cache_dir='/tmp/test')"`)
+- ✅ KwaaiNet installation completes successfully
+- ✅ Daemon error reporting shows actual failure reasons
 
-### Task: Add Linux Installer Test Script to Repository
-**Status**: ✅ COMPLETED
+### Next Steps for Users
+- Use latest Linux installer (v0.2.1) to avoid CDN connectivity issues
+- Daemon failures now show actual Petals error messages for easier troubleshooting
+- Network connectivity is tested before installation to prevent silent failures
 
-#### Test Script Integration ✅
-
-**Test Script Added:**
-- **Location**: `Installer/linux/test_kwaainet_installer.sh`
-- **Source**: Copied from `/home/metro/test_kwaainet_installer.sh`
-- **Purpose**: Complete validation protocol for Linux installer functionality
-- **Features**: Automated uninstall/reinstall/validation testing with comprehensive checks
-
-**Git Operations Completed:**
-- ✅ Script copied to repository directory
-- ✅ Added to git staging area
-- ✅ Committed with descriptive message
-- ✅ Successfully pushed after rebase (commit `05eac90`)
-
-**Current Repository State:**
-- **Branch**: `main` 
-- **Latest Commit**: `05eac90` - "Add Linux installer test script for validation protocol"
-- **Status**: Clean working tree, all changes committed and pushed
-- **Test Script**: Available at `Installer/linux/test_kwaainet_installer.sh` for future validation
-
-## Previous Session Context
-- **Working Directory**: `/Users/rezarassool/Source/OpenAI-Petal/Installer/macOS`
-- **Repository**: Connected to `https://github.com/Kwaai-AI-Lab/OpenAI-Petal`
-- **Development Focus**: Daemon stability and distributed network connectivity
-- **Achievement**: Cross-platform daemon stability with successful KwaaiNet network integration
+## Session Context
+- **Working Directory**: `/Users/rezarassool/Source/OpenAI-Petal`
+- **Repository**: Connected to `https://github.com/Kwaai-AI-Lab/OpenAI-Petal`  
+- **Development Focus**: Linux installer reliability and error reporting
+- **Achievement**: Fixed critical CDN connectivity issue preventing model downloads on fresh installations

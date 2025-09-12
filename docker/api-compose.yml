@@ -1,0 +1,56 @@
+# KwaaiNet API Service - macOS Optimized
+# Provides OpenAI-compatible API endpoints for the KwaaiNet distributed network
+
+services:
+  kwaainet-api:
+    image: kwaailab/kwaainet-api:latest
+    container_name: kwaainet-api
+    restart: unless-stopped
+    
+    environment:
+      # API configuration
+      - KWAAINET_API_HOST=0.0.0.0
+      - KWAAINET_API_PORT=8000
+      
+      # macOS Apple Silicon optimizations
+      - PYTORCH_ENABLE_MPS_FALLBACK=1        # Enable MPS fallback for Apple Silicon
+      - CUDA_VISIBLE_DEVICES=""              # Disable CUDA (not available on macOS)
+      
+      # Performance tuning
+      - OMP_NUM_THREADS=2                    # Lighter CPU usage for API service
+      
+      # Optional: Custom model/endpoint configuration
+      # - KWAAINET_DEFAULT_MODEL=unsloth/Llama-3.1-8B-Instruct
+      # - KWAAINET_MAX_LENGTH=2048
+    
+    volumes:
+      # Shared model cache with node (if both services use same models)
+      - ${HOME}/.cache/huggingface:/root/.cache
+      
+      # Optional: API-specific configuration
+      # - ./api-config:/app/config
+    
+    ports:
+      - "8000:8000"                          # OpenAI-compatible API endpoint
+    
+    # Use amd64 for broader compatibility
+    platform: linux/amd64
+    
+    # Resource limits (API service typically needs less resources)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 2G
+    #       cpus: '1.0'
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Optional: depends_on node service if they need to work together
+    # depends_on:
+    #   - kwaainet-node

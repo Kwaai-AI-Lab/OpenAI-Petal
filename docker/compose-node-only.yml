@@ -1,0 +1,19 @@
+services:
+  kwaainet-node:
+    image: kwaailab/kwaainet-node:latest
+    container_name: kwaainet-node
+    restart: unless-stopped
+    environment:
+      - PUBLIC_NAME=${USER:-kwaainet_user}
+      - KWAAINET_BLOCKS=2
+      # Enable MPS (Metal Performance Shaders) for Apple Silicon
+      - PYTORCH_ENABLE_MPS_FALLBACK=1
+      - CUDA_VISIBLE_DEVICES=""  # Disable CUDA detection
+      # Force auto detection - will use MPS on macOS
+      - KWAAINET_DEVICE=auto
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache
+    ports:
+      - "8081:8080"
+    # Use amd64 image for compatibility
+    platform: linux/amd64
