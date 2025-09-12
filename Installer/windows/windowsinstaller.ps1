@@ -1017,20 +1017,40 @@ function Test-DependencyCompatibility {
         }
         
         # Test critical dependency combinations
+        $transformersTest = @"
+import transformers, tokenizers
+from transformers import AutoTokenizer
+tok = AutoTokenizer.from_pretrained('gpt2', use_fast=True)
+print('✓ transformers + tokenizers compatibility verified')
+"@
+        
+        $huggingfaceTest = @"
+from huggingface_hub import snapshot_download
+import tempfile
+snapshot_download('gpt2', cache_dir=tempfile.mkdtemp(), allow_patterns=['config.json'])
+print('✓ HuggingFace Hub CDN access verified')
+"@
+        
+        $torchTest = @"
+import torch, transformers
+from transformers import AutoModel
+print('✓ PyTorch + transformers compatibility verified')
+"@
+        
         $dependencyTests = @{
             "transformers_tokenizers" = @{
                 "packages" = "transformers==4.34.1 tokenizers>=0.15.0"
-                "test" = "import transformers, tokenizers; from transformers import AutoTokenizer; tok = AutoTokenizer.from_pretrained('gpt2', use_fast=True); print('✓ transformers + tokenizers compatibility verified')"
+                "test" = $transformersTest
                 "description" = "transformers 4.34.1 + tokenizers >=0.15.0 compatibility"
             }
             "huggingface_hub_compatibility" = @{
                 "packages" = "huggingface_hub>=0.34.0"
-                "test" = "from huggingface_hub import snapshot_download; import tempfile; snapshot_download('gpt2', cache_dir=tempfile.mkdtemp(), allow_patterns=['config.json']); print('✓ HuggingFace Hub CDN access verified')"
+                "test" = $huggingfaceTest
                 "description" = "HuggingFace Hub CDN connectivity and version compatibility"
             }
             "torch_transformers" = @{
                 "packages" = "torch transformers==4.34.1"
-                "test" = "import torch, transformers; from transformers import AutoModel; print('✓ PyTorch + transformers compatibility verified')"
+                "test" = $torchTest
                 "description" = "PyTorch + transformers integration"
             }
         }
