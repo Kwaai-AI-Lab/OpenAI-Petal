@@ -1,4 +1,4 @@
-# KwaaiNet for Windows - One-Step Installer v0.2.21
+# KwaaiNet for Windows - One-Step Installer v0.2.22
 # This script handles the entire installation process for KwaaiNet on Windows
 
 # Ensure we can run PowerShell scripts
@@ -12,7 +12,7 @@ param(
 )
 
 # Installer version
-$script:InstallerVersion = "0.2.21"
+$script:InstallerVersion = "0.2.22"
 
 # Output version immediately for debugging
 Write-Host "KwaaiNet Windows Installer v$script:InstallerVersion starting..." -ForegroundColor Green

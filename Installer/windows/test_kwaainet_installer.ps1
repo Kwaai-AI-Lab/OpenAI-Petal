@@ -9,9 +9,9 @@ param(
 )
 
 # Test script version
-$script:TestVersion = "1.0.1"
+$script:TestVersion = "1.0.2"
 
-Write-Host "🧪 KwaaiNet Windows Installer Test Protocol v$script:TestVersion" -ForegroundColor Cyan
+Write-Host "[TEST] KwaaiNet Windows Installer Test Protocol v$script:TestVersion" -ForegroundColor Cyan
 Write-Host "=======================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -117,7 +117,7 @@ Write-Status "Phase 2: Fresh Installation"
 Write-Host "============================" -ForegroundColor White
 
 # Test the current installer
-Write-Status "Running KwaaiNet Windows installer v0.2.21..."
+Write-Status "Running KwaaiNet Windows installer v0.2.22..."
 Write-Status "Expected fixes:"
 Write-Host "  ✓ Dependency version alignment (transformers 4.34.1)" -ForegroundColor White
 Write-Host "  ✓ 7-strategy tokenizers fallback system" -ForegroundColor White
@@ -312,37 +312,37 @@ Write-Status "Test Results Summary"
 Write-Host "====================" -ForegroundColor White
 
 if ($installationSuccessful) {
-    Write-Host "Installation Successful: ✅ YES" -ForegroundColor Green
+    Write-Host "Installation Successful: [PASS] YES" -ForegroundColor Green
 } else {
-    Write-Host "Installation Successful: ❌ NO" -ForegroundColor Red
+    Write-Host "Installation Successful: [FAIL] NO" -ForegroundColor Red
 }
 Write-Host "Dependency Fixes Applied: $fixesApplied" -ForegroundColor White
 Write-Host "Installation Duration: $([math]::Round($installerDuration, 2)) minutes" -ForegroundColor White
 
 if ($installationSuccessful -and $fixesApplied -ge 3) {
-    Write-TestSuccess "🎉 WINDOWS INSTALLER TEST PASSED!"
-    Write-TestSuccess "✅ Dependency hell issues resolved"
-    Write-TestSuccess "✅ Tokenizers build failures prevented"
-    Write-TestSuccess "✅ Enhanced error reporting working"
-    Write-TestSuccess "✅ Installation completed successfully"
+    Write-TestSuccess "[SUCCESS] WINDOWS INSTALLER TEST PASSED!"
+    Write-TestSuccess "[PASS] Dependency hell issues resolved"
+    Write-TestSuccess "[PASS] Tokenizers build failures prevented"
+    Write-TestSuccess "[PASS] Enhanced error reporting working"
+    Write-TestSuccess "[PASS] Installation completed successfully"
     Write-Host ""
-    Write-TestSuccess "The KwaaiNet Windows installer v0.2.21 is PRODUCTION READY! 🚀"
+    Write-TestSuccess "The KwaaiNet Windows installer v0.2.22 is PRODUCTION READY!"
     Write-Host ""
     Write-Host "Key improvements over v0.2.13:" -ForegroundColor White
-    Write-Host "  • 7-strategy tokenizers fallback prevents build failures" -ForegroundColor White
-    Write-Host "  • Version alignment with tested Linux installer" -ForegroundColor White
-    Write-Host "  • Enhanced error reporting for better debugging" -ForegroundColor White
-    Write-Host "  • Dependency compatibility pre-checking" -ForegroundColor White
-    Write-Host "  • Advanced GPU detection and validation" -ForegroundColor White
+    Write-Host "  - 7-strategy tokenizers fallback prevents build failures" -ForegroundColor White
+    Write-Host "  - Version alignment with tested Linux installer" -ForegroundColor White
+    Write-Host "  - Enhanced error reporting for better debugging" -ForegroundColor White
+    Write-Host "  - Dependency compatibility pre-checking" -ForegroundColor White
+    Write-Host "  - Advanced GPU detection and validation" -ForegroundColor White
     exit 0
 }
 elseif ($installationSuccessful) {
-    Write-TestWarning "⚠️ Installation successful but some expected fixes may not be working optimally"
+    Write-TestWarning "[WARNING] Installation successful but some expected fixes may not be working optimally"
     Write-TestWarning "Check the output above for details"
     exit 1
 }
 else {
-    Write-TestError "❌ Installation failed - dependency hell issues may persist"
+    Write-TestError "[ERROR] Installation failed - dependency hell issues may persist"
     Write-TestError "This indicates the fixes need further refinement"
     exit 1
 }
