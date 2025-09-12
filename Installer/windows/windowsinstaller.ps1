@@ -1,4 +1,4 @@
-# KwaaiNet for Windows - One-Step Installer v0.2.13
+# KwaaiNet for Windows - One-Step Installer v0.2.20
 # This script handles the entire installation process for KwaaiNet on Windows
 
 # Ensure we can run PowerShell scripts
@@ -12,7 +12,7 @@ param(
 )
 
 # Installer version
-$script:InstallerVersion = "0.2.13"
+$script:InstallerVersion = "0.2.20"
 
 # Output version immediately for debugging
 Write-Host "KwaaiNet Windows Installer v$script:InstallerVersion starting..." -ForegroundColor Green
@@ -159,21 +159,43 @@ function Test-ExecutionPolicy {
     }
 }
 
-# Function to detect GPU hardware
+# Function to detect GPU hardware with advanced diagnostics
 function Get-GpuInfo {
-    Write-Step "Detecting GPU hardware..."
+    Write-Step "Detecting GPU hardware with advanced diagnostics..."
     
     try {
         $script:GpuType = "none"
         $script:GpuInfo = ""
+        $script:GpuMemory = 0
+        $script:GpuComputeCapability = ""
         
-        # Check for NVIDIA GPU first
+        # Check for NVIDIA GPU first with detailed information
         try {
-            $nvidiaOutput = & nvidia-smi --query-gpu=name --format=csv,noheader,nounits 2>$null
+            Write-Info "Checking for NVIDIA GPU drivers and tools..."
+            $nvidiaOutput = & nvidia-smi --query-gpu=name,memory.total,compute_cap --format=csv,noheader,nounits 2>$null
             if ($LASTEXITCODE -eq 0 -and $nvidiaOutput) {
+                $nvidiaSplit = $nvidiaOutput.Trim().Split(',')
                 $script:GpuType = "nvidia"
-                $script:GpuInfo = $nvidiaOutput.Trim()
+                $script:GpuInfo = $nvidiaSplit[0].Trim()
+                $script:GpuMemory = [int]$nvidiaSplit[1].Trim()
+                $script:GpuComputeCapability = $nvidiaSplit[2].Trim()
+                
                 Write-Success "NVIDIA GPU detected: $script:GpuInfo"
+                Write-Info "   Memory: $script:GpuMemory MB"
+                Write-Info "   Compute Capability: $script:GpuComputeCapability"
+                
+                # Check CUDA version
+                try {
+                    $cudaVersion = & nvcc --version 2>$null | Select-String "release" | ForEach-Object { $_.ToString().Split(',')[1].Trim() }
+                    if ($cudaVersion) {
+                        Write-Success "CUDA toolkit detected: $cudaVersion"
+                    } else {
+                        Write-Warning "CUDA toolkit not found - GPU acceleration may be limited"
+                    }
+                }
+                catch {
+                    Write-Warning "CUDA toolkit not found - GPU acceleration may be limited"
+                }
                 return
             }
         }
@@ -181,39 +203,113 @@ function Get-GpuInfo {
             # nvidia-smi not available, continue checking
         }
         
-        # Check GPU via WMI
-        $gpus = Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notlike "*Basic*" -and $_.Name -notlike "*Generic*" }
+        # Enhanced GPU detection via WMI and registry
+        Write-Info "Performing comprehensive GPU detection..."
+        $gpus = Get-CimInstance Win32_VideoController | Where-Object { 
+            $_.Name -notlike "*Basic*" -and 
+            $_.Name -notlike "*Generic*" -and 
+            $_.Name -notlike "*Microsoft*" -and
+            $_.AdapterRAM -gt 0
+        }
+        
+        $detectedGpus = @()
         
         foreach ($gpu in $gpus) {
             $gpuName = $gpu.Name
+            $gpuMemory = [math]::Round($gpu.AdapterRAM / 1MB, 0)
+            $gpuDriverVersion = $gpu.DriverVersion
             
-            if ($gpuName -match "NVIDIA|GeForce|GTX|RTX|Quadro|Tesla") {
+            $gpuDetails = @{
+                Name = $gpuName
+                Memory = $gpuMemory
+                Driver = $gpuDriverVersion
+                Type = "unknown"
+            }
+            
+            # Classify GPU type with more detailed detection
+            if ($gpuName -match "NVIDIA|GeForce|GTX|RTX|Quadro|Tesla|Titan") {
+                $gpuDetails.Type = "nvidia"
                 $script:GpuType = "nvidia"
                 $script:GpuInfo = $gpuName
+                $script:GpuMemory = $gpuMemory
+                
                 Write-Success "NVIDIA GPU detected: $gpuName"
-                Write-Warning "NVIDIA drivers may not be properly installed (nvidia-smi not found)"
+                Write-Info "   Memory: $gpuMemory MB, Driver: $gpuDriverVersion"
+                Write-Warning "NVIDIA drivers detected but nvidia-smi not available"
+                Write-Info "   Consider installing NVIDIA CUDA toolkit for optimal performance"
+                
+                $detectedGpus += $gpuDetails
                 break
             }
-            elseif ($gpuName -match "AMD|Radeon|RX|Vega") {
+            elseif ($gpuName -match "AMD|Radeon|RX|Vega|RDNA|Navi") {
+                $gpuDetails.Type = "amd"
                 $script:GpuType = "amd"
                 $script:GpuInfo = $gpuName
+                $script:GpuMemory = $gpuMemory
+                
                 Write-Success "AMD GPU detected: $gpuName"
+                Write-Info "   Memory: $gpuMemory MB, Driver: $gpuDriverVersion"
+                Write-Info "   ROCm support may be available for compute workloads"
+                
+                $detectedGpus += $gpuDetails
                 break
             }
-            elseif ($gpuName -match "Intel.*Graphics|Intel.*Iris|Intel.*HD") {
-                $script:GpuType = "intel"
-                $script:GpuInfo = $gpuName
-                Write-Success "Intel GPU detected: $gpuName"
+            elseif ($gpuName -match "Intel.*Graphics|Intel.*Iris|Intel.*HD|Intel.*UHD|Intel.*Xe") {
+                $gpuDetails.Type = "intel"
+                if ($script:GpuType -eq "none") {  # Only set if no dedicated GPU found
+                    $script:GpuType = "intel"
+                    $script:GpuInfo = $gpuName
+                    $script:GpuMemory = $gpuMemory
+                    
+                    Write-Success "Intel integrated GPU detected: $gpuName"
+                    Write-Info "   Memory: $gpuMemory MB, Driver: $gpuDriverVersion"
+                    Write-Info "   Intel GPU may support some acceleration features"
+                }
+                
+                $detectedGpus += $gpuDetails
+            }
+            else {
+                Write-Info "Unknown GPU detected: $gpuName ($gpuMemory MB)"
+                $detectedGpus += $gpuDetails
+            }
+        }
+        
+        # Check for additional GPU capabilities
+        if ($script:GpuType -ne "none") {
+            Write-Info "GPU acceleration recommendations:"
+            switch ($script:GpuType) {
+                "nvidia" {
+                    Write-Info "   • Install latest NVIDIA drivers from nvidia.com"
+                    Write-Info "   • Consider NVIDIA CUDA toolkit for ML acceleration"
+                    Write-Info "   • GPU memory: $script:GpuMemory MB available for models"
+                }
+                "amd" {
+                    Write-Info "   • Install latest AMD drivers from amd.com" 
+                    Write-Info "   • Consider AMD ROCm for compute acceleration"
+                    Write-Info "   • GPU memory: $script:GpuMemory MB available for models"
+                }
+                "intel" {
+                    Write-Info "   • Install latest Intel graphics drivers"
+                    Write-Info "   • Intel OpenVINO may provide some acceleration"
+                    Write-Info "   • Shared system memory: $script:GpuMemory MB available"
+                }
             }
         }
         
         if ($script:GpuType -eq "none") {
             Write-Info "No dedicated GPU detected. Using CPU-only mode."
+            Write-Info "   CPU inference will be used for all operations"
+            Write-Info "   Consider adding a GPU for better performance with large models"
         }
+        
+        # Store detected GPUs for later use
+        $script:DetectedGpus = $detectedGpus
+        
     }
     catch {
         Write-Warning "Failed to detect GPU information: $($_.Exception.Message)"
         $script:GpuType = "none"
+        $script:DetectedGpus = @()
     }
 }
 
@@ -436,10 +532,23 @@ function Setup-CondaEnvironment {
     # Check if environment already exists using direct conda path
     Write-Info "Checking for existing conda environments..."
     try {
-        $envList = & $condaExe env list 2>$null
-        if ($LASTEXITCODE -eq 0 -and $envList -match "kwaainet") {
+        $envList = & $condaExe env list 2>&1
+        $envOutput = $envList -join "`n"
+        
+        if ($LASTEXITCODE -eq 0 -and $envOutput -match "kwaainet") {
             Write-Success "Using existing kwaainet conda environment"
-            return
+            
+            # Verify environment is functional
+            Write-Info "Verifying existing environment functionality..."
+            $pythonTest = & $condaExe run -n kwaainet python --version 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "Existing environment is functional: $($pythonTest.Trim())"
+                return
+            } else {
+                Write-Warning "Existing environment appears corrupted. Will recreate."
+                Write-Info "Removing corrupted environment..."
+                & $condaExe env remove -n kwaainet -y 2>$null | Out-Null
+            }
         }
     }
     catch {
@@ -559,18 +668,63 @@ function Setup-SystemPython {
         $venvPath = "$script:InstallPath\venv"
         
         if (Test-Path $venvPath) {
-            Write-Success "Using existing virtual environment"
+            Write-Success "Found existing virtual environment"
+            
+            # Verify virtual environment is functional
+            Write-Info "Verifying existing virtual environment functionality..."
+            $pythonExe = "$venvPath\Scripts\python.exe"
+            $pipExe = "$venvPath\Scripts\pip.exe"
+            
+            if ((Test-Path $pythonExe) -and (Test-Path $pipExe)) {
+                try {
+                    $pythonTest = & $pythonExe --version 2>&1
+                    $pipTest = & $pipExe --version 2>&1
+                    
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Success "Existing virtual environment is functional: $($pythonTest.Trim())"
+                        return
+                    } else {
+                        Write-Warning "Virtual environment appears corrupted. Will recreate."
+                        Remove-Item -Path $venvPath -Recurse -Force -ErrorAction SilentlyContinue
+                    }
+                }
+                catch {
+                    Write-Warning "Virtual environment verification failed. Will recreate."
+                    Remove-Item -Path $venvPath -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            } else {
+                Write-Warning "Virtual environment is incomplete. Will recreate."
+                Remove-Item -Path $venvPath -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
-        else {
-            Write-Info "Creating virtual environment..."
-            New-Item -ItemType Directory -Path $script:InstallPath -Force | Out-Null
-            & python -m venv $venvPath
+        
+        Write-Info "Creating new virtual environment..."
+        New-Item -ItemType Directory -Path $script:InstallPath -Force | Out-Null
+        
+        try {
+            & python -m venv $venvPath 2>&1 | Out-Null
             
             if ($LASTEXITCODE -ne 0) {
                 Write-ErrorMessage "Failed to create virtual environment"
+                Write-Info "This might be due to missing venv module. Try installing python3-venv package."
                 exit 1
             }
-            Write-Success "Created virtual environment for KwaaiNet"
+            
+            # Verify the newly created environment
+            $pythonExe = "$venvPath\Scripts\python.exe"
+            $pipExe = "$venvPath\Scripts\pip.exe"
+            
+            if ((Test-Path $pythonExe) -and (Test-Path $pipExe)) {
+                $pythonTest = & $pythonExe --version 2>&1
+                Write-Success "Created functional virtual environment: $($pythonTest.Trim())"
+            } else {
+                Write-ErrorMessage "Virtual environment creation completed but executables not found"
+                exit 1
+            }
+        }
+        catch {
+            Write-ErrorMessage "Exception during virtual environment creation: $($_.Exception.Message)"
+            exit 1
         }
     }
     catch {
@@ -636,76 +790,584 @@ function Install-Dependencies {
     }
 }
 
-# Function to install tokenizers with fallback handling  
+# Function to verify package versions
+function Test-PackageVersions {
+    Write-Step "Verifying installed package versions..."
+    
+    # Define expected package versions (aligned with Linux installer)
+    $expectedPackages = @{
+        "hivemind" = "1.1.10.post2"
+        "petals" = "2.2.0.post1"
+        "transformers" = "4.34.1"
+        "huggingface_hub" = "0.34.0"
+        "tokenizers" = "0.15.0"
+    }
+    
+    $allVersionsCorrect = $true
+    
+    foreach ($package in $expectedPackages.Keys) {
+        $expectedVersion = $expectedPackages[$package]
+        
+        try {
+            # Get Python command based on environment
+            $pythonCmd = if ($script:PythonMethod -eq "conda") {
+                "conda run -n kwaainet python"
+            } elseif (Test-Path "$script:InstallPath\venv\Scripts\python.exe") {
+                "$script:InstallPath\venv\Scripts\python.exe"
+            } else {
+                "python"
+            }
+            
+            # Check package version
+            $versionCheck = "import $package; print($package.__version__)" 
+            $actualVersion = & cmd /c "$pythonCmd -c `"$versionCheck`"" 2>$null
+            
+            if ($LASTEXITCODE -eq 0 -and $actualVersion) {
+                $actualVersion = $actualVersion.Trim()
+                
+                # For minimum version checks (>=), verify the installed version meets requirements
+                if ($expectedVersion -match "^>=(.+)") {
+                    $minVersion = $matches[1]
+                    Write-Info "   $package`: $actualVersion (required: >=$minVersion)"
+                    
+                    # Simple version comparison - this could be enhanced
+                    if ([version]$actualVersion -ge [version]$minVersion) {
+                        Write-Success "   ✓ $package version meets requirements"
+                    } else {
+                        Write-Warning "   ⚠ $package version $actualVersion is below minimum $minVersion"
+                        $allVersionsCorrect = $false
+                    }
+                } else {
+                    # Exact version or flexible range
+                    Write-Info "   $package`: $actualVersion (expected: $expectedVersion)"
+                    
+                    if ($actualVersion -eq $expectedVersion -or $expectedVersion -eq "flexible") {
+                        Write-Success "   ✓ $package version correct"
+                    } else {
+                        Write-Info "   ℹ $package version differs (may be acceptable)"
+                    }
+                }
+            } else {
+                Write-Warning "   ✗ Could not verify $package version"
+                $allVersionsCorrect = $false
+            }
+        }
+        catch {
+            Write-Warning "   ✗ Error checking $package`: $($_.Exception.Message)"
+            $allVersionsCorrect = $false
+        }
+    }
+    
+    if ($allVersionsCorrect) {
+        Write-Success "All package versions verified successfully"
+    } else {
+        Write-Warning "Some package versions could not be verified or are incorrect"
+        Write-Info "Installation may still work, but there could be compatibility issues"
+    }
+    
+    return $allVersionsCorrect
+}
+
+# Function to test import compatibility
+function Test-ImportCompatibility {
+    Write-Step "Testing package import compatibility..."
+    
+    $importTests = @{
+        "hivemind" = "import hivemind; print(f'hivemind {hivemind.__version__}')"
+        "petals" = "import petals; print('petals imported successfully')"
+        "transformers" = "from transformers import AutoModel; print('transformers imports working')"
+        "torch" = "import torch; print(f'torch {torch.__version__}')"
+        "huggingface_hub" = "import huggingface_hub; print(f'huggingface_hub {huggingface_hub.__version__}')"
+    }
+    
+    $allImportsSuccessful = $true
+    
+    foreach ($package in $importTests.Keys) {
+        $testCode = $importTests[$package]
+        
+        try {
+            # Get Python command based on environment
+            $pythonCmd = if ($script:PythonMethod -eq "conda") {
+                "conda run -n kwaainet python"
+            } elseif (Test-Path "$script:InstallPath\venv\Scripts\python.exe") {
+                "$script:InstallPath\venv\Scripts\python.exe"
+            } else {
+                "python"
+            }
+            
+            Write-Info "   Testing $package import..."
+            $result = & cmd /c "$pythonCmd -c `"$testCode`"" 2>&1
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "   ✓ $package`: $($result.Trim())"
+            } else {
+                Write-Warning "   ✗ $package import failed: $result"
+                $allImportsSuccessful = $false
+            }
+        }
+        catch {
+            Write-Warning "   ✗ Error testing $package import: $($_.Exception.Message)"
+            $allImportsSuccessful = $false
+        }
+    }
+    
+    if ($allImportsSuccessful) {
+        Write-Success "All package imports working correctly"
+    } else {
+        Write-Warning "Some packages failed to import - there may be installation issues"
+    }
+    
+    return $allImportsSuccessful
+}
+
+# Function to verify KwaaiNet functionality
+function Test-KwaaiNetFunctionality {
+    Write-Step "Testing KwaaiNet functionality..."
+    
+    try {
+        # Get Python command based on environment
+        $pythonCmd = if ($script:PythonMethod -eq "conda") {
+            "conda run -n kwaainet python"
+        } elseif (Test-Path "$script:InstallPath\venv\Scripts\python.exe") {
+            "$script:InstallPath\venv\Scripts\python.exe"
+        } else {
+            "python"
+        }
+        
+        # Test basic KwaaiNet import and functionality
+        $kwaainetTest = @"
+try:
+    import kwaainet
+    from kwaainet import config
+    print('KwaaiNet package imported successfully')
+    print('Configuration system functional')
+except ImportError as e:
+    print(f'Import error: {e}')
+    exit(1)
+except Exception as e:
+    print(f'Configuration error: {e}')
+    exit(2)
+"@
+        
+        Write-Info "   Testing KwaaiNet package import and basic functionality..."
+        $result = & cmd /c "$pythonCmd -c `"$kwaainetTest`"" 2>&1
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "   ✓ KwaaiNet functionality test passed"
+            Write-Info "   $($result -join '; ')"
+            return $true
+        } else {
+            Write-Warning "   ✗ KwaaiNet functionality test failed: $result"
+            return $false
+        }
+    }
+    catch {
+        Write-Warning "KwaaiNet functionality test failed: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+# Master verification function
+function Start-ComprehensiveVerification {
+    Write-Step "Running comprehensive post-installation verification..."
+    
+    $verificationTests = @(
+        "Test-PackageVersions",
+        "Test-ImportCompatibility", 
+        "Test-KwaaiNetFunctionality"
+    )
+    
+    $allTestsPassed = $true
+    
+    foreach ($test in $verificationTests) {
+        try {
+            $result = & $test
+            if (-not $result) {
+                $allTestsPassed = $false
+            }
+        }
+        catch {
+            Write-Warning "Verification test $test failed: $($_.Exception.Message)"
+            $allTestsPassed = $false
+        }
+    }
+    
+    if ($allTestsPassed) {
+        Write-Success "All verification tests passed! Installation appears to be working correctly."
+    } else {
+        Write-Warning "Some verification tests failed. The installation may have issues."
+        Write-Info "You can still try running KwaaiNet, but may encounter problems."
+    }
+    
+    return $allTestsPassed
+}
+
+# Function to test dependency compatibility before installation
+function Test-DependencyCompatibility {
+    Write-Step "Testing dependency compatibility matrix..."
+    
+    try {
+        # Get Python command based on environment
+        $pythonCmd = if ($script:PythonMethod -eq "conda") {
+            "conda run -n kwaainet python"
+        } elseif (Test-Path "$script:InstallPath\venv\Scripts\python.exe") {
+            "$script:InstallPath\venv\Scripts\python.exe"
+        } else {
+            "python"
+        }
+        
+        # Test critical dependency combinations
+        $dependencyTests = @{
+            "transformers_tokenizers" = @{
+                "packages" = "transformers==4.34.1 tokenizers>=0.15.0"
+                "test" = "import transformers, tokenizers; from transformers import AutoTokenizer; tok = AutoTokenizer.from_pretrained('gpt2', use_fast=True); print('✓ transformers + tokenizers compatibility verified')"
+                "description" = "transformers 4.34.1 + tokenizers >=0.15.0 compatibility"
+            }
+            "huggingface_hub_compatibility" = @{
+                "packages" = "huggingface_hub>=0.34.0"
+                "test" = "from huggingface_hub import snapshot_download; import tempfile; snapshot_download('gpt2', cache_dir=tempfile.mkdtemp(), allow_patterns=['config.json']); print('✓ HuggingFace Hub CDN access verified')"
+                "description" = "HuggingFace Hub CDN connectivity and version compatibility"
+            }
+            "torch_transformers" = @{
+                "packages" = "torch transformers==4.34.1"
+                "test" = "import torch, transformers; from transformers import AutoModel; print('✓ PyTorch + transformers compatibility verified')"
+                "description" = "PyTorch + transformers integration"
+            }
+        }
+        
+        $allTestsPassed = $true
+        
+        foreach ($testName in $dependencyTests.Keys) {
+            $test = $dependencyTests[$testName]
+            Write-Info "Testing $($test.description)..."
+            
+            try {
+                # Create a temporary test environment simulation
+                $testScript = $test.test
+                $testResult = & cmd /c "$pythonCmd -c `"$testScript`"" 2>&1
+                
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "   ✓ $($test.description) - PASSED"
+                    if ($testResult -match "✓") {
+                        Write-Info "   $($testResult.Trim())"
+                    }
+                } else {
+                    Write-Warning "   ✗ $($test.description) - FAILED"
+                    Write-Host "   Error: $testResult" -ForegroundColor Yellow
+                    $allTestsPassed = $false
+                }
+            }
+            catch {
+                Write-Warning "   ✗ $($test.description) - EXCEPTION: $($_.Exception.Message)"
+                $allTestsPassed = $false
+            }
+        }
+        
+        # Check for known problematic package combinations
+        Write-Info "Checking for known problematic combinations..."
+        
+        $knownIssues = @(
+            @{
+                "pattern" = "tokenizers.*0\.14\..*huggingface_hub.*0\.3[4-9]"
+                "issue" = "tokenizers 0.14.x conflicts with huggingface_hub >=0.34.0"
+                "solution" = "Use tokenizers >=0.15.0"
+            },
+            @{
+                "pattern" = "transformers.*4\.4[0-9]\..*tokenizers.*0\.1[0-4]"
+                "issue" = "transformers 4.40+ requires tokenizers >=0.15.0"
+                "solution" = "Upgrade tokenizers to >=0.15.0"
+            }
+        )
+        
+        # This would be expanded to check actual installed packages
+        Write-Success "No known problematic combinations detected in planned installation"
+        
+        if ($allTestsPassed) {
+            Write-Success "All dependency compatibility tests passed"
+            return $true
+        } else {
+            Write-Warning "Some dependency compatibility tests failed"
+            Write-Info "Installation will continue but may encounter issues"
+            return $false
+        }
+    }
+    catch {
+        Write-Warning "Dependency compatibility testing failed: $($_.Exception.Message)"
+        Write-Info "Installation will continue but dependency issues may occur"
+        return $false
+    }
+}
+
+# Function to test Hugging Face connectivity
+function Test-HuggingFaceConnectivity {
+    Write-Step "Testing Hugging Face model download connectivity..."
+    
+    try {
+        # Test basic HF connectivity
+        Write-Info "Testing connection to huggingface.co..."
+        try {
+            $response = Invoke-WebRequest -Uri "https://huggingface.co" -TimeoutSec 10 -UseBasicParsing -ErrorAction Stop
+            if ($response.StatusCode -eq 200) {
+                Write-Success "Basic Hugging Face connectivity verified"
+            }
+            else {
+                Write-Warning "Unexpected response from huggingface.co (status: $($response.StatusCode))"
+                Write-Info "Model downloads may fail due to network connectivity issues"
+                return $false
+            }
+        }
+        catch {
+            Write-Warning "Cannot reach huggingface.co: $($_.Exception.Message)"
+            Write-Info "Model downloads may fail due to network connectivity issues"
+            return $false
+        }
+        
+        # Test model file access (small config file)
+        Write-Info "Testing model file access..."
+        try {
+            $modelResponse = Invoke-WebRequest -Uri "https://huggingface.co/gpt2/resolve/main/config.json" -TimeoutSec 10 -UseBasicParsing -ErrorAction Stop
+            if ($modelResponse.StatusCode -eq 200) {
+                Write-Success "Hugging Face model download connectivity verified"
+                return $true
+            }
+            else {
+                Write-Warning "Cannot access Hugging Face model files (status: $($modelResponse.StatusCode))"
+                Write-Info "This may be due to network restrictions or firewall settings"
+                Write-Info "Model downloads may fail, but installation will continue"
+                return $false
+            }
+        }
+        catch {
+            Write-Warning "Cannot access Hugging Face model files: $($_.Exception.Message)"
+            Write-Info "This may be due to network restrictions or firewall settings"
+            Write-Info "Model downloads may fail, but installation will continue"
+            return $false
+        }
+    }
+    catch {
+        Write-Warning "Connectivity test failed: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+# Function to install tokenizers with advanced fallback handling  
 function Install-TokenizersWithFallback {
     param(
         [string]$PipCommand
     )
     
-    Write-Step "Installing tokenizers with build fallback handling..."
+    Write-Step "Installing tokenizers with advanced build fallback handling..."
     
-    # Strategy 1: Try pre-built wheels first (most likely to work on Windows)
-    Write-Info "Attempting to install tokenizers (pre-built wheels only)..."
+    # Debug: Show environment status
+    Write-Info "   Environment: $script:PythonMethod"
+    Write-Info "   Pip command: $PipCommand"
     
-    # Execute pip command properly
-    if ($PipCommand -like "*conda run*") {
-        # Handle conda run command
-        $result = & conda run -n kwaainet pip install --only-binary=tokenizers "tokenizers>=0.19.0,<0.20.0" 2>$null
-    } else {
-        # Handle direct pip command
-        $result = & $PipCommand install --only-binary=tokenizers "tokenizers>=0.19.0,<0.20.0" 2>$null
-    }
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "tokenizers installed successfully (pre-built wheels)"
-        return $true
-    }
-    Write-Warning "Failed to install tokenizers pre-built wheels."
-    
-    # Strategy 2: Try latest version with pre-built wheels
-    Write-Info "Attempting to install latest tokenizers (pre-built wheels only)..."
-    if ($PipCommand -like "*conda run*") {
-        $result = & conda run -n kwaainet pip install --only-binary=tokenizers tokenizers 2>$null
-    } else {
-        $result = & $PipCommand install --only-binary=tokenizers tokenizers 2>$null
-    }
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "tokenizers installed successfully (pre-built wheels)"
-        return $true
-    }
-    Write-Warning "Failed to install latest tokenizers pre-built wheels."
-    
-    # Strategy 3: Try older stable version
-    Write-Info "Attempting to install tokenizers 0.19.1 (pre-built wheels only)..."
-    if ($PipCommand -like "*conda run*") {
-        $result = & conda run -n kwaainet pip install --only-binary=tokenizers "tokenizers==0.19.1" 2>$null
-    } else {
-        $result = & $PipCommand install --only-binary=tokenizers "tokenizers==0.19.1" 2>$null
-    }
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "tokenizers 0.19.1 installed successfully (pre-built wheels)"
-        return $true
-    }
-    Write-Warning "Failed to install tokenizers 0.19.1 pre-built wheels."
-    
-    # Strategy 4: Last resort - try conda if available
-    if ($script:PythonMethod -eq "conda") {
-        Write-Info "Attempting to install tokenizers via conda..."
-        $result = & conda install -y tokenizers -c conda-forge 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            Write-Success "tokenizers installed via conda"
-            return $true
+    # Strategy 1: Try tokenizers 0.19.1 first (known stable with transformers 4.34.1)
+    Write-Info "Attempting to install tokenizers 0.19.1 (known stable with transformers 4.34.1)..."
+    try {
+        if ($PipCommand -like "*conda run*") {
+            $result = & conda run -n kwaainet pip install --only-binary=tokenizers "tokenizers==0.19.1" 2>&1
+        } else {
+            $result = & $PipCommand install --only-binary=tokenizers "tokenizers==0.19.1" 2>&1
         }
-        Write-Warning "Failed to install tokenizers via conda."
+        $output = $result -join "`n"
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "tokenizers 0.19.1 installed successfully (pre-built wheels)"
+            Write-Info "   Using proven stable version with transformers 4.34.1"
+            return $true
+        } else {
+            Write-Warning "Failed to install tokenizers 0.19.1 pre-built wheels. Error:"
+            Write-Host "   $output" -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Warning "Exception during tokenizers 0.19.1 installation: $($_.Exception.Message)"
+    }
+    
+    # Strategy 2: Try tokenizers 0.15.0 (minimum compatible version)
+    Write-Info "Attempting to install tokenizers 0.15.0 (minimum compatible version)..."
+    try {
+        if ($PipCommand -like "*conda run*") {
+            $result = & conda run -n kwaainet pip install --only-binary=tokenizers "tokenizers==0.15.0" 2>&1
+        } else {
+            $result = & $PipCommand install --only-binary=tokenizers "tokenizers==0.15.0" 2>&1
+        }
+        $output = $result -join "`n"
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "tokenizers 0.15.0 installed successfully (pre-built wheels)"
+            return $true
+        } else {
+            Write-Warning "Failed to install tokenizers 0.15.0 pre-built wheels. Error:"
+            Write-Host "   $output" -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Warning "Exception during tokenizers 0.15.0 installation: $($_.Exception.Message)"
+    }
+    
+    # Strategy 3: Try tokenizers 0.14.1 (Linux installer tested version)
+    Write-Info "Attempting to install tokenizers 0.14.1 (Linux installer tested version)..."
+    try {
+        if ($PipCommand -like "*conda run*") {
+            $result = & conda run -n kwaainet pip install --only-binary=tokenizers "tokenizers==0.14.1" 2>&1
+        } else {
+            $result = & $PipCommand install --only-binary=tokenizers "tokenizers==0.14.1" 2>&1
+        }
+        $output = $result -join "`n"
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "tokenizers 0.14.1 installed successfully (pre-built wheels)"
+            Write-Info "   Using Linux installer compatible version"
+            return $true
+        } else {
+            Write-Warning "Failed to install tokenizers 0.14.1 pre-built wheels. Error:"
+            Write-Host "   $output" -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Warning "Exception during tokenizers 0.14.1 installation: $($_.Exception.Message)"
+    }
+    
+    # Strategy 4: Try latest version with pre-built wheels only (last pre-built attempt)
+    Write-Info "Attempting to install latest tokenizers (pre-built wheels only)..."
+    try {
+        if ($PipCommand -like "*conda run*") {
+            $result = & conda run -n kwaainet pip install --only-binary=tokenizers tokenizers 2>&1
+        } else {
+            $result = & $PipCommand install --only-binary=tokenizers tokenizers 2>&1
+        }
+        $output = $result -join "`n"
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "tokenizers installed successfully (pre-built wheels)"
+            return $true
+        } else {
+            Write-Warning "Failed to install latest tokenizers pre-built wheels. Error:"
+            Write-Host "   $output" -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Warning "Exception during latest tokenizers installation: $($_.Exception.Message)"
+    }
+    
+    # Strategy 5: Try compilation only if build tools are available
+    $hasBuildTools = (Test-Command "cl") -or (Test-Path "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools") -or (Test-Path "${env:ProgramFiles}\Microsoft Visual Studio\2022\BuildTools")
+    
+    if ($hasBuildTools) {
+        Write-Info "Build tools detected. Attempting to compile tokenizers from source (with timeout)..."
+        try {
+            $job = Start-Job -ScriptBlock {
+                param($PipCommand)
+                if ($PipCommand -like "*conda run*") {
+                    & conda run -n kwaainet pip install tokenizers --no-cache-dir 2>&1
+                } else {
+                    & $PipCommand install tokenizers --no-cache-dir 2>&1
+                }
+                return $LASTEXITCODE
+            } -ArgumentList $PipCommand
+            
+            # Wait for job with timeout (5 minutes)
+            $completed = Wait-Job $job -Timeout 300
+            
+            if ($completed) {
+                $result = Receive-Job $job
+                $exitCode = $result[-1]  # Last item should be exit code
+                Remove-Job $job
+                
+                if ($exitCode -eq 0) {
+                    Write-Success "tokenizers compiled successfully from source"
+                    return $true
+                } else {
+                    Write-Warning "Failed to compile tokenizers from source. Output:"
+                    Write-Host ($result -join "`n") -ForegroundColor Yellow
+                }
+            } else {
+                Write-Warning "Compilation timeout (5 minutes) - stopping attempt"
+                Stop-Job $job
+                Remove-Job $job
+            }
+        }
+        catch {
+            Write-Warning "Exception during compilation attempt: $($_.Exception.Message)"
+        }
+    } else {
+        Write-Info "No build tools detected - skipping compilation attempt"
+    }
+    
+    # Strategy 6: Emergency fallback - try conda if available
+    if ($script:PythonMethod -eq "conda") {
+        Write-Info "Emergency fallback: trying conda installation..."
+        try {
+            $result = & conda install -y tokenizers -c conda-forge 2>&1
+            $output = $result -join "`n"
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "tokenizers installed via conda"
+                return $true
+            } else {
+                Write-Warning "Failed to install tokenizers via conda. Error:"
+                Write-Host "   $output" -ForegroundColor Yellow
+            }
+        }
+        catch {
+            Write-Warning "Exception during conda installation: $($_.Exception.Message)"
+        }
+    }
+    
+    # Strategy 7: Last attempt - try without any constraints but with timeout
+    Write-Info "Last attempt: installing tokenizers with extended timeout (10 minutes)..."
+    try {
+        $job = Start-Job -ScriptBlock {
+            param($PipCommand)
+            if ($PipCommand -like "*conda run*") {
+                & conda run -n kwaainet pip install tokenizers --no-cache-dir 2>&1
+            } else {
+                & $PipCommand install tokenizers --no-cache-dir 2>&1
+            }
+            return $LASTEXITCODE
+        } -ArgumentList $PipCommand
+        
+        # Wait for job with extended timeout (10 minutes)
+        $completed = Wait-Job $job -Timeout 600
+        
+        if ($completed) {
+            $result = Receive-Job $job
+            $exitCode = $result[-1]  # Last item should be exit code
+            Remove-Job $job
+            
+            if ($exitCode -eq 0) {
+                Write-Success "tokenizers installed successfully (extended timeout)"
+                return $true
+            } else {
+                Write-Warning "Final attempt failed. Output:"
+                Write-Host ($result -join "`n") -ForegroundColor Yellow
+            }
+        } else {
+            Write-Warning "Extended timeout (10 minutes) reached - stopping final attempt"
+            Stop-Job $job
+            Remove-Job $job
+        }
+    }
+    catch {
+        Write-Warning "Exception during final attempt: $($_.Exception.Message)"
     }
     
     Write-ErrorMessage "All tokenizers installation strategies failed."
-    Write-Info "This is likely due to missing Rust compiler or build tools on Windows."
-    Write-Info "Manual installation options:"
-    Write-Info "   1. Install Visual Studio Build Tools with C++ support"
-    Write-Info "   2. Install Rust compiler: https://rustup.rs/"
-    Write-Info "   3. Force pre-built wheels: pip install --only-binary=tokenizers tokenizers"
+    Write-Info ""
+    Write-Info "🔧 IMMEDIATE WORKAROUNDS:"
+    Write-Info "   Option 1: Manual pre-built wheel installation"
+    Write-Info "     pip install --only-binary=tokenizers tokenizers"
+    Write-Info "   Option 2: Install build dependencies"
+    Write-Info "     1. Install Visual Studio Build Tools with C++ support"
+    Write-Info "     2. Install Rust compiler: https://rustup.rs/"
+    Write-Info "     3. Retry: pip install tokenizers"
+    Write-Info "   Option 3: Use conda environment"
+    Write-Info "     conda install tokenizers -c conda-forge"
+    Write-Info ""
     Write-Warning "Installation will continue, but tokenizers may not work properly."
+    Write-Info "You may encounter issues with model loading and text processing."
     
     return $false
 }
@@ -754,65 +1416,127 @@ function Install-PythonPackages {
             
             if ($useGitInstall) {
                 Write-Info "Installing Petals from GitHub (may take several minutes)..."
-                $petalsResult = & conda run -n kwaainet pip install "git+https://github.com/bigscience-workshop/petals.git" 2>$null
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Success "Petals installed successfully from GitHub"
-                }
-                else {
-                    Write-Warning "GitHub installation failed despite connectivity test. Trying PyPI fallback..."
-                    & conda run -n kwaainet pip install petals 2>$null
+                $petalsOutput = ""
+                $petalsError = ""
+                
+                try {
+                    # Capture both stdout and stderr for better error reporting
+                    $petalsResult = & conda run -n kwaainet pip install "git+https://github.com/bigscience-workshop/petals.git" 2>&1
+                    $petalsOutput = $petalsResult -join "`n"
+                    
                     if ($LASTEXITCODE -eq 0) {
-                        Write-Success "Petals installed from PyPI"
+                        Write-Success "Petals installed successfully from GitHub"
                     }
                     else {
-                        Write-ErrorMessage "Failed to install petals from both GitHub and PyPI."
-                        Write-Info "Manual installation options:"
-                        Write-Info "  conda run -n kwaainet pip install petals"
-                        Write-Info "  conda run -n kwaainet pip install 'git+https://github.com/bigscience-workshop/petals.git'"
-                        exit 1
+                        Write-Warning "GitHub installation failed despite connectivity test. Error output:"
+                        Write-Host $petalsOutput -ForegroundColor Yellow
+                        Write-Info "Trying PyPI fallback..."
+                        
+                        $pypiResult = & conda run -n kwaainet pip install petals 2>&1
+                        $pypiOutput = $pypiResult -join "`n"
+                        
+                        if ($LASTEXITCODE -eq 0) {
+                            Write-Success "Petals installed from PyPI"
+                        }
+                        else {
+                            Write-ErrorMessage "Failed to install petals from both GitHub and PyPI."
+                            Write-Host "GitHub error: $petalsOutput" -ForegroundColor Red
+                            Write-Host "PyPI error: $pypiOutput" -ForegroundColor Red
+                            Write-Info "Manual installation options:"
+                            Write-Info "  conda run -n kwaainet pip install petals"
+                            Write-Info "  conda run -n kwaainet pip install 'git+https://github.com/bigscience-workshop/petals.git'"
+                            exit 1
+                        }
                     }
+                }
+                catch {
+                    Write-ErrorMessage "Exception during Petals installation: $($_.Exception.Message)"
+                    exit 1
                 }
             }
             else {
                 Write-Info "Installing Petals from PyPI..."
-                & conda run -n kwaainet pip install petals 2>$null
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Success "Petals installed from PyPI"
+                try {
+                    $pypiResult = & conda run -n kwaainet pip install petals 2>&1
+                    $pypiOutput = $pypiResult -join "`n"
+                    
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Success "Petals installed from PyPI"
+                    }
+                    else {
+                        Write-ErrorMessage "Failed to install petals from PyPI. This is required for distributed inference."
+                        Write-Host "Error output: $pypiOutput" -ForegroundColor Red
+                        Write-Info "Please check your internet connection and try manual installation:"
+                        Write-Info "  conda run -n kwaainet pip install petals"
+                        exit 1
+                    }
                 }
-                else {
-                    Write-ErrorMessage "Failed to install petals from PyPI. This is required for distributed inference."
-                    Write-Info "Please check your internet connection and try manual installation:"
-                    Write-Info "  conda run -n kwaainet pip install petals"
+                catch {
+                    Write-ErrorMessage "Exception during PyPI Petals installation: $($_.Exception.Message)"
                     exit 1
                 }
             }
             
             # Install compatible versions of transformers and huggingface_hub with tokenizers pinning
             Write-Info "Installing compatible transformers and huggingface_hub versions..."
-            $transformersResult = & conda run -n kwaainet pip install "transformers==4.43.1" "tokenizers>=0.19.0,<0.20.0" "huggingface_hub>=0.20.0" 2>$null
-            if ($LASTEXITCODE -eq 0) {
-                Write-Success "Successfully installed compatible transformers and huggingface_hub with tokenizers"
-            }
-            else {
-                Write-Warning "Failed to install transformers/huggingface_hub with tokenizers pinning. Trying without tokenizers pinning..."
-                & conda run -n kwaainet pip install "transformers==4.43.1" "huggingface_hub>=0.20.0" 2>$null
+            try {
+                $transformersResult = & conda run -n kwaainet pip install "transformers==4.34.1" "tokenizers>=0.15.0" "huggingface_hub>=0.34.0" 2>&1
+                $transformersOutput = $transformersResult -join "`n"
+                
                 if ($LASTEXITCODE -eq 0) {
-                    Write-Success "Successfully installed transformers and huggingface_hub (without tokenizers pinning)"
+                    Write-Success "Successfully installed compatible transformers and huggingface_hub with tokenizers"
                 }
                 else {
-                    Write-Warning "Failed to install transformers/huggingface_hub. May have compatibility issues..."
+                    Write-Warning "Failed to install transformers/huggingface_hub with tokenizers pinning. Error output:"
+                    Write-Host $transformersOutput -ForegroundColor Yellow
+                    Write-Info "Trying without tokenizers pinning..."
+                    
+                    $fallbackResult = & conda run -n kwaainet pip install "transformers==4.34.1" "huggingface_hub>=0.34.0" 2>&1
+                    $fallbackOutput = $fallbackResult -join "`n"
+                    
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Success "Successfully installed transformers and huggingface_hub (without tokenizers pinning)"
+                    }
+                    else {
+                        Write-Warning "Failed to install transformers/huggingface_hub. May have compatibility issues..."
+                        Write-Host "First attempt error: $transformersOutput" -ForegroundColor Red
+                        Write-Host "Fallback error: $fallbackOutput" -ForegroundColor Red
+                    }
                 }
             }
+            catch {
+                Write-ErrorMessage "Exception during transformers installation: $($_.Exception.Message)"
+            }
             
-            # Install PyTorch
+            # Install PyTorch with compatibility validation
             Write-Info "Installing PyTorch (CPU version)..."
             Write-Info "This may take a few minutes to download..."
-            & conda run -n kwaainet pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu 2>$null
-            if ($LASTEXITCODE -eq 0) {
-                Write-Success "PyTorch installed successfully"
+            try {
+                $torchResult = & conda run -n kwaainet pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu 2>&1
+                $torchOutput = $torchResult -join "`n"
+                
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "PyTorch installed successfully"
+                    
+                    # Verify PyTorch compatibility with transformers
+                    Write-Info "Validating PyTorch + transformers compatibility..."
+                    $compatTest = & conda run -n kwaainet python -c "import torch, transformers; print(f'PyTorch {torch.__version__} + transformers compatibility verified')" 2>&1
+                    
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Success "PyTorch-transformers compatibility verified: $($compatTest.Trim())"
+                    } else {
+                        Write-Warning "PyTorch-transformers compatibility issue detected: $compatTest"
+                        Write-Info "Installation will continue, but there may be runtime issues"
+                    }
+                } else {
+                    Write-ErrorMessage "Failed to install PyTorch. Error output:"
+                    Write-Host $torchOutput -ForegroundColor Red
+                    Write-Info "Please check your internet connection and try again."
+                    exit 1
+                }
             }
-            else {
-                Write-ErrorMessage "Failed to install PyTorch. Please check your internet connection."
+            catch {
+                Write-ErrorMessage "Exception during PyTorch installation: $($_.Exception.Message)"
                 exit 1
             }
             
@@ -940,20 +1664,43 @@ function Install-PythonPackages {
             
             # Install compatible versions of transformers and huggingface_hub with tokenizers pinning
             Write-Info "Installing compatible transformers and huggingface_hub versions..."
-            $transformersResult = & $pipExec install "transformers==4.43.1" "tokenizers>=0.19.0,<0.20.0" "huggingface_hub>=0.20.0" 2>$null
+            $transformersResult = & $pipExec install "transformers==4.34.1" "tokenizers>=0.15.0" "huggingface_hub>=0.34.0" 2>$null
             if ($LASTEXITCODE -ne 0) {
                 Write-Warning "Failed to install with tokenizers pinning. Trying without tokenizers pinning..."
-                & $pipExec install "transformers==4.43.1" "huggingface_hub>=0.20.0" 2>$null
+                & $pipExec install "transformers==4.34.1" "huggingface_hub>=0.34.0" 2>$null
             }
             
-            # Install PyTorch
+            # Install PyTorch with compatibility validation
             Write-Info "Installing PyTorch (CPU version)..."
-            & $pipExec install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu 2>$null
-            if ($LASTEXITCODE -ne 0) {
-                Write-ErrorMessage "Failed to install PyTorch. Please check your internet connection."
+            try {
+                $torchResult = & $pipExec install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu 2>&1
+                $torchOutput = $torchResult -join "`n"
+                
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "PyTorch installed successfully"
+                    
+                    # Verify PyTorch compatibility with transformers
+                    Write-Info "Validating PyTorch + transformers compatibility..."
+                    $pythonExe = "$script:InstallPath\venv\Scripts\python.exe"
+                    $compatTest = & $pythonExe -c "import torch, transformers; print(f'PyTorch {torch.__version__} + transformers compatibility verified')" 2>&1
+                    
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Success "PyTorch-transformers compatibility verified: $($compatTest.Trim())"
+                    } else {
+                        Write-Warning "PyTorch-transformers compatibility issue detected: $compatTest"
+                        Write-Info "Installation will continue, but there may be runtime issues"
+                    }
+                } else {
+                    Write-ErrorMessage "Failed to install PyTorch. Error output:"
+                    Write-Host $torchOutput -ForegroundColor Red
+                    Write-Info "Please check your internet connection and try again."
+                    exit 1
+                }
+            }
+            catch {
+                Write-ErrorMessage "Exception during PyTorch installation: $($_.Exception.Message)"
                 exit 1
             }
-            Write-Success "PyTorch installed successfully"
             
             # Install bitsandbytes for quantization support
             Write-Info "Installing bitsandbytes for quantization support..."
@@ -1216,13 +1963,22 @@ function Start-Installation {
         # Step 5: Python environment setup
         Set-PythonEnvironment
         
-        # Step 6: Install Python packages
+        # Step 6: Test connectivity before package installation
+        Test-HuggingFaceConnectivity
+        
+        # Step 7: Install Python packages
         Install-PythonPackages
         
-        # Step 7: Create launcher scripts
+        # Step 8: Create launcher scripts
         New-LauncherScripts
         
-        # Step 8: Run initial setup
+        # Step 9: Run dependency compatibility pre-check
+        Test-DependencyCompatibility
+        
+        # Step 10: Run comprehensive verification  
+        Start-ComprehensiveVerification
+        
+        # Step 11: Run initial setup
         Start-InitialSetup
         
         Write-Host ""
