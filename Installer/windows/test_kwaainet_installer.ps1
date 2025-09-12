@@ -51,6 +51,18 @@ function Write-TestError {
     Write-ColorOutput $Message "Red" "[ERROR]"
 }
 
+# Helper function to test if a command exists
+function Test-Command {
+    param([string]$Command)
+    try {
+        $null = Get-Command $Command -ErrorAction Stop
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
 # Check if we're in the right directory
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoPath = Split-Path -Parent (Split-Path -Parent $ScriptDir)
@@ -347,14 +359,3 @@ else {
     exit 1
 }
 
-# Helper function to test if a command exists (defined at end to avoid issues)
-function Test-Command {
-    param([string]$Command)
-    try {
-        $null = Get-Command $Command -ErrorAction Stop
-        return $true
-    }
-    catch {
-        return $false
-    }
-}
