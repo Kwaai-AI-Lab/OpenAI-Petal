@@ -1,7 +1,7 @@
 <p>
 <h1 align="center">OpenAI API-compatible server for Petals distributed inference 👋</h1>
   <img alt="Version" src="https://img.shields.io/badge/version-0.2.2-blue.svg?cacheSeconds=2592000" />
-  <img alt="Installer Version" src="https://img.shields.io/badge/installer-v0.2.2-brightgreen.svg?cacheSeconds=2592000" />
+  <img alt="Installer Version" src="https://img.shields.io/badge/installer-v0.2.21-brightgreen.svg?cacheSeconds=2592000" />
   <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">
     <img alt="License: CC-BY-4.0" src="https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg" />
   <a href="https://kwaaiailab.slack.com" target="_blank">
@@ -24,6 +24,7 @@
   - [One-Step Installation](#one-step-installation)
   - [Container-Based Installation (Docker/Podman)](#container-based-installation-dockerpodman)
   - [Manual Installation](#manual-installation)
+  - [🧪 Testing Your Installation](#testing-your-installation)
 - [🗑️ Uninstallation](#uninstallation)
 - [🚀 Usage](#usage)
   - [Beautiful CLI Interface](#beautiful-cli-interface)
@@ -273,6 +274,71 @@ pip install -e ./Installer/macOS/
 > ⚠️ Make sure you are using **Python 3.8+** and `pip` is from the correct environment (virtualenv, conda, or system Python).
 > 
 > **Windows Requirements:** Windows 10+ (64-bit), PowerShell 5.1+
+
+### 🧪 Testing Your Installation
+
+After installation, you can validate that everything is working correctly with our comprehensive test scripts:
+
+#### Windows Test Script
+```powershell
+# Download and run the Windows test script
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windows/test_kwaainet_installer.ps1" -OutFile "test.ps1"; powershell.exe -ExecutionPolicy Bypass -File "test.ps1"
+```
+
+**Test Features:**
+- ✅ **Dependency validation** - Verifies all packages installed correctly
+- ✅ **Tokenizers build prevention** - Confirms pre-built wheels were used
+- ✅ **Version alignment** - Checks transformers/huggingface_hub versions
+- ✅ **Enhanced error reporting** - Validates detailed error capture
+- ✅ **Daemon functionality** - Tests start/stop/status commands
+- ✅ **Installation timing** - Measures installation performance
+
+**Test Options:**
+```powershell
+# Skip cleanup (test existing installation)
+.\test.ps1 -SkipCleanup
+
+# Quiet mode (minimal output)
+.\test.ps1 -Quiet
+```
+
+#### Linux Test Script
+```bash
+# Download and run the Linux test script
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/test_kwaainet_installer.sh | bash
+```
+
+**Test Features:**
+- ✅ **Automatic compatibility patches** - Tests all 4 patches apply correctly
+- ✅ **Complete system cleanup** - Uses official uninstaller for clean state
+- ✅ **Fresh installation validation** - Comprehensive installation testing
+- ✅ **Daemon stability testing** - 20-second daemon monitoring
+- ✅ **Network connectivity** - Validates connection to KwaaiNet network
+- ✅ **Management commands** - Tests all daemon control functions
+
+**Expected Output:**
+```
+🎉 ALL TESTS PASSED!
+✅ All 4 compatibility patches applied automatically
+✅ Daemon functionality working correctly
+✅ Management commands working correctly
+✅ NO MANUAL PATCHES REQUIRED
+
+The KwaaiNet Linux installer is PRODUCTION READY! 🚀
+```
+
+#### Container Installation Test
+```bash
+# Test Docker/Podman container installation
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/test_container_installation.sh | bash
+```
+
+**Why Test Your Installation:**
+- **Validate dependency fixes** - Ensures tokenizers build failures are prevented
+- **Confirm version compatibility** - Verifies all packages work together
+- **Test daemon stability** - Validates background operation works correctly
+- **Network connectivity** - Confirms connection to distributed network
+- **Performance benchmarking** - Measures installation and startup times
 
 ## 🗑️ Uninstallation
 
