@@ -311,7 +311,11 @@ Write-Host ""
 Write-Status "Test Results Summary"
 Write-Host "====================" -ForegroundColor White
 
-Write-Host "Installation Successful: $(if($installationSuccessful){'✅ YES'}else{'❌ NO'})" -ForegroundColor $(if($installationSuccessful){'Green'}else{'Red'})
+if ($installationSuccessful) {
+    Write-Host "Installation Successful: ✅ YES" -ForegroundColor Green
+} else {
+    Write-Host "Installation Successful: ❌ NO" -ForegroundColor Red
+}
 Write-Host "Dependency Fixes Applied: $fixesApplied" -ForegroundColor White
 Write-Host "Installation Duration: $([math]::Round($installerDuration, 2)) minutes" -ForegroundColor White
 
