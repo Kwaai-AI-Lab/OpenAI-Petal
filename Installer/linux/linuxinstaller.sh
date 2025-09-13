@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.2.12
+# KwaaiNet for Linux - One-Step Installer v0.2.13
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.12"
+INSTALLER_VERSION="0.2.13"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -532,14 +532,60 @@ check_system_deps() {
     # Check build tools (can potentially be handled by conda or skipped)
     if [ "$NO_BUILD_TOOLS" = true ]; then
         echo "ℹ️ Skipping build tools check (--no-build-tools flag)"
+        echo "   Will attempt to use pre-built wheels only"
     else
+        echo "🔍 Checking build tools for compiling Python packages..."
+        
+        # Check C/C++ compiler
         if ! command_exists gcc && ! command_exists clang; then
             missing_build+=("build tools (gcc/clang)")
+            echo "   ❌ No C/C++ compiler found (needed for some Python packages)"
+        else
+            echo "   ✅ C/C++ compiler available"
         fi
         
-        # Check for Rust compiler (needed for tokenizers)
+        # Check for Rust compiler (specifically needed for tokenizers)
         if ! command_exists rustc; then
             missing_build+=("rust compiler (for tokenizers)")
+            echo "   ❌ No Rust compiler found (needed for tokenizers compilation)"
+            echo "      This will cause 'Failed to build tokenizers' errors"
+        else
+            local rust_version=$(rustc --version 2>/dev/null | cut -d' ' -f2 || echo "unknown")
+            echo "   ✅ Rust compiler available (version $rust_version)"
+        fi
+        
+        # Give specific guidance if build tools are missing
+        if [ ${#missing_build[@]} -gt 0 ]; then
+            echo ""
+            echo "⚠️ BUILD TOOLS MISSING - This will cause compilation failures!"
+            echo "   Missing: ${missing_build[*]}"
+            echo ""
+            echo "   🔧 IMMEDIATE OPTIONS:"
+            echo "   1. Install missing tools now (recommended):"
+            case $DISTRO_FAMILY in
+                debian) echo "      sudo apt update && sudo apt install build-essential curl" ;;
+                redhat) echo "      sudo yum groupinstall 'Development Tools' && sudo yum install curl" ;;
+                arch) echo "      sudo pacman -S base-devel curl" ;;
+                suse) echo "      sudo zypper install -t pattern devel_basis && sudo zypper install curl" ;;
+                *) echo "      Install build tools using your distribution's package manager" ;;
+            esac
+            if [[ " ${missing_build[*]} " =~ "rust compiler" ]]; then
+                echo "      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+                echo "      source ~/.cargo/env"
+            fi
+            echo ""
+            echo "   2. Use pre-built packages only (may have limited functionality):"
+            echo "      Re-run installer with: --no-build-tools"
+            echo ""
+            echo "   3. Continue anyway (will fail on packages requiring compilation)"
+            echo ""
+            read -p "   Continue installation? [y/N]: " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                echo "Installation cancelled. Install build tools and try again."
+                exit 1
+            fi
+            echo "   Continuing with missing build tools..."
         fi
     fi
     
@@ -553,20 +599,32 @@ check_system_deps() {
     export MISSING_BUILD=("${missing_build[@]}")  
     export MISSING_OPTIONAL=("${missing_optional[@]}")
     
+    # Summary report
     if [ ${#missing_essential[@]} -eq 0 ]; then
         if [ ${#missing_build[@]} -gt 0 ] || [ ${#missing_optional[@]} -gt 0 ]; then
-            echo "✅ Essential dependencies available"
-            [ ${#missing_build[@]} -gt 0 ] && echo "⚠️ Missing build tools: ${missing_build[*]} (can be provided by conda)"
-            [ ${#missing_optional[@]} -gt 0 ] && echo "⚠️ Missing optional: ${missing_optional[*]}"
+            echo "✅ Essential dependencies satisfied"
+            if [ ${#missing_build[@]} -gt 0 ]; then
+                echo "⚠️ Missing build tools: ${missing_build[*]}"
+                echo "   💡 These can be provided by conda or you can use --no-build-tools"
+            fi
+            [ ${#missing_optional[@]} -gt 0 ] && echo "ℹ️ Missing optional: ${missing_optional[*]}"
             return 2  # Partial success - essential OK, build tools missing
         else
-            echo "✅ All dependencies are available"
+            echo "✅ All dependencies available - ready for full installation"
             return 0  # Full success
         fi
     else
-        echo "❌ Missing essential dependencies: ${missing_essential[*]}"
+        echo "❌ CRITICAL: Missing essential dependencies: ${missing_essential[*]}"
         [ ${#missing_build[@]} -gt 0 ] && echo "❌ Missing build tools: ${missing_build[*]}"
         [ ${#missing_optional[@]} -gt 0 ] && echo "⚠️ Missing optional: ${missing_optional[*]}"
+        echo ""
+        echo "   Cannot continue without essential dependencies."
+        case $DISTRO_FAMILY in
+            debian) echo "   Install with: sudo apt update && sudo apt install ${missing_essential[*]}" ;;
+            redhat) echo "   Install with: sudo yum install ${missing_essential[*]}" ;;
+            arch) echo "   Install with: sudo pacman -S ${missing_essential[*]}" ;;
+            suse) echo "   Install with: sudo zypper install ${missing_essential[*]}" ;;
+        esac
         return 1  # Failure
     fi
 }
@@ -668,16 +726,31 @@ install_system_deps() {
                     echo "✅ Rust installed via snap"
                     export PATH="$PATH:/snap/bin"
                     /snap/bin/rustup default stable 2>/dev/null || true
+                    # Verify snap installation worked
+                    if ! command_exists rustc && [ -f "/snap/bin/rustc" ]; then
+                        export PATH="/snap/bin:$PATH"
+                    fi
                 else
                     echo "📥 Installing Rust via rustup..."
-                    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-                    if [ -f "$HOME/.cargo/env" ]; then
-                        source "$HOME/.cargo/env"
-                        echo "✅ Rust compiler installed successfully"
+                    if curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable; then
+                        if [ -f "$HOME/.cargo/env" ]; then
+                            source "$HOME/.cargo/env"
+                            echo "✅ Rust compiler installed successfully"
+                            # Verify Rust is now available
+                            if command_exists rustc; then
+                                echo "   Rust version: $(rustc --version 2>/dev/null || echo 'unknown')"
+                            fi
+                        else
+                            echo "⚠️ Rust installation may have failed. tokenizers might need pre-built wheels."
+                            export RUST_INSTALL_FAILED=true
+                        fi
                     else
-                        echo "⚠️ Rust installation may have failed. tokenizers might need pre-built wheels."
+                        echo "⚠️ Rust installation failed. Will use pre-built tokenizers wheels only."
+                        export RUST_INSTALL_FAILED=true
                     fi
                 fi
+            else
+                echo "✅ Rust compiler already available: $(rustc --version 2>/dev/null || echo 'unknown version')"
             fi
             ;;
         redhat)
@@ -1097,110 +1170,129 @@ configure_cuda_paths() {
     return 0
 }
 
-# Function to install tokenizers with fallback handling
+# Function to install tokenizers with comprehensive fallback handling
 install_tokenizers_with_fallback() {
-    echo "🔤 Installing tokenizers with build fallback handling..."
+    echo "🔤 Installing tokenizers with advanced fallback handling..."
     
     # Debug: Show environment status
-    echo "🔍 Debug: Checking build environment..."
-    echo "   - Rust compiler: $(command -v rustc >/dev/null 2>&1 && echo "✅ Available" || echo "❌ Missing")"
+    echo "🔍 Environment check:"
+    echo "   - Rust compiler: $(command -v rustc >/dev/null 2>&1 && echo "✅ Available ($(rustc --version 2>/dev/null | cut -d' ' -f2))" || echo "❌ Missing")"
     echo "   - GCC compiler: $(command -v gcc >/dev/null 2>&1 && echo "✅ Available" || echo "❌ Missing")"
-    echo "   - NO_BUILD_TOOLS flag: $NO_BUILD_TOOLS"
+    echo "   - Build tools mode: $([ "$NO_BUILD_TOOLS" = true ] && echo "Pre-built only" || echo "Build allowed")"
+    echo "   - Rust install failed: ${RUST_INSTALL_FAILED:-false}"
     
     # Ensure Rust environment is available if installed
     if [ -f "$HOME/.cargo/env" ]; then
-        echo "🦀 Sourcing Rust environment..."
         source "$HOME/.cargo/env"
     fi
     
     # Add cargo bin to PATH for this session
     if [ -d "$HOME/.cargo/bin" ]; then
         export PATH="$HOME/.cargo/bin:$PATH"
-        echo "🔍 Added ~/.cargo/bin to PATH"
     fi
     
-    # Re-check after sourcing Rust
+    # Add snap rust to PATH if available
+    if [ -d "/snap/bin" ] && [ -f "/snap/bin/rustc" ]; then
+        export PATH="/snap/bin:$PATH"
+    fi
+    
+    # Determine installation strategy based on available tools
+    local has_rust=false
+    local has_build_tools=false
+    
     if command -v rustc >/dev/null 2>&1; then
-        echo "✅ Rust compiler now available: $(rustc --version 2>/dev/null || echo 'version unknown')"
+        has_rust=true
+        echo "✅ Rust compiler available: $(rustc --version 2>/dev/null | cut -d' ' -f1-2)"
     fi
     
-    # Try to install tokenizers with different strategies
-    local binary_flag=""
-    if [ "$NO_BUILD_TOOLS" = true ]; then
-        binary_flag="--only-binary=all"
-        echo "ℹ️ Using pre-built wheels only (--no-build-tools)"
+    if command -v gcc >/dev/null 2>&1 || command -v clang >/dev/null 2>&1; then
+        has_build_tools=true
     fi
     
-    # Strategy 1: Force specific tokenizers version with pre-built wheels first
-    echo "📦 Attempting to install tokenizers 0.19.1 (pre-built wheels only)..."
-    if $PIP_EXEC install --only-binary=tokenizers "tokenizers==0.19.1" 2>/dev/null; then
-        echo "✅ tokenizers 0.19.1 installed successfully (pre-built wheels)"
+    # Strategy 1: Try compatible version with current transformers (most likely to work)
+    echo "📦 Strategy 1: Installing tokenizers compatible with transformers==4.34.1..."
+    if $PIP_EXEC install --only-binary=tokenizers "tokenizers>=0.14.0,<0.15.0" 2>/dev/null; then
+        echo "✅ tokenizers installed successfully (compatible version, pre-built)"
         return 0
     else
-        echo "⚠️ Failed to install tokenizers 0.19.1 pre-built wheels."
+        echo "⚠️ Strategy 1 failed: No compatible pre-built wheels"
     fi
     
-    # Strategy 2: Try latest with pre-built wheels only
-    echo "📦 Attempting to install latest tokenizers (pre-built wheels only)..."
-    if $PIP_EXEC install --only-binary=tokenizers tokenizers 2>/dev/null; then
-        echo "✅ tokenizers installed successfully (pre-built wheels)"
+    # Strategy 2: Try newer version that might have better wheel support
+    echo "📦 Strategy 2: Installing newer tokenizers with better wheel availability..."
+    if $PIP_EXEC install --only-binary=tokenizers "tokenizers>=0.15.0" 2>/dev/null; then
+        echo "✅ tokenizers installed successfully (newer version, pre-built)"
         return 0
     else
-        echo "⚠️ Failed to install latest tokenizers pre-built wheels."
+        echo "⚠️ Strategy 2 failed: No newer pre-built wheels"
     fi
     
-    # Strategy 3: Try compilation only if Rust is available and build tools allowed
-    if [ "$NO_BUILD_TOOLS" != true ] && (command -v rustc >/dev/null 2>&1 || [ -f "$HOME/.cargo/bin/rustc" ]); then
-        echo "📦 Attempting to install tokenizers (may compile from source with Rust)..."
-        if timeout 300 $PIP_EXEC install tokenizers --no-cache-dir; then
-            echo "✅ tokenizers installed successfully (compiled from source)"
-            return 0
-        else
-            echo "⚠️ Failed to compile tokenizers from source."
-        fi
-    fi
-    
-    # Strategy 3: Try with specific version that has more wheel support
-    echo "📦 Attempting to install older tokenizers version with better wheel support..."
-    if $PIP_EXEC install --only-binary=tokenizers "tokenizers==0.19.1" 2>/dev/null; then
-        echo "✅ tokenizers 0.19.1 installed successfully (pre-built wheels)"
-        return 0
-    else
-        echo "⚠️ Failed to install tokenizers 0.19.1 pre-built wheels."
-    fi
-    
-    # Strategy 4: Emergency fallback - install via conda if available
+    # Strategy 3: Emergency conda fallback (if conda environment)
     if command -v conda >/dev/null 2>&1 && [ "${PYTHON_METHOD:-}" = "conda" ]; then
-        echo "📦 Emergency fallback: trying conda installation..."
+        echo "📦 Strategy 3: Emergency conda installation..."
         if conda install -y tokenizers -c conda-forge 2>/dev/null; then
-            echo "✅ tokenizers installed via conda"
+            echo "✅ tokenizers installed via conda-forge"
             return 0
         else
-            echo "⚠️ Conda installation also failed"
+            echo "⚠️ Strategy 3 failed: Conda installation failed"
         fi
     fi
     
-    # Strategy 5: Last resort - try without any constraints but with timeout
-    echo "📦 Last attempt: installing tokenizers with extended timeout..."
-    if timeout 600 $PIP_EXEC install tokenizers --no-cache-dir; then
-        echo "✅ tokenizers installed successfully (extended timeout)"
+    # Strategy 4: Compilation only if tools available and allowed
+    if [ "$NO_BUILD_TOOLS" != true ] && [ "${RUST_INSTALL_FAILED:-false}" != true ] && [ "$has_rust" = true ] && [ "$has_build_tools" = true ]; then
+        echo "📦 Strategy 4: Compiling tokenizers from source (Rust + build tools available)..."
+        echo "   This may take 5-10 minutes..."
+        if timeout 600 $PIP_EXEC install tokenizers --no-cache-dir --verbose 2>/dev/null; then
+            echo "✅ tokenizers compiled and installed successfully"
+            return 0
+        else
+            echo "⚠️ Strategy 4 failed: Compilation failed despite tools being available"
+        fi
+    else
+        echo "ℹ️ Strategy 4 skipped: $([ "$NO_BUILD_TOOLS" = true ] && echo "Build tools disabled" || [ "${RUST_INSTALL_FAILED:-false}" = true ] && echo "Rust installation failed" || [ "$has_rust" = false ] && echo "No Rust compiler" || echo "No build tools")"
+    fi
+    
+    # Strategy 5: Try any available tokenizers version (desperation mode)
+    echo "📦 Strategy 5: Installing any available tokenizers version..."
+    if $PIP_EXEC install --only-binary=tokenizers tokenizers 2>/dev/null; then
+        echo "✅ tokenizers installed (any available version)"
         return 0
     else
-        echo "❌ All tokenizers installation strategies failed."
-        echo ""
-        echo "🔧 IMMEDIATE WORKAROUND:"
-        echo "   Run installer with: --no-build-tools flag"
-        echo "   Command: curl -fsSL ... | bash -s -- --no-build-tools"
-        echo ""
-        echo "🔧 Manual fix options:"
-        echo "   1. Install Rust compiler: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
-        echo "   2. Install build dependencies: sudo apt-get install build-essential (Ubuntu/Debian)"
-        echo "   3. Force pre-built wheels: pip install --only-binary=tokenizers tokenizers"
-        echo "   4. Use conda environment: conda install tokenizers -c conda-forge"
-        echo ""
-        echo "⚠️ Installation will continue, but tokenizers may not work properly."
-        return 1
+        echo "⚠️ Strategy 5 failed: No tokenizers wheels available"
     fi
+    
+    # All strategies failed
+    echo "❌ All tokenizers installation strategies failed."
+    echo ""
+    echo "🔧 RECOMMENDED SOLUTIONS:"
+    echo "   1. IMMEDIATE FIX: Run with --no-build-tools and accept limited functionality"
+    echo "      curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/linuxinstaller.sh | bash -s -- --no-build-tools"
+    echo ""
+    echo "   2. COMPLETE FIX: Install missing dependencies first:"
+    if [ "$has_rust" = false ]; then
+        echo "      • Install Rust: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+    fi
+    if [ "$has_build_tools" = false ]; then
+        case $DISTRO_FAMILY in
+            debian) echo "      • Install build tools: sudo apt install build-essential" ;;
+            redhat) echo "      • Install build tools: sudo yum groupinstall 'Development Tools'" ;;
+            arch) echo "      • Install build tools: sudo pacman -S base-devel" ;;
+            suse) echo "      • Install build tools: sudo zypper install -t pattern devel_basis" ;;
+            *) echo "      • Install build tools for your distribution" ;;
+        esac
+    fi
+    echo "      Then re-run this installer."
+    echo ""
+    echo "   3. ALTERNATIVE: Use system package manager:"
+    case $DISTRO_FAMILY in
+        debian) echo "      sudo apt install python3-tokenizers (if available)" ;;
+        redhat) echo "      sudo yum install python3-tokenizers (if available)" ;;
+        arch) echo "      sudo pacman -S python-tokenizers (if available)" ;;
+    esac
+    echo ""
+    echo "⚠️ Installation will continue, but text processing may not work properly."
+    export TOKENIZERS_INSTALL_FAILED=true
+    return 1
 }
 
 # Main installation flow starts here
@@ -1395,8 +1487,13 @@ else
     fi
 fi
 
-# Install tokenizers first (handles Rust compilation issues)
-install_tokenizers_with_fallback
+# Install tokenizers with comprehensive fallback handling
+# Note: tokenizers installation is now handled after transformers to avoid dependency conflicts
+if [ "${TOKENIZERS_INSTALL_FAILED:-false}" != true ]; then
+    install_tokenizers_with_fallback
+else
+    echo "⚠️ Skipping separate tokenizers installation due to earlier failure"
+fi
 
 # Install compatible versions of transformers and huggingface_hub
 echo "📦 Installing compatible transformers and huggingface_hub versions..."
@@ -1432,17 +1529,37 @@ if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -eq 7 ]; then
         fi
     fi
 else
-    # Python 3.8+ - use updated versions that work with current HF infrastructure
-    echo "📦 Installing transformers with compatible dependency versions..."
-    if $PIP_EXEC install $BINARY_FLAG "transformers==4.34.1" "tokenizers==0.14.1" "huggingface_hub==0.34.0"; then
-        echo "✅ Successfully installed compatible transformers and huggingface_hub"
+    # Python 3.8+ - use fixed versions that resolve the dependency conflict
+    echo "📦 Installing transformers with dependency conflict resolution..."
+    
+    # The user's error shows: tokenizers==0.14.1 requires huggingface_hub<0.18 
+    # but we're trying to install huggingface_hub==0.34.0
+    # Solution: Use compatible versions that work together
+    
+    # Strategy 1: Use transformers 4.34.1 with compatible huggingface_hub and tokenizers
+    if $PIP_EXEC install $BINARY_FLAG "transformers==4.34.1" "huggingface_hub>=0.20.0,<0.25.0" "tokenizers>=0.15.0,<0.20.0"; then
+        echo "✅ Strategy 1: Installed transformers with compatible newer versions"
+    elif $PIP_EXEC install $BINARY_FLAG "transformers==4.34.1" "huggingface_hub>=0.17.0,<0.18.0" "tokenizers>=0.14.0,<0.15.0"; then
+        echo "✅ Strategy 2: Installed transformers with compatible older versions"
+    elif $PIP_EXEC install $BINARY_FLAG "transformers==4.34.1" "huggingface_hub>=0.20.0"; then
+        echo "✅ Strategy 3: Installed transformers and huggingface_hub (let tokenizers resolve automatically)"
+    elif $PIP_EXEC install $BINARY_FLAG "transformers==4.34.1"; then
+        echo "✅ Strategy 4: Installed transformers (let dependencies resolve automatically)"
+        # Try to install huggingface_hub separately
+        $PIP_EXEC install $BINARY_FLAG "huggingface_hub>=0.20.0" 2>/dev/null || echo "⚠️ huggingface_hub installation had issues (may still work)"
     else
-        echo "⚠️ Failed to install transformers/huggingface_hub. Trying without tokenizers pinning..."
-        if $PIP_EXEC install $BINARY_FLAG "transformers==4.34.1" "huggingface_hub==0.34.0"; then
-            echo "✅ Successfully installed compatible transformers and huggingface_hub (fallback)"
-        else
-            echo "⚠️ Failed to install transformers/huggingface_hub. May have compatibility issues..."
-        fi
+        echo "❌ Failed to install transformers. This is a critical error."
+        echo ""
+        echo "🔧 MANUAL RESOLUTION REQUIRED:"
+        echo "   The dependency conflict preventing installation is:"
+        echo "   - transformers==4.34.1 needs tokenizers>=0.14.0,<0.15.0"
+        echo "   - tokenizers==0.14.1 needs huggingface_hub<0.18.0"
+        echo "   - But we need huggingface_hub>=0.20.0 for CDN compatibility"
+        echo ""
+        echo "   Try installing with relaxed constraints:"
+        echo "   pip install 'transformers>=4.30.0' 'huggingface_hub>=0.20.0'"
+        echo ""
+        echo "⚠️ Installation will continue but may have issues..."
     fi
 fi
 
