@@ -53,12 +53,12 @@
 ### 🚀 **Daemon Mode Complete**
 - ✅ **Stable daemon operation** with PID tracking and process supervision
 - ✅ **Full daemon management**: `start`, `stop`, `restart`, `status`, `logs` commands
-- ✅ **Cross-platform compatibility** (macOS, Linux, Windows)
+- ✅ **Cross-platform compatibility** (macOS, Linux)
 - ✅ **Network connectivity fixes** with working KwaaiNet bootstrap peers
 - ✅ **Beautiful CLI interface** with enhanced visual design and Unicode borders
 
 ### 🛠️ **Installer Improvements**  
-- ✅ **Windows installer** with comprehensive error handling and GPU detection
+- ⚠️ **Windows installer** temporarily unavailable (being rewritten)
 - ✅ **Linux installer** with enhanced dependency management and error recovery
 - ✅ **macOS installer** with development mode installation to prevent version conflicts
 - ✅ **Version conflict fixes** across all platforms using development mode installation
@@ -72,7 +72,7 @@
 
 ### 📊 **Current Status**
 All core features are **complete and stable**:
-- **Cross-platform installers** working on Windows, Linux, macOS
+- **Cross-platform installers** working on Linux, macOS (Windows under development)
 - **Daemon mode** with full management capabilities
 - **Network connectivity** to KwaaiNet distributed inference network
 - **Beautiful CLI interface** with professional visual design
@@ -81,7 +81,7 @@ All core features are **complete and stable**:
 - **🔌 OpenAI API Compatibility**: Drop-in replacement supporting standard endpoints
 - **🌐 Petals Integration**: Leverages distributed inference for efficient model serving  
 - **🛠️ Advanced Tool Calling**: Function calling with model-specific formatting (Hermes, Llama 3, Mistral, etc.)
-- **💻 Cross-Platform**: Windows, Linux and macOS support with automatic GPU detection (NVIDIA, AMD, Intel, Apple Silicon)
+- **💻 Cross-Platform**: Linux and macOS support with automatic GPU detection (NVIDIA, AMD, Intel, Apple Silicon). Windows support under development.
 - **⚡ High Performance**: FastAPI backend with streaming support and smart token processing
 - **📦 Easy Setup**: One-step installers handle all dependencies automatically with development mode installation
 - **🤖 Stable Daemon Mode**: Background operation with PID tracking, process supervision, and automatic restart
@@ -125,30 +125,22 @@ Choose the installation method that best fits your environment:
 For a complete one-step installation that handles Python, dependencies, and environment setup:
 
 #### Windows
-```powershell
-# Download and run the installer
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windows/windowsinstaller.ps1" -OutFile "windowsinstaller.ps1"; powershell.exe -ExecutionPolicy Bypass -File "windowsinstaller.ps1"
+
+⚠️ **Windows installer temporarily unavailable due to critical issues.**
+
+**Alternative options:**
+
+1. **Use WSL2 with Linux installer (Recommended):**
+```bash
+# Install WSL2 Ubuntu first, then:
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/linuxinstaller.sh | bash
 ```
 
-Or use the batch file launcher:
+2. **Manual installation for advanced users:**
 ```cmd
-# Download both files to the same directory and run
-curl -L -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/install.bat
-curl -L -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windows/windowsinstaller.ps1
-install.bat
-```
-
-The Windows installer supports additional options:
-```powershell
-# Force specific Python environment
-.\windowsinstaller.ps1 -UseConda
-.\windowsinstaller.ps1 -UseSystemPython
-
-# Skip system package installation (if you already have dependencies)
-.\windowsinstaller.ps1 -SkipSystemPackages
-
-# Show help
-.\windowsinstaller.ps1 -Help
+git clone https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git
+cd OpenAI-Petal\Installer\windows
+pip install -e .
 ```
 
 #### Linux
@@ -258,8 +250,13 @@ The test script automatically:
 If you prefer to handle the environment yourself, you can install directly:
 
 #### Windows
-```powershell
-pip install -e ./Installer/windows/
+
+⚠️ **Manual installation only (installer temporarily unavailable):**
+
+```cmd
+git clone https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git
+cd OpenAI-Petal\Installer\windows
+pip install -e .
 ```
 
 #### Linux
@@ -346,9 +343,15 @@ curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/dock
 To completely remove KwaaiNet and its environment:
 
 #### Windows
-```powershell
-# Download and run the uninstaller
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/windows/windowsuninstaller.ps1" -OutFile "windowsuninstaller.ps1"; powershell.exe -ExecutionPolicy Bypass -File "windowsuninstaller.ps1"
+
+**Manual uninstallation (uninstaller temporarily unavailable):**
+
+```cmd
+# Remove KwaaiNet package
+pip uninstall kwaainet
+
+# Remove installation directory
+rmdir /s "%USERPROFILE%\.kwaainet"
 ```
 
 #### Linux
@@ -522,10 +525,10 @@ KwaaiNet respects the following environment variables:
 ### Windows Systems
 
 #### NVIDIA GPUs
-Windows systems with NVIDIA GPUs will automatically use CUDA acceleration when available. The installer detects NVIDIA GPUs using nvidia-smi and WMI queries.
+Windows systems with NVIDIA GPUs will use CUDA acceleration when properly configured. Manual setup required until Windows installer is restored.
 
 #### AMD GPUs
-AMD GPU detection is supported through WMI queries. ROCm support may be limited on Windows compared to Linux.
+AMD GPU support on Windows requires manual configuration. ROCm support is limited compared to Linux.
 
 #### Intel GPUs
 Intel integrated and discrete GPUs are detected and supported through Intel Extension for PyTorch when available.
@@ -561,9 +564,11 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 
 #### Windows-specific Issues
 
-**PowerShell execution policy errors:**
-- The installer will attempt to set the execution policy automatically
-- If it fails, run: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
+⚠️ **Windows installer temporarily unavailable due to critical issues.**
+
+For Windows users:
+- Use WSL2 with Linux installer (recommended)
+- Manual installation requires advanced PowerShell/Python knowledge
 
 **GPU not detected:**
 - Ensure proper GPU drivers are installed (NVIDIA GeForce Experience, AMD Adrenalin, Intel Arc Control)
@@ -577,12 +582,12 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 
 **Python version issues:**
 - The installer supports Python 3.8+ and will set up Miniconda if system Python is incompatible
-- Windows Store Python installations may cause issues - prefer python.org or Miniconda installations
+- Windows Store Python installations may cause issues - prefer python.org or Miniconda installations (applies to manual installation)
 
 **ModuleNotFoundError: No module named 'kwaainet':**
 - This was a known issue that has been fixed in recent installer updates
 - For existing installations, activate your environment and run: `pip install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/windows"`
-- Or reinstall using the latest installer
+- Or use WSL2 with Linux installer
 
 **antivirus software interfering:**
 - Some antivirus software may block the installer or conda operations
@@ -690,7 +695,7 @@ Intel Macs will primarily use CPU for computation as Metal support for PyTorch o
 
 ### Installer Improvements (December 2024)
 - ✅ Fixed critical Linux installer bug causing "No module named 'kwaainet'" error
-- ✅ Fixed Windows installer missing package installation
+- ⚠️ Windows installer temporarily removed due to critical syntax errors
 - ✅ Added intelligent sudo handling - only uses sudo when necessary
 - ✅ Fixed transformers dependency conflicts (pinned to exact version 4.43.1)
 - ✅ Added Linux installer options: `--no-system-packages`, `--force-venv`, `--force-conda`
