@@ -1181,9 +1181,16 @@ configure_cuda_paths() {
     return 0
 }
 
-# Function to install tokenizers with comprehensive fallback handling
+# Function to install tokenizers with hybrid wheel-first strategy
+# This function implements a 6-stage hybrid approach:
+# 1. Safe wheel versions (>=0.15.1) - guaranteed to have pre-built wheels
+# 2. Specific known versions - confirmed wheel availability
+# 3. Dynamic platform detection - check what wheels exist for this platform
+# 4. Conda fallback - alternative package source
+# 5. Any wheel version - final attempt at any available wheel
+# 6. Source build - absolute last resort only
 install_tokenizers_with_fallback() {
-    echo "🔤 Installing tokenizers with advanced fallback handling..."
+    echo "🔤 Installing tokenizers with hybrid wheel-first strategy..."
     
     # Debug: Show environment status
     echo "🔍 Environment check:"
@@ -1220,64 +1227,110 @@ install_tokenizers_with_fallback() {
         has_build_tools=true
     fi
     
-    # Strategy 1: Try compatible version with current transformers (most likely to work)
-    echo "📦 Strategy 1: Installing tokenizers compatible with transformers==4.34.1..."
-    if $PIP_EXEC install --only-binary=tokenizers "tokenizers>=0.14.0,<0.15.0" 2>/dev/null; then
-        echo "✅ tokenizers installed successfully (compatible version, pre-built)"
+    # Strategy 1: Safe wheel-only versions first (prioritize reliability)
+    echo "📦 Strategy 1: Installing tokenizers with guaranteed pre-built wheels..."
+    if $PIP_EXEC install --only-binary=tokenizers "tokenizers>=0.15.1" 2>/dev/null; then
+        echo "✅ tokenizers installed successfully (safe wheel version >=0.15.1)"
         return 0
     else
-        echo "⚠️ Strategy 1 failed: No compatible pre-built wheels"
+        echo "⚠️ Strategy 1 failed: No wheels available for >=0.15.1"
     fi
-    
-    # Strategy 2: Try newer version that might have better wheel support
-    echo "📦 Strategy 2: Installing newer tokenizers with better wheel availability..."
-    if $PIP_EXEC install --only-binary=tokenizers "tokenizers>=0.15.0" 2>/dev/null; then
-        echo "✅ tokenizers installed successfully (newer version, pre-built)"
-        return 0
-    else
-        echo "⚠️ Strategy 2 failed: No newer pre-built wheels"
+
+    # Strategy 2: Try specific known working versions with wheels
+    echo "📦 Strategy 2: Trying specific versions with confirmed wheel availability..."
+    for version in "0.22.0" "0.21.4" "0.21.2" "0.20.3" "0.19.1" "0.15.2" "0.15.1"; do
+        echo "   Trying tokenizers==$version..."
+        if $PIP_EXEC install --only-binary=tokenizers "tokenizers==$version" 2>/dev/null; then
+            echo "✅ tokenizers $version installed successfully (confirmed wheel)"
+            return 0
+        fi
+    done
+    echo "⚠️ Strategy 2 failed: No specific wheel versions worked"
+
+    # Strategy 3: Dynamic platform-specific wheel detection
+    echo "📦 Strategy 3: Checking platform-specific wheel availability..."
+    # Get available versions and try most recent that work
+    if command -v python3 >/dev/null 2>&1; then
+        # Try to get available wheel versions for this platform
+        available_versions=$(python3 -c "
+import subprocess
+import sys
+try:
+    result = subprocess.run([sys.executable, '-m', 'pip', 'index', 'versions', 'tokenizers'],
+                          capture_output=True, text=True, timeout=10)
+    if result.returncode == 0:
+        lines = result.stdout.split('\n')
+        for line in lines:
+            if 'Available versions:' in line:
+                versions = line.split('Available versions:')[1].strip()
+                # Split and take first 8 versions
+                version_list = [v.strip() for v in versions.split(',')][:8]
+                print(' '.join(version_list))
+                break
+except:
+    pass
+" 2>/dev/null)
+
+        if [ -n "$available_versions" ]; then
+            echo "   Found available versions: $available_versions"
+            for version in $available_versions; do
+                version=$(echo "$version" | tr -d ' ')
+                echo "   Trying platform wheel for tokenizers==$version..."
+                if $PIP_EXEC install --only-binary=tokenizers "tokenizers==$version" 2>/dev/null; then
+                    echo "✅ tokenizers $version installed (platform-specific wheel)"
+                    return 0
+                fi
+            done
+        fi
     fi
-    
-    # Strategy 3: Emergency conda fallback (if conda environment)
+    echo "⚠️ Strategy 3 failed: No platform-specific wheels worked"
+
+    # Strategy 4: Emergency conda fallback (if conda environment)
     if command -v conda >/dev/null 2>&1 && [ "${PYTHON_METHOD:-}" = "conda" ]; then
-        echo "📦 Strategy 3: Emergency conda installation..."
+        echo "📦 Strategy 4: Emergency conda installation..."
         if conda install -y tokenizers -c conda-forge 2>/dev/null; then
             echo "✅ tokenizers installed via conda-forge"
             return 0
         else
-            echo "⚠️ Strategy 3 failed: Conda installation failed"
+            echo "⚠️ Strategy 4 failed: Conda installation failed"
         fi
     fi
-    
-    # Strategy 4: Compilation only if tools available and allowed
-    if [ "$NO_BUILD_TOOLS" != true ] && [ "${RUST_INSTALL_FAILED:-false}" != true ] && [ "$has_rust" = true ] && [ "$has_build_tools" = true ]; then
-        echo "📦 Strategy 4: Compiling tokenizers from source (Rust + build tools available)..."
-        echo "   This may take 5-10 minutes..."
-        if timeout 600 $PIP_EXEC install tokenizers --no-cache-dir --verbose 2>/dev/null; then
-            echo "✅ tokenizers compiled and installed successfully"
-            return 0
-        else
-            echo "⚠️ Strategy 4 failed: Compilation failed despite tools being available"
-        fi
-    else
-        echo "ℹ️ Strategy 4 skipped: $([ "$NO_BUILD_TOOLS" = true ] && echo "Build tools disabled" || [ "${RUST_INSTALL_FAILED:-false}" = true ] && echo "Rust installation failed" || [ "$has_rust" = false ] && echo "No Rust compiler" || echo "No build tools")"
-    fi
-    
-    # Strategy 5: Try any available tokenizers version (desperation mode)
-    echo "📦 Strategy 5: Installing any available tokenizers version..."
+
+    # Strategy 5: Try any available tokenizers version (final wheel attempt)
+    echo "📦 Strategy 5: Installing any available tokenizers version (final wheel attempt)..."
     if $PIP_EXEC install --only-binary=tokenizers tokenizers 2>/dev/null; then
         echo "✅ tokenizers installed (any available version)"
         return 0
     else
-        echo "⚠️ Strategy 5 failed: No tokenizers wheels available"
+        echo "⚠️ Strategy 5 failed: No tokenizers wheels available for this platform"
+    fi
+
+    # Strategy 6: Source compilation ONLY as absolute last resort
+    if [ "$NO_BUILD_TOOLS" != true ] && [ "${RUST_INSTALL_FAILED:-false}" != true ] && [ "$has_rust" = true ] && [ "$has_build_tools" = true ]; then
+        echo "📦 Strategy 6: Last resort - compiling tokenizers from source..."
+        echo "   ⚠️ This is a last resort and may take 5-10 minutes..."
+        echo "   💡 Consider using --no-build-tools flag to skip source builds in future"
+        if timeout 600 $PIP_EXEC install tokenizers --no-cache-dir --verbose 2>/dev/null; then
+            echo "✅ tokenizers compiled and installed successfully from source"
+            return 0
+        else
+            echo "⚠️ Strategy 6 failed: Source compilation failed"
+        fi
+    else
+        echo "ℹ️ Strategy 6 skipped: $([ "$NO_BUILD_TOOLS" = true ] && echo "Build tools disabled by user" || [ "${RUST_INSTALL_FAILED:-false}" = true ] && echo "Rust installation failed" || [ "$has_rust" = false ] && echo "No Rust compiler" || echo "No build tools")"
     fi
     
     # All strategies failed
-    echo "❌ All tokenizers installation strategies failed."
+    echo "❌ All 6 tokenizers installation strategies failed."
     echo ""
-    echo "🔧 RECOMMENDED SOLUTIONS:"
-    echo "   1. IMMEDIATE FIX: Run with --no-build-tools and accept limited functionality"
-    echo "      curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/linuxinstaller.sh | bash -s -- --no-build-tools"
+    echo "🔧 RECOMMENDED SOLUTIONS (in order of preference):"
+    echo ""
+    echo "   1. PLATFORM ISSUE: Your platform may not have pre-built tokenizers wheels"
+    echo "      • Check https://pypi.org/project/tokenizers/#files for wheel availability"
+    echo "      • Try a different Python version (3.9, 3.10, 3.11 have better wheel support)"
+    echo ""
+    echo "   2. QUICK RETRY: Run with updated pip (may have better wheel resolution)"
+    echo "      pip install --upgrade pip && curl -fsSL \\${INSTALLER_URL} | bash"
     echo ""
     echo "   2. COMPLETE FIX: Install missing dependencies first:"
     if [ "$has_rust" = false ]; then
