@@ -63,14 +63,53 @@ class DaemonProcess:
             logger.error(f"Failed to write PID file: {e}")
     
     def _cleanup_pid_file(self):
-        """Remove PID file"""
+        """Remove PID file and kill any remaining related processes"""
         try:
             if os.path.exists(self.pid_file):
                 os.remove(self.pid_file)
             if os.path.exists(self.status_file):
                 os.remove(self.status_file)
+
+            # Additional cleanup: look for any remaining petals/kwaainet processes
+            self._cleanup_related_processes()
         except OSError as e:
             logger.warning(f"Failed to cleanup PID files: {e}")
+
+    def _cleanup_related_processes(self):
+        """Clean up any remaining related processes"""
+        try:
+            import psutil
+            killed_pids = []
+
+            for proc in psutil.process_iter(['pid', 'cmdline', 'name']):
+                try:
+                    cmdline = ' '.join(proc.info['cmdline'] or [])
+                    name = proc.info['name'] or ''
+
+                    # Look for petals or kwaainet processes
+                    if any(keyword in cmdline.lower() or keyword in name.lower()
+                           for keyword in ['petals.cli.run_server', 'kwaainet', 'petals-server']):
+                        proc.terminate()
+                        killed_pids.append(proc.info['pid'])
+                        logger.debug(f"Terminated related process {proc.info['pid']}: {name}")
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    pass
+
+            if killed_pids:
+                # Wait a moment for graceful termination
+                time.sleep(2)
+
+                # Force kill any that didn't terminate
+                for pid in killed_pids:
+                    try:
+                        if psutil.pid_exists(pid):
+                            os.kill(pid, signal.SIGKILL)
+                            logger.debug(f"Force killed remaining process {pid}")
+                    except (OSError, psutil.NoSuchProcess):
+                        pass
+
+        except Exception as e:
+            logger.warning(f"Error during process cleanup: {e}")
     
     def write_status(self, status: Dict[str, Any]):
         """Write daemon status to file"""
@@ -277,13 +316,27 @@ class DaemonProcess:
         if not pid:
             logger.info("No daemon process running")
             return True
-        
+
         try:
             logger.info(f"Stopping daemon process {pid}")
-            
-            # Send SIGTERM for graceful shutdown
-            os.kill(pid, signal.SIGTERM)
-            
+
+            # Get process group ID - the main process should be the group leader
+            try:
+                pgid = os.getpgid(pid)
+                logger.debug(f"Process group ID: {pgid}")
+            except OSError:
+                # Fallback to just the main PID if we can't get process group
+                pgid = pid
+
+            # Send SIGTERM to entire process group for graceful shutdown
+            try:
+                os.killpg(pgid, signal.SIGTERM)
+                logger.debug(f"Sent SIGTERM to process group {pgid}")
+            except OSError:
+                # Fallback to just main process if process group kill fails
+                os.kill(pid, signal.SIGTERM)
+                logger.debug(f"Sent SIGTERM to main process {pid}")
+
             # Wait for process to terminate
             start_time = time.time()
             while time.time() - start_time < timeout:
@@ -292,12 +345,19 @@ class DaemonProcess:
                     self._cleanup_pid_file()
                     return True
                 time.sleep(1)
-            
-            # If still running, force kill
+
+            # If still running, force kill the entire process group
             logger.warning("Daemon did not stop gracefully, forcing termination")
-            os.kill(pid, signal.SIGKILL)
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+                logger.debug(f"Sent SIGKILL to process group {pgid}")
+            except OSError:
+                # Fallback to just main process
+                os.kill(pid, signal.SIGKILL)
+                logger.debug(f"Sent SIGKILL to main process {pid}")
+
             time.sleep(2)
-            
+
             if not psutil.pid_exists(pid):
                 logger.info("Daemon force-stopped")
                 self._cleanup_pid_file()
@@ -305,7 +365,7 @@ class DaemonProcess:
             else:
                 logger.error("Failed to stop daemon")
                 return False
-                
+
         except OSError as e:
             logger.error(f"Error stopping daemon: {e}")
             return False
