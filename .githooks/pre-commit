@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Pre-commit hook to check version consistency
+# To install: cp .githooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+
+echo "🔍 Running pre-commit version consistency check..."
+
+# Run the version consistency checker
+if ! ./scripts/check_version_consistency.sh; then
+    echo ""
+    echo "💡 To fix version inconsistencies:"
+    echo "   1. Run: ./scripts/update_version.sh <new_version>"
+    echo "   2. Or manually update all version references"
+    echo "   3. git add . && git commit"
+    exit 1
+fi
+
+echo "✅ Pre-commit checks passed!"
