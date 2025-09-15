@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.13"
+INSTALLER_VERSION="0.2.14"
 
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
@@ -306,7 +306,7 @@ verify_package_versions() {
         "torch:2.3.1"
         "hivemind:1.1.10.post2"  
         "petals:2.2.0.post1"
-        "transformers:4.34.1"
+        "transformers:4.43.1"
     )
     
     local all_good=true
@@ -1532,32 +1532,29 @@ else
     # Python 3.8+ - use fixed versions that resolve the dependency conflict
     echo "📦 Installing transformers with dependency conflict resolution..."
     
-    # The user's error shows: tokenizers==0.14.1 requires huggingface_hub<0.18 
-    # but we're trying to install huggingface_hub==0.34.0
-    # Solution: Use compatible versions that work together
-    
-    # Strategy 1: Use transformers 4.34.1 with compatible huggingface_hub and tokenizers
-    if $PIP_EXEC install $BINARY_FLAG "transformers==4.34.1" "huggingface_hub>=0.20.0,<0.25.0" "tokenizers>=0.15.0,<0.20.0"; then
-        echo "✅ Strategy 1: Installed transformers with compatible newer versions"
-    elif $PIP_EXEC install $BINARY_FLAG "transformers==4.34.1" "huggingface_hub>=0.17.0,<0.18.0" "tokenizers>=0.14.0,<0.15.0"; then
-        echo "✅ Strategy 2: Installed transformers with compatible older versions"
-    elif $PIP_EXEC install $BINARY_FLAG "transformers==4.34.1" "huggingface_hub>=0.20.0"; then
-        echo "✅ Strategy 3: Installed transformers and huggingface_hub (let tokenizers resolve automatically)"
-    elif $PIP_EXEC install $BINARY_FLAG "transformers==4.34.1"; then
-        echo "✅ Strategy 4: Installed transformers (let dependencies resolve automatically)"
-        # Try to install huggingface_hub separately
-        $PIP_EXEC install $BINARY_FLAG "huggingface_hub>=0.20.0" 2>/dev/null || echo "⚠️ huggingface_hub installation had issues (may still work)"
+    # Use transformers 4.43.1 (Petals requirement) with compatible versions
+    # This combination was tested and works (from Sept 10th CDN fix)
+
+    # Strategy 1: Install all compatible versions together
+    if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "huggingface_hub>=0.34.0" "tokenizers>=0.15.0"; then
+        echo "✅ Strategy 1: Installed transformers 4.43.1 with compatible versions"
+    elif $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "huggingface_hub>=0.34.0"; then
+        echo "✅ Strategy 2: Installed transformers 4.43.1 and huggingface_hub (tokenizers auto-resolve)"
+    elif $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1"; then
+        echo "✅ Strategy 3: Installed transformers 4.43.1 (dependencies auto-resolve)"
+        # Try to install compatible versions separately
+        $PIP_EXEC install $BINARY_FLAG "huggingface_hub>=0.34.0" "tokenizers>=0.15.0" 2>/dev/null || echo "⚠️ Some dependencies may need manual resolution"
     else
         echo "❌ Failed to install transformers. This is a critical error."
         echo ""
         echo "🔧 MANUAL RESOLUTION REQUIRED:"
         echo "   The dependency conflict preventing installation is:"
-        echo "   - transformers==4.34.1 needs tokenizers>=0.14.0,<0.15.0"
-        echo "   - tokenizers==0.14.1 needs huggingface_hub<0.18.0"
-        echo "   - But we need huggingface_hub>=0.20.0 for CDN compatibility"
+        echo "   - Petals requires transformers==4.43.1"
+        echo "   - transformers==4.43.1 is compatible with tokenizers>=0.15.0"
+        echo "   - We need huggingface_hub>=0.34.0 for CDN compatibility"
         echo ""
-        echo "   Try installing with relaxed constraints:"
-        echo "   pip install 'transformers>=4.30.0' 'huggingface_hub>=0.20.0'"
+        echo "   Try installing the correct versions manually:"
+        echo "   pip install 'transformers==4.43.1' 'huggingface_hub>=0.34.0' 'tokenizers>=0.15.0'"
         echo ""
         echo "⚠️ Installation will continue but may have issues..."
     fi
