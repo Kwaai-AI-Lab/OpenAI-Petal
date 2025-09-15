@@ -8,6 +8,17 @@ set -e  # Exit on error
 # Installer version
 INSTALLER_VERSION="0.2.14"
 
+# Set up logging
+LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
+exec > >(tee -a "$LOG_FILE")
+exec 2> >(tee -a "$LOG_FILE" >&2)
+
+echo "=== KwaaiNet Linux Installer v$INSTALLER_VERSION ==="
+echo "Installation started at: $(date)"
+echo "Log file: $LOG_FILE"
+echo "System: $(uname -a)"
+echo ""
+
 # Parse command line arguments
 SKIP_SYSTEM_PACKAGES=false
 FORCE_CONDA=false
@@ -2040,4 +2051,9 @@ fi
 echo ""
 echo "📚 Documentation: https://github.com/Kwaai-AI-Lab/OpenAI-Petal"
 echo "🌐 Network map:   https://map.kwaai.ai"
+echo ""
+echo "📝 Installation log saved to: $LOG_FILE"
+echo "   (Include this file when reporting issues)"
+echo ""
+echo "Installation completed at: $(date)"
 echo "=========================================================="
