@@ -739,6 +739,24 @@ kwaainet status           # Show status with metrics
 - **Auto-Recovery**: Process monitoring with restart capability
 - **Status Reporting**: JSON status output with system metrics
 
+## 🔄 Reliability and Management Features (In Development)
+
+KwaaiNet is being enhanced with additional reliability features for production deployments:
+
+### Planned Improvements
+- **🔧 Process Cleanup**: `kwaainet start` will automatically stop any existing processes to prevent conflicts
+- **📦 Auto-Update**: Automatic detection and installation when new versions are available
+- **⏰ Scheduled Restarts**: Daily restart capability (configurable time, default midnight) for maintenance
+- **🌐 Connection Monitoring**: Automatic restart when node is dropped from the network map due to connectivity issues
+
+### Why These Features Matter
+- **Process Cleanup**: Prevents port conflicts and resource contention from orphaned processes
+- **Auto-Update**: Ensures nodes stay current with security fixes and performance improvements
+- **Scheduled Restarts**: Maintains long-term stability and applies configuration changes
+- **Connection Monitoring**: Ensures continuous participation in the distributed network
+
+These features will enhance KwaaiNet's suitability for production environments and long-running deployments.
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
