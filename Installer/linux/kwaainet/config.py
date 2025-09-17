@@ -2,8 +2,31 @@ import os
 import yaml
 from pathlib import Path
 import logging
+import subprocess
 
 logger = logging.getLogger(__name__)
+
+def get_public_ip():
+    """Automatically detect public IP address using ifconfig.me"""
+    try:
+        result = subprocess.run(
+            ["curl", "-s", "--max-time", "5", "ifconfig.me"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            ip = result.stdout.strip()
+            # Basic IP validation (IPv4)
+            parts = ip.split('.')
+            if len(parts) == 4 and all(part.isdigit() and 0 <= int(part) <= 255 for part in parts):
+                logger.debug(f"Auto-detected public IP: {ip}")
+                return ip
+        logger.debug("Failed to auto-detect public IP via ifconfig.me")
+        return None
+    except Exception as e:
+        logger.debug(f"Exception detecting public IP: {e}")
+        return None
 
 class KwaaiNetConfig:
     """Configuration manager for KwaaiNet"""
@@ -31,7 +54,7 @@ class KwaaiNetConfig:
             "log_level": os.environ.get("KWAAINET_LOG_LEVEL", "INFO"),
             "max_memory": os.environ.get("KWAAINET_MAX_MEMORY", None),
             "public_name": os.environ.get("PUBLIC_NAME", None),
-            "public_ip": os.environ.get("PUBLIC_IP", None),
+            "public_ip": os.environ.get("PUBLIC_IP") or get_public_ip(),
             "announce_addr": os.environ.get("ANNOUNCE_ADDR", None),
             "no_relay": bool(os.environ.get("NORELAY", False)),
             "gpu_type": "auto",  # auto, cuda, rocm, cpu
