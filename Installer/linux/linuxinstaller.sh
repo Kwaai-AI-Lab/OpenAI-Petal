@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.2.16
+# KwaaiNet for Linux - One-Step Installer v0.2.18
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.16"
+INSTALLER_VERSION="0.2.18"
 
 # Set up logging
 LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
@@ -987,6 +987,11 @@ install_miniconda() {
     fi
     
     echo "✅ Miniconda installed successfully"
+
+    # Monitor space after Miniconda installation
+    if command -v monitor_installation_space >/dev/null 2>&1; then
+        monitor_installation_space "$HOME" "After Miniconda installation"
+    fi
 }
 
 # Function to choose Python environment method
@@ -1387,6 +1392,57 @@ fi
 # Choose Python method
 choose_python_method
 
+# Source storage check and error diagnosis functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/../common/storage_check.sh" ]; then
+    source "$SCRIPT_DIR/../common/storage_check.sh"
+else
+    echo "⚠️ Warning: Storage check functions not found - continuing without space verification"
+fi
+
+if [ -f "$SCRIPT_DIR/../common/error_diagnosis.sh" ]; then
+    source "$SCRIPT_DIR/../common/error_diagnosis.sh"
+else
+    echo "⚠️ Warning: Error diagnosis functions not found - using basic error handling"
+fi
+
+# Check storage requirements before installation
+echo ""
+echo "🔍 Verifying storage space requirements..."
+SKIP_STORAGE_CHECK="${SKIP_STORAGE_CHECK:-false}"
+if [ "$SKIP_STORAGE_CHECK" != "true" ] && command -v check_storage_requirements >/dev/null 2>&1; then
+    # Determine installation parameters for space estimation
+    USE_CONDA_FOR_SPACE="true"
+    INSTALL_BUILD_TOOLS="true"
+    if [ "$PYTHON_METHOD" = "system" ]; then
+        USE_CONDA_FOR_SPACE="false"
+    fi
+    if [ "$NO_BUILD_TOOLS" = "true" ]; then
+        INSTALL_BUILD_TOOLS="false"
+    fi
+
+    # Check storage and exit if insufficient
+    if ! check_storage_requirements "$HOME" "$USE_CONDA_FOR_SPACE" "$INSTALL_BUILD_TOOLS"; then
+        echo ""
+        echo "❌ Installation cannot proceed due to insufficient storage space."
+        echo ""
+        echo "💡 Options to continue:"
+        echo "   1. Free up space using the suggestions above"
+        echo "   2. Use space-saving options:"
+        echo "      --no-build-tools     (saves ~1GB)"
+        echo "      --force-venv         (saves ~500MB vs conda)"
+        echo "   3. Skip storage check: SKIP_STORAGE_CHECK=true bash installer.sh"
+        echo ""
+        exit 1
+    fi
+
+    # Monitor space during installation
+    monitor_installation_space "$HOME" "Pre-installation"
+else
+    echo "ℹ️ Storage space check skipped"
+fi
+echo ""
+
 # Install Python environment if needed
 if [ "$PYTHON_METHOD" = "conda" ]; then
     if ! command_exists conda; then
@@ -1660,7 +1716,12 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
                     echo "🔒 Locking PyTorch CPU version to prevent dependency conflicts..."
                     $PIP_EXEC install --force-reinstall --no-deps "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu"
                 else
-                    echo "❌ Failed to install PyTorch. Please check your internet connection."
+                    echo "❌ Failed to install PyTorch CPU version"
+                    if command -v diagnose_pip_failure >/dev/null 2>&1; then
+                        diagnose_pip_failure $? "PyTorch installation failed" "torch" "$HOME"
+                    else
+                        echo "Please check your internet connection and available disk space."
+                    fi
                     exit 1
                 fi
             fi
@@ -1674,7 +1735,12 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
                 echo "🔒 Locking PyTorch CPU version to prevent dependency conflicts..."
                 $PIP_EXEC install --force-reinstall --no-deps "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu"
             else
-                echo "❌ Failed to install PyTorch. Please check your internet connection."
+                echo "❌ Failed to install PyTorch CPU version"
+                if command -v diagnose_pip_failure >/dev/null 2>&1; then
+                    diagnose_pip_failure $? "PyTorch installation failed" "torch" "$HOME"
+                else
+                    echo "Please check your internet connection and available disk space."
+                fi
                 exit 1
             fi
         fi
@@ -1705,7 +1771,11 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
             echo "✅ KwaaiNet Linux package installed successfully"
         else
             echo "❌ Failed to install KwaaiNet Linux package from GitHub"
-            echo "Please check your internet connection and try again."
+            if command -v diagnose_pip_failure >/dev/null 2>&1; then
+                diagnose_pip_failure $? "KwaaiNet package installation failed" "kwaainet" "$HOME"
+            else
+                echo "Please check your internet connection and available disk space."
+            fi
             exit 1
         fi
     fi
@@ -1723,22 +1793,45 @@ else
             if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu" --index-url https://download.pytorch.org/whl/cpu; then
                 echo "✅ PyTorch CPU 2.3.1 installed successfully"
             else
-                echo "❌ Failed to install PyTorch. Please check your internet connection."
+                echo "❌ Failed to install PyTorch (CUDA and CPU versions both failed)"
+                if command -v diagnose_pip_failure >/dev/null 2>&1; then
+                    diagnose_pip_failure $? "PyTorch installation failed" "torch" "$HOME"
+                else
+                    echo "Please check your internet connection and available disk space."
+                fi
                 exit 1
             fi
         fi
     else
         echo "📦 Installing PyTorch 2.3.1+cpu (compatible with hivemind)..."
         echo "   This may take a few minutes to download..."
-        if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu" --index-url https://download.pytorch.org/whl/cpu; then
-            echo "✅ PyTorch CPU 2.3.1 installed successfully"
+
+        # Use monitored installation if available
+        if command -v monitor_package_installation >/dev/null 2>&1; then
+            if ! monitor_package_installation "PyTorch CPU" "$PIP_EXEC install $BINARY_FLAG \"torch==2.3.1+cpu\" \"torchvision==0.18.1+cpu\" \"torchaudio==2.3.1+cpu\" --index-url https://download.pytorch.org/whl/cpu" "$HOME"; then
+                exit 1
+            fi
         else
-            echo "❌ Failed to install PyTorch. Please check your internet connection."
-            exit 1
+            # Fallback to standard installation
+            if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu" --index-url https://download.pytorch.org/whl/cpu; then
+                echo "✅ PyTorch CPU 2.3.1 installed successfully"
+            else
+                echo "❌ Failed to install PyTorch CPU version"
+                if command -v diagnose_pip_failure >/dev/null 2>&1; then
+                    diagnose_pip_failure $? "PyTorch installation failed" "torch" "$HOME"
+                else
+                    echo "Please check your internet connection and available disk space."
+                fi
+                exit 1
+            fi
         fi
     fi
-    
-    
+
+    # Monitor space after PyTorch installation
+    if command -v monitor_installation_space >/dev/null 2>&1; then
+        monitor_installation_space "$HOME" "After PyTorch installation"
+    fi
+
     # Install bitsandbytes for quantization support
     echo "📦 Installing bitsandbytes for quantization support..."
     if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
@@ -1764,7 +1857,11 @@ else
         echo "✅ KwaaiNet Linux package installed successfully"
     else
         echo "❌ Failed to install KwaaiNet Linux package from GitHub"
-        echo "Please check your internet connection and try again."
+        if command -v diagnose_pip_failure >/dev/null 2>&1; then
+            diagnose_pip_failure $? "KwaaiNet package installation failed" "kwaainet" "$HOME"
+        else
+            echo "Please check your internet connection and available disk space."
+        fi
         exit 1
     fi
 fi
@@ -2072,6 +2169,11 @@ else
     "$LAUNCHER_PATH" setup 2>/dev/null || {
         echo "⚠️ Initial setup failed. You may need to run 'kwaainet setup' manually."
     }
+fi
+
+# Final space monitoring
+if command -v monitor_installation_space >/dev/null 2>&1; then
+    monitor_installation_space "$HOME" "Installation completed"
 fi
 
 echo ""

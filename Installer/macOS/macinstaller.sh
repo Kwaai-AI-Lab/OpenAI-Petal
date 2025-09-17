@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Mac - One-Step Installer v0.2.12
+# KwaaiNet for Mac - One-Step Installer v0.2.14
 # This script handles the entire installation process for KwaaiNet on macOS
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.12"
+INSTALLER_VERSION="0.2.14"
 
 echo "=========================================================="
 echo "KwaaiNet for Mac - One-Step Installer v$INSTALLER_VERSION"
@@ -60,6 +60,11 @@ install_miniconda() {
     $CONDA_PATH/bin/conda init "$(basename "${SHELL}")"
     
     echo "✅ Miniconda installed successfully"
+
+    # Monitor space after Miniconda installation
+    if command -v monitor_installation_space >/dev/null 2>&1; then
+        monitor_installation_space "$HOME" "After Miniconda installation"
+    fi
 }
 
 # Function to ensure shell configuration file exists
@@ -161,6 +166,50 @@ if ! conda create -n temp_test_env python=3.10 -y --dry-run 2>/dev/null; then
 fi
 echo "✅ Configured conda channels (avoids Terms of Service issues)"
 
+# Source storage check and error diagnosis functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/../common/storage_check.sh" ]; then
+    source "$SCRIPT_DIR/../common/storage_check.sh"
+else
+    echo "⚠️ Warning: Storage check functions not found - continuing without space verification"
+fi
+
+if [ -f "$SCRIPT_DIR/../common/error_diagnosis.sh" ]; then
+    source "$SCRIPT_DIR/../common/error_diagnosis.sh"
+else
+    echo "⚠️ Warning: Error diagnosis functions not found - using basic error handling"
+fi
+
+# Check storage requirements before installation
+echo ""
+echo "🔍 Verifying storage space requirements..."
+SKIP_STORAGE_CHECK="${SKIP_STORAGE_CHECK:-false}"
+if [ "$SKIP_STORAGE_CHECK" != "true" ] && command -v check_storage_requirements >/dev/null 2>&1; then
+    # macOS uses conda and typically doesn't need build tools (Homebrew handles them)
+    USE_CONDA_FOR_SPACE="true"
+    INSTALL_BUILD_TOOLS="false"  # macOS has Xcode Command Line Tools
+
+    # Check storage and exit if insufficient
+    if ! check_storage_requirements "$HOME" "$USE_CONDA_FOR_SPACE" "$INSTALL_BUILD_TOOLS"; then
+        echo ""
+        echo "❌ Installation cannot proceed due to insufficient storage space."
+        echo ""
+        echo "💡 Options to continue:"
+        echo "   1. Free up space using the suggestions above"
+        echo "   2. Use 'brew cleanup' to remove old Homebrew packages"
+        echo "   3. Empty Trash and Downloads folder"
+        echo "   4. Skip storage check: SKIP_STORAGE_CHECK=true bash installer.sh"
+        echo ""
+        exit 1
+    fi
+
+    # Monitor space during installation
+    monitor_installation_space "$HOME" "Pre-installation"
+else
+    echo "ℹ️ Storage space check skipped"
+fi
+echo ""
+
 # Create environment and install KwaaiNet
 echo "⚙️ Setting up KwaaiNet environment..."
 if ! conda info --envs | grep -q kwaainet; then
@@ -252,7 +301,32 @@ fi
 # Install the current project in development mode from permanent location
 echo "📦 Installing KwaaiNet for Mac in development mode..."
 cd "$PROJECT_PATH/Installer/macOS"
-pip install -e .
+
+# Use monitored installation if available
+if command -v monitor_package_installation >/dev/null 2>&1; then
+    if ! monitor_package_installation "KwaaiNet macOS package" "pip install -e ." "$HOME"; then
+        echo "❌ Failed to install KwaaiNet package"
+        exit 1
+    fi
+else
+    # Fallback to standard installation
+    if pip install -e .; then
+        echo "✅ KwaaiNet macOS package installed successfully"
+    else
+        echo "❌ Failed to install KwaaiNet package"
+        if command -v diagnose_pip_failure >/dev/null 2>&1; then
+            diagnose_pip_failure $? "KwaaiNet package installation failed" "kwaainet" "$HOME"
+        else
+            echo "Please check your internet connection and available disk space."
+        fi
+        exit 1
+    fi
+fi
+
+# Monitor space after main package installation
+if command -v monitor_installation_space >/dev/null 2>&1; then
+    monitor_installation_space "$HOME" "After KwaaiNet package installation"
+fi
 
 # Create launcher script for one-step execution
 echo "🚀 Creating launcher script..."
@@ -422,6 +496,11 @@ if command_exists conda; then
     fi
 else
     "$LAUNCHER_PATH" setup
+fi
+
+# Final space monitoring
+if command -v monitor_installation_space >/dev/null 2>&1; then
+    monitor_installation_space "$HOME" "Installation completed"
 fi
 
 # Display success message
