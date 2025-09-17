@@ -18,6 +18,7 @@ from .config import KwaaiNetConfig
 from .installer import setup_mac
 from .daemon import DaemonProcess, setup_signal_handlers
 from .service import get_service_manager
+from .port_utils import port_manager, get_optimal_port, validate_port
 
 # Configure logging
 logging.basicConfig(
@@ -114,8 +115,33 @@ class KwaaiNetRunner:
                 "--num_blocks", str(self.config.get("blocks"))
             ]
             
-            # Add port
-            port = self.config.get("port", 8080)
+            # Add port with automatic detection and validation
+            configured_port = self.config.get("port", 8080)
+
+            # Validate configured port and get optimal alternative if needed
+            port_validation = validate_port(configured_port)
+
+            if port_validation['available']:
+                port = configured_port
+                if port_validation.get('warning'):
+                    logger.warning(f"⚠️ {port_validation['warning']}")
+            else:
+                # Port not available, use suggested alternative
+                if port_validation['alternative']:
+                    port = port_validation['alternative']
+                    logger.warning(f"⚠️ Port {configured_port} is not available, using port {port} instead")
+
+                    # Update config with new port for future use
+                    self.config.update(port=port)
+                else:
+                    # Fallback to optimal port detection
+                    port = get_optimal_port(configured_port)
+                    logger.warning(f"⚠️ Port {configured_port} is not available, using optimized port {port}")
+
+                    # Update config with new port
+                    self.config.update(port=port)
+
+            logger.info(f"Using port: {port}")
             command.extend(["--port", str(port)])
             
             # Add initial peers if configured, otherwise start new swarm
@@ -337,9 +363,20 @@ def parse_args():
         description="Install, uninstall, or check status of auto-start service")
     service_subparsers = service_parser.add_subparsers(dest="service_action", help="Service action")
     service_subparsers.add_parser("install", help="Install auto-start service")
-    service_subparsers.add_parser("uninstall", help="Uninstall auto-start service") 
+    service_subparsers.add_parser("uninstall", help="Uninstall auto-start service")
     service_subparsers.add_parser("status", help="Check service status")
     service_subparsers.add_parser("restart", help="Restart auto-start service")
+
+    # Port analysis command
+    port_parser = subparsers.add_parser("port",
+        help="🔌 Analyze and manage port configuration",
+        description="Check port availability and optimize port selection")
+    port_subparsers = port_parser.add_subparsers(dest="port_action", help="Port action")
+    port_subparsers.add_parser("check", help="Check current port availability")
+    port_subparsers.add_parser("suggest", help="Suggest optimal port")
+    port_subparsers.add_parser("analyze", help="Analyze port environment")
+    auto_parser = port_subparsers.add_parser("auto", help="Auto-configure optimal port")
+    auto_parser.add_argument("--save", action="store_true", help="Save optimal port to config")
     
     args = parser.parse_args()
     if not args.command:
@@ -603,6 +640,114 @@ def main():
                 print("  ❌ Failed to restart auto-start service")
                 print("─────────────────────────────────────────────────────────────────────")
                 sys.exit(1)
+
+    elif args.command == "port":
+        if not args.port_action:
+            print("Error: No port action specified. Use --help for available options.")
+            sys.exit(1)
+
+        if args.port_action == "check":
+            print()
+            print("╭─────────────────────────────────────────────────────────────────────╮")
+            print("│                       🔌 Port Availability Check                     │")
+            print("╰─────────────────────────────────────────────────────────────────────╯")
+            print()
+
+            current_port = runner.config.get("port", 8080)
+            validation = validate_port(current_port)
+
+            print(f"  🔍 Checking port: {current_port}")
+
+            if validation['available']:
+                print(f"  ✅ Port {current_port} is available")
+                if validation.get('warning'):
+                    print(f"  ⚠️  Warning: {validation['warning']}")
+            else:
+                print(f"  ❌ Port {current_port} is not available")
+                if validation.get('port_info'):
+                    info = validation['port_info']
+                    print(f"  📋 Used by: {info.get('process', 'unknown')} (PID: {info.get('pid', 'unknown')})")
+
+                if validation.get('alternative'):
+                    print(f"  💡 Suggested alternative: {validation['alternative']}")
+
+            print("─────────────────────────────────────────────────────────────────────")
+
+        elif args.port_action == "suggest":
+            print()
+            print("╭─────────────────────────────────────────────────────────────────────╮")
+            print("│                        🔌 Port Suggestion                            │")
+            print("╰─────────────────────────────────────────────────────────────────────╯")
+            print()
+
+            current_port = runner.config.get("port", 8080)
+            optimal_port = get_optimal_port(current_port)
+
+            if optimal_port == current_port:
+                print(f"  ✅ Current port {current_port} is optimal")
+            else:
+                print(f"  💡 Recommended port: {optimal_port}")
+                print(f"  📝 To use this port:")
+                print(f"     kwaainet config --set port {optimal_port}")
+                print(f"     kwaainet start --port {optimal_port}")
+
+            print("─────────────────────────────────────────────────────────────────────")
+
+        elif args.port_action == "analyze":
+            print()
+            print("╭─────────────────────────────────────────────────────────────────────╮")
+            print("│                      🔌 Port Environment Analysis                    │")
+            print("╰─────────────────────────────────────────────────────────────────────╯")
+            print()
+
+            analysis = port_manager.analyze_environment()
+
+            print("  📊 Common service ports:")
+            for port, info in analysis['common_ports'].items():
+                status = "✅ Available" if info['available'] else "❌ In use"
+                print(f"     Port {port}: {status}")
+                if not info['available'] and info['info']:
+                    process = info['info'].get('process', 'unknown')
+                    print(f"       └─ Used by: {process}")
+
+            print()
+            if analysis['recommended_port']:
+                print(f"  🎯 Recommended KwaaiNet port: {analysis['recommended_port']}")
+            else:
+                print("  ⚠️  No optimal port found")
+
+            if analysis['active_services']:
+                print()
+                print("  🌐 Active network services:")
+                for service in analysis['active_services'][:5]:  # Show top 5
+                    print(f"     {service['process']} on port {service['port']}")
+
+            print("─────────────────────────────────────────────────────────────────────")
+
+        elif args.port_action == "auto":
+            print()
+            print("╭─────────────────────────────────────────────────────────────────────╮")
+            print("│                    🔌 Auto-Configure Optimal Port                    │")
+            print("╰─────────────────────────────────────────────────────────────────────╯")
+            print()
+
+            current_port = runner.config.get("port", 8080)
+            optimal_port = get_optimal_port(current_port)
+
+            print(f"  🔍 Current port: {current_port}")
+            print(f"  🎯 Optimal port: {optimal_port}")
+
+            if optimal_port == current_port:
+                print(f"  ✅ Current port is already optimal")
+            else:
+                print(f"  🔧 Updating configuration...")
+                if args.save and runner.config.update(port=optimal_port):
+                    print(f"  ✅ Port updated to {optimal_port} and saved to config")
+                else:
+                    print(f"  💡 To save this configuration:")
+                    print(f"     kwaainet config --set port {optimal_port}")
+
+            print("─────────────────────────────────────────────────────────────────────")
 
 if __name__ == "__main__":
     main()
