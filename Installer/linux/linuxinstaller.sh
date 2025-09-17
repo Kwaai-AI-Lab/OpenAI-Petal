@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.18"
+INSTALLER_VERSION="0.2.19"
 
 # Set up logging
 LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
@@ -49,7 +49,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --no-system-packages  Skip system package installation (assumes all dependencies are available)"
             echo "  --force-conda         Force using conda environment instead of auto-detection"
             echo "  --force-venv          Force using virtual environment instead of auto-detection"
-            echo "  --no-build-tools      Skip packages requiring build tools, use pre-built wheels only"
+            echo "  --no-build-tools      Use pre-built wheels only (recommended - saves ~5GB disk space)"
             echo "  --help, -h            Show this help message"
             exit 0
             ;;
@@ -1310,23 +1310,11 @@ except:
         echo "⚠️ Strategy 5 failed: No tokenizers wheels available for this platform"
     fi
 
-    # Strategy 6: Source compilation ONLY as absolute last resort
-    if [ "$NO_BUILD_TOOLS" != true ] && [ "${RUST_INSTALL_FAILED:-false}" != true ] && [ "$has_rust" = true ] && [ "$has_build_tools" = true ]; then
-        echo "📦 Strategy 6: Last resort - compiling tokenizers from source..."
-        echo "   ⚠️ This is a last resort and may take 5-10 minutes..."
-        echo "   💡 Consider using --no-build-tools flag to skip source builds in future"
-        if timeout 600 $PIP_EXEC install tokenizers --no-cache-dir --verbose 2>/dev/null; then
-            echo "✅ tokenizers compiled and installed successfully from source"
-            return 0
-        else
-            echo "⚠️ Strategy 6 failed: Source compilation failed"
-        fi
-    else
-        echo "ℹ️ Strategy 6 skipped: $([ "$NO_BUILD_TOOLS" = true ] && echo "Build tools disabled by user" || [ "${RUST_INSTALL_FAILED:-false}" = true ] && echo "Rust installation failed" || [ "$has_rust" = false ] && echo "No Rust compiler" || echo "No build tools")"
-    fi
+    # Strategy 6: Source compilation DISABLED to prevent storage issues and build failures
+    echo "ℹ️ Strategy 6 skipped: Source compilation disabled (saves ~5GB disk space and prevents build failures)"
     
     # All strategies failed
-    echo "❌ All 6 tokenizers installation strategies failed."
+    echo "❌ All 5 tokenizers wheel installation strategies failed."
     echo ""
     echo "🔧 RECOMMENDED SOLUTIONS (in order of preference):"
     echo ""
@@ -1337,20 +1325,9 @@ except:
     echo "   2. QUICK RETRY: Run with updated pip (may have better wheel resolution)"
     echo "      pip install --upgrade pip && curl -fsSL \\${INSTALLER_URL} | bash"
     echo ""
-    echo "   2. COMPLETE FIX: Install missing dependencies first:"
-    if [ "$has_rust" = false ]; then
-        echo "      • Install Rust: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
-    fi
-    if [ "$has_build_tools" = false ]; then
-        case $DISTRO_FAMILY in
-            debian) echo "      • Install build tools: sudo apt install build-essential" ;;
-            redhat) echo "      • Install build tools: sudo yum groupinstall 'Development Tools'" ;;
-            arch) echo "      • Install build tools: sudo pacman -S base-devel" ;;
-            suse) echo "      • Install build tools: sudo zypper install -t pattern devel_basis" ;;
-            *) echo "      • Install build tools for your distribution" ;;
-        esac
-    fi
-    echo "      Then re-run this installer."
+    echo "   2. PYTHON VERSION: Try a different Python version with better wheel support:"
+    echo "      • Python 3.9, 3.10, or 3.11 typically have more pre-built wheels"
+    echo "      • Use pyenv or conda to install an alternative Python version"
     echo ""
     echo "   3. ALTERNATIVE: Use system package manager:"
     case $DISTRO_FAMILY in
