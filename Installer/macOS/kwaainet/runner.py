@@ -8,6 +8,12 @@ import json
 import time
 from pathlib import Path
 
+# Apply bitsandbytes patch for CPU-only machines
+try:
+    from . import bitsandbytes_patch
+except ImportError:
+    pass
+
 from .config import KwaaiNetConfig
 from .installer import setup_mac
 from .daemon import DaemonProcess, setup_signal_handlers
@@ -60,27 +66,50 @@ class KwaaiNetRunner:
     
     def start(self, daemon_mode: bool = False):
         """Start KwaaiNet node"""
+        # Run pre-flight checks first
+        from .preflight import run_preflight_checks, suggest_solutions
+
+        logger.info("🔍 Running pre-flight checks...")
+        check_results = run_preflight_checks(self.config.get('model'))
+
+        if not check_results['overall_success']:
+            logger.error("❌ Pre-flight checks failed. Cannot start KwaaiNet node.")
+            logger.error("")
+
+            # Print specific suggestions
+            suggestions = suggest_solutions(check_results)
+            for suggestion in suggestions:
+                logger.error(suggestion)
+
+            logger.error("")
+            logger.error("Please resolve the issues above and try again.")
+            return False
+
+        logger.info("✅ All pre-flight checks passed!")
+
         # Prepare environment
         env = os.environ.copy()
         config_env = self.config.as_env_dict()
         env.update(config_env)
-        
+
         # Patch torch.mps for compatibility
         from .installer import patch_torch_mps
         patch_torch_mps()
-        
+
         # Log startup information
         logger.info(f"Starting KwaaiNet node with model: {self.config.get('model')}")
         logger.info(f"Sharing {self.config.get('blocks')} blocks")
         logger.info(f"Using GPU: {self.config.get('use_gpu')}")
-        
+
         if self.config.get('public_name'):
             logger.info(f"Public name: {self.config.get('public_name')}")
         
         try:
             # Construct command similar to entrypoint.sh
+            # Use conda environment python instead of sys.executable
+            conda_python = "/Users/rrassool/miniconda3/envs/kwaainet/bin/python"
             command = [
-                sys.executable, "-m", "petals.cli.run_server",
+                conda_python, "-m", "petals.cli.run_server",
                 self.config.get("model"),
                 "--num_blocks", str(self.config.get("blocks"))
             ]
@@ -157,7 +186,7 @@ class KwaaiNetRunner:
             try:
                 # Retry with CPU mode, keeping all other parameters the same
                 command = [
-                    sys.executable, "-m", "petals.cli.run_server",
+                    conda_python, "-m", "petals.cli.run_server",
                     self.config.get("model"),
                     "--num_blocks", str(self.config.get("blocks")),
                     "--port", str(self.config.get("port", 8080)),
