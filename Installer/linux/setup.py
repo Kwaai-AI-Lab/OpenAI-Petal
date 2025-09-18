@@ -12,7 +12,7 @@ if os.path.exists(readme_path):
 
 setup(
     name="kwaainet-linux",
-    version="0.2.6",
+    version="0.2.7",
     author="Kwaai Labs",
     author_email="contact@kwaai.ai",
     description="KwaaiNet for Linux - Native compute sharing with GPU acceleration",
@@ -37,14 +37,16 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "PyYAML>=6.0.2",  # Security fixes
-        "petals>=2.2.0",  # Latest stable (requires transformers<4.35.0)
+        "petals>=2.3.0",  # Latest dev version with rope_scaling support
         "torch>=1.12.0,<2.4.0",  # Compatible with hivemind (exclude PyTorch 2.4+ due to hivemind incompatibility)
-        'transformers>=4.32.0,<4.35.0; python_version=="3.7"',  # Python 3.7 compatible (Petals constraint)
-        'transformers>=4.32.0,<4.35.0; python_version>="3.8"',  # Petals compatibility constraint (security compromise)
+        'transformers==4.43.1; python_version=="3.7"',  # Petals 2.3.0+ requirement
+        'transformers==4.43.1; python_version>="3.8"',  # Petals 2.3.0+ requirement (CDN compatibility)
         "accelerate>=0.20.0",  # Broader compatibility
         "requests>=2.28.0",  # Security fixes with broader compatibility
         "tqdm>=4.64.0",  # Stable version
         "psutil>=5.9.0",  # Process and system monitoring for daemon functionality
+        "huggingface_hub>=0.34.0",  # CDN compatibility (fixes cdn-lfs.huggingface.co issues)
+        "tokenizers>=0.15.0",  # Compatible with huggingface_hub>=0.34.0 and has pre-built wheels
     ],
     extras_require={
         "cuda": [

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(kwaainet:*)",
+      "Bash(python -m kwaainet:*)",
+      "Bash(python:*)",
+      "Bash(source:*)",
+      "Bash(conda activate:*)",
+      "Bash(pip install:*)",
+      "Read(//Users/rrassool/.local/bin/**)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(conda:*)",
+      "Bash(deactivate)",
+      "Bash(echo $VIRTUAL_ENV)",
+      "Bash(unset VIRTUAL_ENV)",
+      "Bash(unset PYTHONPATH)",
+      "Bash(env:*)",
+      "Bash(PATH=/usr/bin:/bin:$PATH source Installer/common/storage_check.sh)",
+      "Bash(get_available_space_mb \"/Users/rrassool\")",
+      "Bash(PATH=/usr/bin:/bin:/usr/sbin:$PATH bash -c 'source Installer/common/storage_check.sh && check_storage_requirements \"\"/Users/rrassool\"\" \"\"true\"\" \"\"true\"\"')",
+      "Read(//Users/rrassool/Documents/Kwaai/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
