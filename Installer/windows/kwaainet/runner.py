@@ -282,7 +282,7 @@ For more information: https://github.com/Kwaai-AI-Lab/OpenAI-Petal"""
     start_parser.add_argument("--no-gpu", action="store_true", help="Disable GPU acceleration")
     start_parser.add_argument("--gpu-type", choices=["auto", "cuda", "rocm", "cpu"], help="Specify GPU type (auto-detected by default)")
     start_parser.add_argument("--public-name", type=str, help="Public name for your node")
-    start_parser.add_argument("--public-ip", type=str, help="Explicitly set the public IP address")
+    start_parser.add_argument("--public-ip", type=str, help="Override the public IP address (auto-detected by default)")
     start_parser.add_argument("--announce-addr", type=str, help="Custom announce address for P2P networking")
     start_parser.add_argument("--no-relay", action="store_true", help="Disable automatic relay")
     start_parser.add_argument("--daemon", action="store_true", help="🔧 Run as daemon (background process)")

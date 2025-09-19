@@ -516,7 +516,7 @@ KwaaiNet respects the following environment variables:
 - `KWAAINET_LOG_LEVEL`: Logging level (default: `"INFO"`)  
 - `KWAAINET_MAX_MEMORY`: Maximum memory to use (in GB)
 - `PUBLIC_NAME`: Public name for your node
-- `PUBLIC_IP`: Explicitly set the public IP address
+- `PUBLIC_IP`: Override the public IP address (auto-detected by default)
 - `ANNOUNCE_ADDR`: Custom announce address for P2P networking
 - `NORELAY`: Set to any value to disable automatic relay
 
