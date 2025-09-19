@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.20"
+INSTALLER_VERSION="0.2.21"
 
 # Set up logging
 LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
@@ -555,15 +555,8 @@ check_system_deps() {
             echo "   ✅ C/C++ compiler available"
         fi
         
-        # Check for Rust compiler (specifically needed for tokenizers)
-        if ! command_exists rustc; then
-            missing_build+=("rust compiler (for tokenizers)")
-            echo "   ❌ No Rust compiler found (needed for tokenizers compilation)"
-            echo "      This will cause 'Failed to build tokenizers' errors"
-        else
-            local rust_version=$(rustc --version 2>/dev/null | cut -d' ' -f2 || echo "unknown")
-            echo "   ✅ Rust compiler available (version $rust_version)"
-        fi
+        # Note: Rust compiler check removed since source compilation is disabled
+        # All packages will use pre-built wheels only, eliminating need for Rust
         
         # Give specific guidance if build tools are missing
         if [ ${#missing_build[@]} -gt 0 ]; then
@@ -1195,42 +1188,14 @@ configure_cuda_paths() {
 # 5. Any wheel version - final attempt at any available wheel
 # 6. Source build - absolute last resort only
 install_tokenizers_with_fallback() {
-    echo "🔤 Installing tokenizers with hybrid wheel-first strategy..."
-    
-    # Debug: Show environment status
+    echo "🔤 Installing tokenizers with wheel-only strategy (source compilation disabled)..."
+
+    # Only show minimal environment info since source compilation is disabled
     echo "🔍 Environment check:"
-    echo "   - Rust compiler: $(command -v rustc >/dev/null 2>&1 && echo "✅ Available ($(rustc --version 2>/dev/null | cut -d' ' -f2))" || echo "❌ Missing")"
-    echo "   - GCC compiler: $(command -v gcc >/dev/null 2>&1 && echo "✅ Available" || echo "❌ Missing")"
-    echo "   - Build tools mode: $([ "$NO_BUILD_TOOLS" = true ] && echo "Pre-built only" || echo "Build allowed")"
-    echo "   - Rust install failed: ${RUST_INSTALL_FAILED:-false}"
+    echo "   - Installation mode: Pre-built wheels only (saves ~5GB space)"
     
-    # Ensure Rust environment is available if installed
-    if [ -f "$HOME/.cargo/env" ]; then
-        source "$HOME/.cargo/env"
-    fi
-    
-    # Add cargo bin to PATH for this session
-    if [ -d "$HOME/.cargo/bin" ]; then
-        export PATH="$HOME/.cargo/bin:$PATH"
-    fi
-    
-    # Add snap rust to PATH if available
-    if [ -d "/snap/bin" ] && [ -f "/snap/bin/rustc" ]; then
-        export PATH="/snap/bin:$PATH"
-    fi
-    
-    # Determine installation strategy based on available tools
-    local has_rust=false
-    local has_build_tools=false
-    
-    if command -v rustc >/dev/null 2>&1; then
-        has_rust=true
-        echo "✅ Rust compiler available: $(rustc --version 2>/dev/null | cut -d' ' -f1-2)"
-    fi
-    
-    if command -v gcc >/dev/null 2>&1 || command -v clang >/dev/null 2>&1; then
-        has_build_tools=true
-    fi
+    # Note: Rust detection and environment setup removed since source compilation is disabled
+    # All tokenizer installation will use pre-built wheels only
     
     # Strategy 1: Safe wheel-only versions first (prioritize reliability)
     echo "📦 Strategy 1: Installing tokenizers with guaranteed pre-built wheels..."
