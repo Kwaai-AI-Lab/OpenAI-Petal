@@ -12,7 +12,7 @@ if os.path.exists(readme_path):
 
 setup(
     name="kwaainet-linux",
-    version="0.2.7",
+    version="0.2.8",
     author="Kwaai Labs",
     author_email="contact@kwaai.ai",
     description="KwaaiNet for Linux - Native compute sharing with GPU acceleration",
@@ -38,7 +38,7 @@ setup(
     install_requires=[
         "PyYAML>=6.0.2",  # Security fixes
         "petals>=2.3.0",  # Latest dev version with rope_scaling support
-        "torch>=1.12.0,<2.4.0",  # Compatible with hivemind (exclude PyTorch 2.4+ due to hivemind incompatibility)
+        "torch>=1.12.0",  # Compatible with Petals and hivemind - let Petals control the exact version
         'transformers==4.43.1; python_version=="3.7"',  # Petals 2.3.0+ requirement
         'transformers==4.43.1; python_version>="3.8"',  # Petals 2.3.0+ requirement (CDN compatibility)
         "accelerate>=0.20.0",  # Broader compatibility
