@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.21"
+INSTALLER_VERSION="0.2.22"
 
 # Set up logging
 LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
@@ -1709,7 +1709,7 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
         
         # Install KwaaiNet Linux package from GitHub as fallback
         echo "📦 Installing KwaaiNet Linux package from GitHub..."
-        if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux" 2>/dev/null; then
+        if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
             echo "✅ KwaaiNet Linux package installed successfully"
         else
             echo "❌ Failed to install KwaaiNet Linux package from GitHub"
@@ -1795,7 +1795,7 @@ else
     
     # Install KwaaiNet Linux package from GitHub
     echo "📦 Installing KwaaiNet Linux package..."
-    if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux" 2>/dev/null; then
+    if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
         echo "✅ KwaaiNet Linux package installed successfully"
     else
         echo "❌ Failed to install KwaaiNet Linux package from GitHub"
