@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.2.18
+# KwaaiNet for Linux - One-Step Installer v0.3.1
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.3.0"
+INSTALLER_VERSION="0.3.1"
 
 # Set up logging
 LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
@@ -327,10 +327,13 @@ verify_package_versions() {
     
     local all_good=true
     for package_version in "${expected_versions[@]}"; do
-        local package=$(echo $package_version | cut -d: -f1)
-        local expected=$(echo $package_version | cut -d: -f2)
-        
-        local actual=$($PYTHON_EXEC -c "
+        local package
+        local expected
+        local actual
+        package=$(echo "$package_version" | cut -d: -f1)
+        expected=$(echo "$package_version" | cut -d: -f2)
+
+        actual=$($PYTHON_EXEC -c "
 try:
     import $package
     print($package.__version__.split('+')[0])
@@ -374,8 +377,10 @@ verify_import_compatibility() {
     
     local all_imports_good=true
     for import_test in "${imports[@]}"; do
-        local package=$(echo "$import_test" | cut -d: -f1)
-        local test_code=$(echo "$import_test" | cut -d: -f2-)
+        local package
+        local test_code
+        package=$(echo "$import_test" | cut -d: -f1)
+        test_code=$(echo "$import_test" | cut -d: -f2-)
         
         if $PYTHON_EXEC -c "$test_code" 2>/dev/null >/dev/null; then
             echo "   ✅ $package imports successfully"
@@ -504,10 +509,10 @@ check_system_deps() {
         missing_essential+=("python3")
     else
         # Check Python version
-        PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
-        PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
-        
-        if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 7 ]); then
+        PYTHON_MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
+        PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
+
+        if [ "$PYTHON_MAJOR" -lt 3 ] || { [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 7 ]; }; then
             echo "⚠️ Python $PYTHON_VERSION found, but Python 3.7+ is required"
             missing_essential+=("python3 (3.7+)")
         elif [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -eq 7 ]; then
@@ -690,18 +695,18 @@ install_system_deps() {
     case $DISTRO_FAMILY in
         debian)
             echo "🔄 Updating package list..."
-            if ! $USE_SUDO $PKG_UPDATE 2>/dev/null; then
+            if ! $USE_SUDO "$PKG_UPDATE" 2>/dev/null; then
                 echo "⚠️ Failed to update package list. Continuing..."
             fi
             echo "📦 Installing packages..."
-            $USE_SUDO $PKG_INSTALL curl wget git build-essential python3 python3-venv python3-dev pciutils
+            $USE_SUDO "$PKG_INSTALL" curl wget git build-essential python3 python3-venv python3-dev pciutils
             
             # Handle pip installation for Ubuntu 24.04+
             echo "🔄 Setting up pip for Python package management..."
-            if ! $USE_SUDO $PKG_INSTALL python3-pip 2>/dev/null; then
+            if ! $USE_SUDO "$PKG_INSTALL" python3-pip 2>/dev/null; then
                 echo "ℹ️ python3-pip package not available, using ensurepip approach..."
                 # Try to install ensurepip package
-                $USE_SUDO $PKG_INSTALL python3-ensurepip 2>/dev/null || true
+                $USE_SUDO "$PKG_INSTALL" python3-ensurepip 2>/dev/null || true
             fi
             
             # Ensure pip is available via some method
@@ -726,7 +731,7 @@ install_system_deps() {
                 echo "⚠️ pip installation may have failed, but continuing..."
             fi
             # GPU support packages (optional)
-            $USE_SUDO $PKG_INSTALL mesa-utils || true
+            $USE_SUDO "$PKG_INSTALL" mesa-utils || true
             
             # Install Rust compiler for tokenizers (if not already installed)
             if ! command_exists rustc; then
@@ -1108,10 +1113,18 @@ configure_cuda_paths() {
         # Handle wildcards in paths
         for expanded_path in $search_path; do
             if [ -d "$expanded_path" ]; then
-                if find "$expanded_path" -name "libcudart.so*" -type f 2>/dev/null | head -1 | read -r lib_path; then
+                lib_path=$(find "$expanded_path" -name "libcudart.so*" -type f 2>/dev/null | head -1)
+                if [ -n "$lib_path" ]; then
                     LIB_DIR=$(dirname "$lib_path")
                     # Add to array if not already present
-                    if [[ ! " ${CUDA_LIBS_FOUND[@]} " =~ " ${LIB_DIR} " ]]; then
+                    local found=false
+                    for existing in "${CUDA_LIBS_FOUND[@]}"; do
+                        if [[ "$existing" == "$LIB_DIR" ]]; then
+                            found=true
+                            break
+                        fi
+                    done
+                    if [[ "$found" == "false" ]]; then
                         CUDA_LIBS_FOUND+=("$LIB_DIR")
                         echo "✅ Found CUDA libraries in: $LIB_DIR"
                     fi
@@ -1430,7 +1443,7 @@ if [ "$PYTHON_METHOD" = "conda" ]; then
         CONDA_BASE="$HOME/anaconda3"
     elif command_exists conda; then
         # Try to find conda base from existing installation
-        CONDA_BASE=$(conda info --base 2>/dev/null || dirname $(dirname $(which conda)) 2>/dev/null)
+        CONDA_BASE=$(conda info --base 2>/dev/null || dirname "$(dirname "$(which conda)")" 2>/dev/null)
     fi
     
     if [ -z "$CONDA_BASE" ] || [ ! -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
