@@ -41,7 +41,7 @@ from .config import KwaaiNetConfig
 from .runner import KwaaiNetRunner
 from .installer import setup_linux
 
-__version__ = "0.2.2"
+__version__ = "0.3.0"
 __author__ = "Kwaai Labs"
 __email__ = "contact@kwaai.ai"
 
