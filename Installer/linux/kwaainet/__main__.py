@@ -4,7 +4,9 @@
 KwaaiNet main entry point for command line execution
 """
 
-from .runner import main
+# Import delayed to prevent circular imports
+import sys
 
 if __name__ == "__main__":
+    from .runner import main
     main()

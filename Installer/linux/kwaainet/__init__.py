@@ -14,13 +14,19 @@ import logging
 import platform
 import sys
 
+# Configure root logger to prevent duplicate messages
+# Force a clean logging setup with a single handler
+root_logger = logging.getLogger()
+root_logger.handlers.clear()
+root_logger.setLevel(logging.INFO)
+
+# Add exactly one handler to stderr
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+root_logger.addHandler(handler)
+
 # Set up package logger
 logger = logging.getLogger(__name__)
-handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
 
 # Check if running on Linux
 if platform.system() != "Linux":

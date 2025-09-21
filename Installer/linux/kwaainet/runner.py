@@ -12,14 +12,7 @@ from .config import KwaaiNetConfig
 from .installer import setup_linux
 from .daemon import DaemonProcess, setup_signal_handlers
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
-)
+# Logging is configured in __init__.py to prevent duplicates
 
 logger = logging.getLogger(__name__)
 
@@ -351,6 +344,9 @@ For more information: https://github.com/Kwaai-AI-Lab/OpenAI-Petal"""
         sys.exit(1)
     return args
 
+# Global variable to prevent double execution
+_main_executed = False
+
 def main():
     """Main entry point"""
     args = parse_args()
@@ -466,5 +462,4 @@ def main():
             logger.error("No action specified for config command")
             sys.exit(1)
 
-if __name__ == "__main__":
-    main()
+# Entry point is handled by __main__.py to prevent double execution
