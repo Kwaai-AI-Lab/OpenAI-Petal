@@ -6,6 +6,7 @@ import subprocess
 
 logger = logging.getLogger(__name__)
 
+
 def get_public_ip():
     """Automatically detect public IP address using ifconfig.me"""
     try:
@@ -30,7 +31,7 @@ def get_public_ip():
 
 class KwaaiNetConfig:
     """Configuration manager for KwaaiNet"""
-    
+
     def __init__(self):
         self.home_dir = str(Path.home())
         self.config_dir = os.path.join(self.home_dir, ".kwaainet")

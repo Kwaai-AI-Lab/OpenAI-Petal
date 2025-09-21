@@ -19,7 +19,9 @@
       "Bash(PATH=/usr/bin:/bin:$PATH source Installer/common/storage_check.sh)",
       "Bash(get_available_space_mb \"/Users/rrassool\")",
       "Bash(PATH=/usr/bin:/bin:/usr/sbin:$PATH bash -c 'source Installer/common/storage_check.sh && check_storage_requirements \"\"/Users/rrassool\"\" \"\"true\"\" \"\"true\"\"')",
-      "Read(//Users/rrassool/Documents/Kwaai/**)"
+      "Read(//Users/rrassool/Documents/Kwaai/**)",
+      "Bash(./macinstaller.sh:*)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": []
