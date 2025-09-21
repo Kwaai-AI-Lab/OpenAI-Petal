@@ -45,7 +45,7 @@ class KwaaiNetConfig:
             "model": os.environ.get("KWAAINET_MODEL", "unsloth/Llama-3.1-8B-Instruct"),
             "blocks": int(os.environ.get("KWAAINET_BLOCKS", "1")),
             "initial_peers": os.environ.get(
-                "INITIAL_PEERS", 
+                "INITIAL_PEERS",
                 "/dns/bootstrap-1.kwaai.ai/tcp/8000/p2p/QmQhRuheeCLEsVD3RsnknM75gPDDqxAb8DhnWgro7KhaJc "
                 "/dns/bootstrap-2.kwaai.ai/tcp/8000/p2p/Qmd3A8N5aQBATe2SYvNikaeCS9CAKN4E86jdCPacZ6RZJY"
             ).split(),
@@ -53,7 +53,7 @@ class KwaaiNetConfig:
             "use_gpu": True,  # Default to using GPU if available
             "log_level": os.environ.get("KWAAINET_LOG_LEVEL", "INFO"),
             "max_memory": os.environ.get("KWAAINET_MAX_MEMORY", None),
-            "public_name": os.environ.get("PUBLIC_NAME", None),
+            "public_name": os.environ.get("PUBLIC_NAME") or f"{os.environ.get('USER', 'anonymous')}@kwaai",
             "public_ip": os.environ.get("PUBLIC_IP") or get_public_ip(),
             "announce_addr": os.environ.get("ANNOUNCE_ADDR", None),
             "no_relay": bool(os.environ.get("NORELAY", False)),
@@ -68,10 +68,20 @@ class KwaaiNetConfig:
                     if config is None:
                         config = default_config
                     else:
-                        # Update with any missing default values
+                        # Update with any missing default values or null values
+                        updated = False
                         for key, value in default_config.items():
-                            if key not in config:
+                            if key not in config or config[key] is None:
                                 config[key] = value
+                                updated = True
+                        # Save the updated config if we made changes
+                        if updated:
+                            try:
+                                with open(self.config_file, 'w') as f:
+                                    yaml.dump(config, f, default_flow_style=False)
+                                logger.info(f"Updated configuration with new defaults at {self.config_file}")
+                            except Exception as e:
+                                logger.error(f"Error saving updated config: {e}")
                 logger.info(f"Loaded configuration from {self.config_file}")
                 return config
             except Exception as e:

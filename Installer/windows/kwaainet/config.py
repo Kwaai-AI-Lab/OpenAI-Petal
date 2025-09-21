@@ -53,7 +53,7 @@ class KwaaiNetConfig:
             "use_gpu": True,  # Default to using GPU if available
             "log_level": os.environ.get("KWAAINET_LOG_LEVEL", "INFO"),
             "max_memory": os.environ.get("KWAAINET_MAX_MEMORY", None),
-            "public_name": os.environ.get("PUBLIC_NAME", None),
+            "public_name": os.environ.get("PUBLIC_NAME") or f"{os.environ.get('USER', 'anonymous')}@kwaai",
             "public_ip": os.environ.get("PUBLIC_IP") or get_public_ip(),
             "announce_addr": os.environ.get("ANNOUNCE_ADDR", None),
             "no_relay": bool(os.environ.get("NORELAY", False)),
