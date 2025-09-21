@@ -50,6 +50,14 @@
 
 ## 🚀 Recent Updates
 
+### 🔧 **v0.3.1 - Enhanced Reliability & User Experience** (Latest)
+- ✅ **Shell Script Quality**: Fixed all critical shellcheck issues for better installer robustness
+- ✅ **No-Build-Tools Default**: Pre-built wheels only by default (saves ~5GB disk space)
+- ✅ **Improved Verification Messages**: Less alarming warning symbols (⚠️ vs ❌) for better UX
+- ✅ **Better Error Handling**: Enhanced CUDA detection and package management reliability
+- ✅ **Code Robustness**: Safer array handling, proper variable declarations, performance optimizations
+- ✅ **Maintained Functionality**: All features preserved while improving underlying quality
+
 ### 🚀 **Daemon Mode Complete**
 - ✅ **Stable daemon operation** with PID tracking and process supervision
 - ✅ **Full daemon management**: `start`, `stop`, `restart`, `status`, `logs` commands
@@ -57,11 +65,12 @@
 - ✅ **Network connectivity fixes** with working KwaaiNet bootstrap peers
 - ✅ **Beautiful CLI interface** with enhanced visual design and Unicode borders
 
-### 🛠️ **Installer Improvements**  
+### 🛠️ **Installer Improvements**
 - ⚠️ **Windows installer** temporarily unavailable (being rewritten)
-- ✅ **Linux installer** with enhanced dependency management and error recovery
+- ✅ **Linux installer v0.3.1** with enhanced reliability, shell script quality fixes, and no-build-tools default
 - ✅ **macOS installer** with development mode installation to prevent version conflicts
-- ✅ **Version conflict fixes** across all platforms using development mode installation
+- ✅ **Enhanced user experience** with improved verification messages and reduced alarm
+- ✅ **Better resource efficiency** with ~5GB space savings using pre-built wheels by default
 - ✅ **Automatic setup integration** in all installers
 
 ### 🎨 **User Experience Enhancements**
@@ -83,7 +92,7 @@ All core features are **complete and stable**:
 - **🛠️ Advanced Tool Calling**: Function calling with model-specific formatting (Hermes, Llama 3, Mistral, etc.)
 - **💻 Cross-Platform**: Linux and macOS support with automatic GPU detection (NVIDIA, AMD, Intel, Apple Silicon). Windows support under development.
 - **⚡ High Performance**: FastAPI backend with streaming support and smart token processing
-- **📦 Easy Setup**: One-step installers handle all dependencies automatically with development mode installation
+- **📦 Easy Setup**: One-step installers with enhanced reliability, shell script quality, and efficient pre-built wheel installation (saves ~5GB)
 - **🤖 Stable Daemon Mode**: Background operation with PID tracking, process supervision, and automatic restart
 - **🎨 Beautiful CLI Interface**: Professional visual design with Unicode borders, contextual icons, and enhanced UX
 - **🔧 Comprehensive Management**: Full daemon control with `start`, `stop`, `restart`, `status`, `logs` commands
@@ -148,10 +157,18 @@ pip install -e .
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/linuxinstaller.sh)"
 ```
 
+**v0.3.1 Features:**
+- ✅ **Default no-build-tools** (saves ~5GB disk space by using pre-built wheels)
+- ✅ **Enhanced reliability** with improved shell script quality
+- ✅ **Better user experience** with less alarming verification messages
+
 The Linux installer supports additional options:
 ```bash
 # Skip system package installation (if you already have dependencies)
 curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/linuxinstaller.sh | bash -s -- --no-system-packages
+
+# Enable build tools for source compilation (if needed)
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/linuxinstaller.sh | bash -s -- --with-build-tools
 
 # Force specific Python environment
 curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/linux/linuxinstaller.sh | bash -s -- --force-venv
@@ -168,10 +185,11 @@ curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Inst
 
 This will:
 - Install Python and required tools
-- Set up the conda environment
-- Install KwaaiNet
+- Set up the conda environment efficiently using pre-built wheels
+- Install KwaaiNet with enhanced reliability
 - Create a launcher for easy usage
-- Detect and configure GPU support (NVIDIA, AMD, Intel)
+- Detect and configure GPU support (NVIDIA, AMD, Intel, Apple Silicon)
+- Save ~5GB disk space with optimized installation
 
 ### Container-Based Installation (Docker/Podman)
 
