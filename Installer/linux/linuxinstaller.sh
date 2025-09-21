@@ -1961,8 +1961,8 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Run kwaainet command (installed as console script)
-exec kwaainet "$@"
+# Run kwaainet command directly via Python module to avoid recursion
+exec python -m kwaainet.runner "$@"
 EOF
 
 else
@@ -2063,15 +2063,23 @@ fi
 
 # Verify PATH works immediately after installation
 echo "🧪 Testing kwaainet command availability..."
+# Ensure ~/.local/bin is in PATH for current session
+export PATH="$HOME/.local/bin:$PATH"
 if command -v kwaainet >/dev/null 2>&1; then
     echo "✅ kwaainet command is available in PATH"
-else
-    echo "⚠️ kwaainet not found in PATH, adding current session..."
-    export PATH="$HOME/.local/bin:$PATH"
-    if command -v kwaainet >/dev/null 2>&1; then
-        echo "✅ kwaainet command now available"
+    # Test that it actually works
+    if kwaainet --help >/dev/null 2>&1; then
+        echo "✅ kwaainet command verified working"
     else
-        echo "❌ Failed to add kwaainet to PATH - manual shell restart may be required"
+        echo "⚠️ kwaainet found but not working properly"
+    fi
+else
+    echo "❌ kwaainet not found in PATH even after adding ~/.local/bin"
+    echo "   Launcher script location: $LAUNCHER_PATH"
+    if [ -x "$LAUNCHER_PATH" ]; then
+        echo "   Launcher script exists and is executable"
+    else
+        echo "   ❌ Launcher script missing or not executable"
     fi
 fi
 
@@ -2134,13 +2142,30 @@ echo "   kwaainet start --daemon"
 echo ""
 
 # Final verification test
-echo "🧪 Final verification test..."
-if command -v kwaainet >/dev/null 2>&1 && kwaainet --help >/dev/null 2>&1; then
-    echo "✅ Installation verification PASSED - kwaainet is ready to use!"
+echo "🧪 Testing installation..."
+if [ -x "$LAUNCHER_PATH" ] && timeout 15s "$LAUNCHER_PATH" --help >/dev/null 2>&1; then
+    echo "✅ Installation SUCCESSFUL!"
+    echo ""
+    echo "🚀 To use KwaaiNet, run ONE of these commands to update your PATH:"
+    echo ""
+    if [ -n "$ZSH_VERSION" ]; then
+        echo "   source ~/.zshrc"
+    elif [ -n "$BASH_VERSION" ]; then
+        echo "   source ~/.bashrc"
+    else
+        echo "   source ~/.profile"
+    fi
+    echo ""
+    echo "   OR restart your terminal"
+    echo ""
+    echo "Then test with: kwaainet --help"
+    echo ""
+    echo "💡 Alternative: You can always run directly with:"
+    echo "   $LAUNCHER_PATH --help"
 else
-    echo "⚠️ Installation verification FAILED"
-    echo "   Please restart your terminal or run: source ~/.bashrc"
-    echo "   Then test with: kwaainet --help"
+    echo "❌ Installation FAILED"
+    echo "   Launcher script at $LAUNCHER_PATH is not working"
+    echo "   Please check the installation log for errors"
 fi
 echo ""
 if [ "$GPU_TYPE" = "nvidia" ]; then

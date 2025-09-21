@@ -97,6 +97,19 @@ git push origin main
 - Documentation reflects current capabilities
 - Ready for testing and potential additional platform support
 
+## 🚨 CRITICAL REQUIREMENT - GLOBAL LAUNCHER SCRIPT 🚨
+**NEVER FORGET**: The Linux installer MUST create a global launcher script at `~/.local/bin/kwaainet` that:
+1. Automatically activates the conda environment
+2. Executes the kwaainet command
+3. Works from ANY directory without manual conda activation
+4. Is added to PATH so `kwaainet --help` works immediately after installation
+
+**THIS IS A CORE USABILITY REQUIREMENT** - Users should never need to manually activate conda environments or remember conda commands. The installer must handle this transparently.
+
+**Current Issue**: Installer completes successfully but `kwaainet` command not available globally
+**Root Cause**: Missing global launcher script creation in installer
+**Impact**: Users get "command not found" error despite successful installation
+
 ## Current Session (2025-09-04) - Daemon Stability and Bootstrap Peer Connectivity
 
 ### Task: KwaaiNet Daemon Troubleshooting and Cross-Platform Fixes
