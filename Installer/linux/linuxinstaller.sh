@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.2.22"
+INSTALLER_VERSION="0.2.23"
 
 # Set up logging
 LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
@@ -1955,24 +1955,14 @@ fi
 # Activate the environment and run the command
 conda activate kwaainet
 
-# Try to run the module, with fallback to direct execution
-if ! python -m kwaainet.runner "$@" 2>/dev/null; then
-    # Fallback: try running from the source installation directory
-    if [ -d "$HOME/.kwaainet/source" ]; then
-        echo "⚠️ Module import failed, trying fallback from source directory..."
-        SOURCE_DIR=$(find "$HOME/.kwaainet/source" -name "OpenAI-Petal*" -type d | head -1)
-        if [ -n "$SOURCE_DIR" ] && [ -f "$SOURCE_DIR/Installer/linux/kwaainet/runner.py" ]; then
-            export PYTHONPATH="$SOURCE_DIR/Installer/linux:$PYTHONPATH"
-            python -m kwaainet.runner "$@"
-        else
-            echo "❌ Error: Could not find KwaaiNet installation. Please run the installer again."
-            exit 1
-        fi
-    else
-        echo "❌ Error: KwaaiNet module not found. Please run the installer again."
-        exit 1
-    fi
+# Check if activation was successful
+if [ $? -ne 0 ]; then
+    echo "❌ Error: Failed to activate kwaainet conda environment."
+    exit 1
 fi
+
+# Run kwaainet command (installed as console script)
+exec kwaainet "$@"
 EOF
 
 else
@@ -2013,24 +2003,14 @@ fi
 # Activate virtual environment and run the command
 source "\$VENV_PATH/bin/activate"
 
-# Try to run the module, with fallback to direct execution
-if ! python -m kwaainet.runner "\$@" 2>/dev/null; then
-    # Fallback: try running from the source installation directory
-    if [ -d "\$HOME/.kwaainet/source" ]; then
-        echo "⚠️ Module import failed, trying fallback from source directory..."
-        SOURCE_DIR=$(find "$HOME/.kwaainet/source" -name "OpenAI-Petal*" -type d | head -1)
-        if [ -n "$SOURCE_DIR" ] && [ -f "$SOURCE_DIR/Installer/linux/kwaainet/runner.py" ]; then
-            export PYTHONPATH="$SOURCE_DIR/Installer/linux:$PYTHONPATH"
-            python -m kwaainet.runner "\$@"
-        else
-            echo "❌ Error: Could not find KwaaiNet installation. Please run the installer again."
-            exit 1
-        fi
-    else
-        echo "❌ Error: KwaaiNet module not found. Please run the installer again."
-        exit 1
-    fi
+# Check if activation was successful
+if [ \$? -ne 0 ]; then
+    echo "❌ Error: Failed to activate virtual environment at \$VENV_PATH"
+    exit 1
 fi
+
+# Run kwaainet command (installed as console script)
+exec kwaainet "\$@"
 EOF
 fi
 
@@ -2079,6 +2059,20 @@ if [ -n "$BASH_VERSION" ] && [ -f "$HOME/.bashrc" ]; then
     set +e  # Don't exit on source errors
     source "$HOME/.bashrc" 2>/dev/null || true
     set -e  # Re-enable exit on error
+fi
+
+# Verify PATH works immediately after installation
+echo "🧪 Testing kwaainet command availability..."
+if command -v kwaainet >/dev/null 2>&1; then
+    echo "✅ kwaainet command is available in PATH"
+else
+    echo "⚠️ kwaainet not found in PATH, adding current session..."
+    export PATH="$HOME/.local/bin:$PATH"
+    if command -v kwaainet >/dev/null 2>&1; then
+        echo "✅ kwaainet command now available"
+    else
+        echo "❌ Failed to add kwaainet to PATH - manual shell restart may be required"
+    fi
 fi
 
 # Try to create system-wide symlink if possible
@@ -2130,15 +2124,24 @@ echo "   - PyTorch: $(conda run -n kwaainet python -c 'import torch; print(torch
 echo "   - KwaaiNet: $(conda run -n kwaainet python -c 'import kwaainet; print("ready")' 2>/dev/null || echo 'installed')"
 echo ""
 echo "🚀 To use KwaaiNet:"
-echo "   1. Activate the environment: conda activate kwaainet"
-echo "   2. Start KwaaiNet node:      kwaainet start"
-echo "   3. Or run in daemon mode:    kwaainet start --daemon"
-echo "   4. Check status:             kwaainet status"
-echo "   5. View help:                kwaainet --help"
+echo "   1. Start KwaaiNet node:      kwaainet start"
+echo "   2. Or run in daemon mode:    kwaainet start --daemon"
+echo "   3. Check status:             kwaainet status"
+echo "   4. View help:                kwaainet --help"
 echo ""
 echo "💡 Quick start example:"
-echo "   conda activate kwaainet"
 echo "   kwaainet start --daemon"
+echo ""
+
+# Final verification test
+echo "🧪 Final verification test..."
+if command -v kwaainet >/dev/null 2>&1 && kwaainet --help >/dev/null 2>&1; then
+    echo "✅ Installation verification PASSED - kwaainet is ready to use!"
+else
+    echo "⚠️ Installation verification FAILED"
+    echo "   Please restart your terminal or run: source ~/.bashrc"
+    echo "   Then test with: kwaainet --help"
+fi
 echo ""
 if [ "$GPU_TYPE" = "nvidia" ]; then
 echo "🔧 NVIDIA GPU detected - CUDA acceleration configured."
