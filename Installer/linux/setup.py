@@ -37,7 +37,8 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "PyYAML>=6.0.2",  # Security fixes
-        "petals>=2.3.0",  # Latest dev version with rope_scaling support
+        # NOTE: petals is installed separately by the installer from source (2.3.0.dev2)
+        # "petals>=2.3.0" would fail since PyPI only has up to 2.2.0
         "torch>=1.12.0",  # Compatible with Petals and hivemind - let Petals control the exact version
         "transformers==4.43.1",  # Petals 2.3.0+ requirement (CDN compatibility)
         "accelerate>=0.20.0",  # Broader compatibility
