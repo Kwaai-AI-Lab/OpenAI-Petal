@@ -1179,139 +1179,132 @@ configure_cuda_paths() {
     return 0
 }
 
-# Function to install tokenizers with hybrid wheel-first strategy
-# This function implements a 6-stage hybrid approach:
-# 1. Safe wheel versions (>=0.15.1) - guaranteed to have pre-built wheels
-# 2. Specific known versions - confirmed wheel availability
-# 3. Dynamic platform detection - check what wheels exist for this platform
-# 4. Conda fallback - alternative package source
-# 5. Any wheel version - final attempt at any available wheel
-# 6. Source build - absolute last resort only
-install_tokenizers_with_fallback() {
-    echo "🔤 Installing tokenizers with wheel-only strategy (source compilation disabled)..."
-
-    # Only show minimal environment info since source compilation is disabled
-    echo "🔍 Environment check:"
-    echo "   - Installation mode: Pre-built wheels only (saves ~5GB space)"
-    
-    # Note: Rust detection and environment setup removed since source compilation is disabled
-    # All tokenizer installation will use pre-built wheels only
-    
-    # Strategy 1: Safe wheel-only versions first (prioritize reliability)
-    echo "📦 Strategy 1: Installing tokenizers with guaranteed pre-built wheels..."
-    if $PIP_EXEC install --only-binary=tokenizers "tokenizers>=0.15.1" 2>/dev/null; then
-        echo "✅ tokenizers installed successfully (safe wheel version >=0.15.1)"
-        return 0
-    else
-        echo "⚠️ Strategy 1 failed: No wheels available for >=0.15.1"
-    fi
-
-    # Strategy 2: Try specific known working versions with wheels
-    echo "📦 Strategy 2: Trying specific versions with confirmed wheel availability..."
-    for version in "0.22.0" "0.21.4" "0.21.2" "0.20.3" "0.19.1" "0.15.2" "0.15.1"; do
-        echo "   Trying tokenizers==$version..."
-        if $PIP_EXEC install --only-binary=tokenizers "tokenizers==$version" 2>/dev/null; then
-            echo "✅ tokenizers $version installed successfully (confirmed wheel)"
-            return 0
-        fi
-    done
-    echo "⚠️ Strategy 2 failed: No specific wheel versions worked"
-
-    # Strategy 3: Dynamic platform-specific wheel detection
-    echo "📦 Strategy 3: Checking platform-specific wheel availability..."
-    # Get available versions and try most recent that work
-    if command -v python3 >/dev/null 2>&1; then
-        # Try to get available wheel versions for this platform
-        available_versions=$(python3 -c "
-import subprocess
-import sys
-try:
-    result = subprocess.run([sys.executable, '-m', 'pip', 'index', 'versions', 'tokenizers'],
-                          capture_output=True, text=True, timeout=10)
-    if result.returncode == 0:
-        lines = result.stdout.split('\n')
-        for line in lines:
-            if 'Available versions:' in line:
-                versions = line.split('Available versions:')[1].strip()
-                # Split and take first 8 versions
-                version_list = [v.strip() for v in versions.split(',')][:8]
-                print(' '.join(version_list))
-                break
-except:
-    pass
-" 2>/dev/null)
-
-        if [ -n "$available_versions" ]; then
-            echo "   Found available versions: $available_versions"
-            for version in $available_versions; do
-                version=$(echo "$version" | tr -d ' ')
-                echo "   Trying platform wheel for tokenizers==$version..."
-                if $PIP_EXEC install --only-binary=tokenizers "tokenizers==$version" 2>/dev/null; then
-                    echo "✅ tokenizers $version installed (platform-specific wheel)"
-                    return 0
-                fi
-            done
-        fi
-    fi
-    echo "⚠️ Strategy 3 failed: No platform-specific wheels worked"
-
-    # Strategy 4: Emergency conda fallback (if conda environment)
-    if command -v conda >/dev/null 2>&1 && [ "${PYTHON_METHOD:-}" = "conda" ]; then
-        echo "📦 Strategy 4: Emergency conda installation..."
-        if conda install -y tokenizers -c conda-forge 2>/dev/null; then
-            echo "✅ tokenizers installed via conda-forge"
-            return 0
-        else
-            echo "⚠️ Strategy 4 failed: Conda installation failed"
-        fi
-    fi
-
-    # Strategy 5: Try any available tokenizers version (final wheel attempt)
-    echo "📦 Strategy 5: Installing any available tokenizers version (final wheel attempt)..."
-    if $PIP_EXEC install --only-binary=tokenizers tokenizers 2>/dev/null; then
-        echo "✅ tokenizers installed (any available version)"
-        return 0
-    else
-        echo "⚠️ Strategy 5 failed: No tokenizers wheels available for this platform"
-    fi
-
-    # Strategy 6: Source compilation DISABLED to prevent storage issues and build failures
-    echo "ℹ️ Strategy 6 skipped: Source compilation disabled (saves ~5GB disk space and prevents build failures)"
-    
-    # All strategies failed
-    echo "❌ All 5 tokenizers wheel installation strategies failed."
-    echo ""
-    echo "🔧 RECOMMENDED SOLUTIONS (in order of preference):"
-    echo ""
-    echo "   1. PLATFORM ISSUE: Your platform may not have pre-built tokenizers wheels"
-    echo "      • Check https://pypi.org/project/tokenizers/#files for wheel availability"
-    echo "      • Try a different Python version (3.9, 3.10, 3.11 have better wheel support)"
-    echo ""
-    echo "   2. QUICK RETRY: Run with updated pip (may have better wheel resolution)"
-    echo "      pip install --upgrade pip && curl -fsSL \\${INSTALLER_URL} | bash"
-    echo ""
-    echo "   2. PYTHON VERSION: Try a different Python version with better wheel support:"
-    echo "      • Python 3.9, 3.10, or 3.11 typically have more pre-built wheels"
-    echo "      • Use pyenv or conda to install an alternative Python version"
-    echo ""
-    echo "   3. ALTERNATIVE: Use system package manager:"
-    case $DISTRO_FAMILY in
-        debian) echo "      sudo apt install python3-tokenizers (if available)" ;;
-        redhat) echo "      sudo yum install python3-tokenizers (if available)" ;;
-        arch) echo "      sudo pacman -S python-tokenizers (if available)" ;;
-    esac
-    echo ""
-    echo "⚠️ Installation will continue, but text processing may not work properly."
-    export TOKENIZERS_INSTALL_FAILED=true
-    return 1
-}
-
-# Main installation flow starts here
-echo "🔍 Detecting system configuration..."
-
-# Detect distribution
-detect_distro
-
+# Redundant tokenizer function removed - now handled in Phase 1 core dependencies
+# install_tokenizers_with_fallback() {
+#     echo "🔤 Installing tokenizers with wheel-only strategy (source compilation disabled)..."
+# 
+#     # Only show minimal environment info since source compilation is disabled
+#     echo "🔍 Environment check:"
+#     echo "   - Installation mode: Pre-built wheels only (saves ~5GB space)"
+#     
+#     # Note: Rust detection and environment setup removed since source compilation is disabled
+#     # All tokenizer installation will use pre-built wheels only
+#     
+#     # Strategy 1: Safe wheel-only versions first (prioritize reliability)
+#     echo "📦 Strategy 1: Installing tokenizers with guaranteed pre-built wheels..."
+#     if $PIP_EXEC install --only-binary=tokenizers "tokenizers>=0.15.1" 2>/dev/null; then
+#         echo "✅ tokenizers installed successfully (safe wheel version >=0.15.1)"
+#         return 0
+#     else
+#         echo "⚠️ Strategy 1 failed: No wheels available for >=0.15.1"
+#     fi
+# 
+#     # Strategy 2: Try specific known working versions with wheels
+#     echo "📦 Strategy 2: Trying specific versions with confirmed wheel availability..."
+#     for version in "0.22.0" "0.21.4" "0.21.2" "0.20.3" "0.19.1" "0.15.2" "0.15.1"; do
+#         echo "   Trying tokenizers==$version..."
+#         if $PIP_EXEC install --only-binary=tokenizers "tokenizers==$version" 2>/dev/null; then
+#             echo "✅ tokenizers $version installed successfully (confirmed wheel)"
+#             return 0
+#         fi
+#     done
+#     echo "⚠️ Strategy 2 failed: No specific wheel versions worked"
+# 
+#     # Strategy 3: Dynamic platform-specific wheel detection
+#     echo "📦 Strategy 3: Checking platform-specific wheel availability..."
+#     # Get available versions and try most recent that work
+#     if command -v python3 >/dev/null 2>&1; then
+#         # Try to get available wheel versions for this platform
+#         available_versions=$(python3 -c "
+# import subprocess
+# import sys
+# try:
+#     result = subprocess.run([sys.executable, '-m', 'pip', 'index', 'versions', 'tokenizers'],
+#                           capture_output=True, text=True, timeout=10)
+#     if result.returncode == 0:
+#         lines = result.stdout.split('\n')
+#         for line in lines:
+#             if 'Available versions:' in line:
+#                 versions = line.split('Available versions:')[1].strip()
+#                 # Split and take first 8 versions
+#                 version_list = [v.strip() for v in versions.split(',')][:8]
+#                 print(' '.join(version_list))
+#                 break
+# except:
+#     pass
+# " 2>/dev/null)
+# 
+#         if [ -n "$available_versions" ]; then
+#             echo "   Found available versions: $available_versions"
+#             for version in $available_versions; do
+#                 version=$(echo "$version" | tr -d ' ')
+#                 echo "   Trying platform wheel for tokenizers==$version..."
+#                 if $PIP_EXEC install --only-binary=tokenizers "tokenizers==$version" 2>/dev/null; then
+#                     echo "✅ tokenizers $version installed (platform-specific wheel)"
+#                     return 0
+#                 fi
+#             done
+#         fi
+#     fi
+#     echo "⚠️ Strategy 3 failed: No platform-specific wheels worked"
+# 
+#     # Strategy 4: Emergency conda fallback (if conda environment)
+#     if command -v conda >/dev/null 2>&1 && [ "${PYTHON_METHOD:-}" = "conda" ]; then
+#         echo "📦 Strategy 4: Emergency conda installation..."
+#         if conda install -y tokenizers -c conda-forge 2>/dev/null; then
+#             echo "✅ tokenizers installed via conda-forge"
+#             return 0
+#         else
+#             echo "⚠️ Strategy 4 failed: Conda installation failed"
+#         fi
+#     fi
+# 
+#     # Strategy 5: Try any available tokenizers version (final wheel attempt)
+#     echo "📦 Strategy 5: Installing any available tokenizers version (final wheel attempt)..."
+#     if $PIP_EXEC install --only-binary=tokenizers tokenizers 2>/dev/null; then
+#         echo "✅ tokenizers installed (any available version)"
+#         return 0
+#     else
+#         echo "⚠️ Strategy 5 failed: No tokenizers wheels available for this platform"
+#     fi
+# 
+#     # Strategy 6: Source compilation DISABLED to prevent storage issues and build failures
+#     echo "ℹ️ Strategy 6 skipped: Source compilation disabled (saves ~5GB disk space and prevents build failures)"
+#     
+#     # All strategies failed
+#     echo "❌ All 5 tokenizers wheel installation strategies failed."
+#     echo ""
+#     echo "🔧 RECOMMENDED SOLUTIONS (in order of preference):"
+#     echo ""
+#     echo "   1. PLATFORM ISSUE: Your platform may not have pre-built tokenizers wheels"
+#     echo "      • Check https://pypi.org/project/tokenizers/#files for wheel availability"
+#     echo "      • Try a different Python version (3.9, 3.10, 3.11 have better wheel support)"
+#     echo ""
+#     echo "   2. QUICK RETRY: Run with updated pip (may have better wheel resolution)"
+#     echo "      pip install --upgrade pip && curl -fsSL \\${INSTALLER_URL} | bash"
+#     echo ""
+#     echo "   2. PYTHON VERSION: Try a different Python version with better wheel support:"
+#     echo "      • Python 3.9, 3.10, or 3.11 typically have more pre-built wheels"
+#     echo "      • Use pyenv or conda to install an alternative Python version"
+#     echo ""
+#     echo "   3. ALTERNATIVE: Use system package manager:"
+#     case $DISTRO_FAMILY in
+#         debian) echo "      sudo apt install python3-tokenizers (if available)" ;;
+#         redhat) echo "      sudo yum install python3-tokenizers (if available)" ;;
+#         arch) echo "      sudo pacman -S python-tokenizers (if available)" ;;
+#     esac
+#     echo ""
+#     echo "⚠️ Installation will continue, but text processing may not work properly."
+#     export TOKENIZERS_INSTALL_FAILED=true
+#     return 1
+# }
+# 
+# # Main installation flow starts here
+# echo "🔍 Detecting system configuration..."
+# 
+# # Detect distribution
+# detect_distro
+# 
 # Check root privileges
 check_root
 
@@ -1507,391 +1500,176 @@ rm -rf /tmp/pip-* 2>/dev/null || true
 # Test connectivity
 test_huggingface_connectivity
 
-# Install the package
-echo "📦 Installing KwaaiNet for Linux..."
+# Optimized consolidated installation to reduce redundant operations
+echo "📦 Installing KwaaiNet for Linux (optimized sequence)..."
 
-# Install basic dependencies first
-$PIP_EXEC install pyyaml &>/dev/null || {
-    echo "⚠️ Failed to install pyyaml. Continuing..."
-}
-
-# Install Petals
-if [ "$NO_BUILD_TOOLS" = true ]; then
-    echo "📦 Installing Petals from PyPI (pre-built wheels only)..."
-    if $PIP_EXEC install petals --only-binary=all 2>/dev/null; then
-        echo "✅ Petals installed from PyPI (pre-built)"
-    else
-        echo "⚠️ No pre-built Petals available. Trying regular PyPI installation..."
-        if $PIP_EXEC install petals 2>/dev/null; then
-            echo "✅ Petals installed from PyPI"
-        else
-            echo "❌ Failed to install Petals without build tools"
-            echo "Try running without --no-build-tools or install build dependencies manually"
-            exit 1
-        fi
-    fi
+# Determine PyTorch variant and index URL
+PYTORCH_VERSION="2.3.1"
+if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
+    PYTORCH_VARIANT="+cu121"
+    PYTORCH_INDEX="--index-url https://download.pytorch.org/whl/cu121"
+    echo "📦 Installing CUDA-enabled PyTorch..."
 else
-    echo "📦 Installing Petals 2.3.0.dev2 with rope_scaling support..."
-    echo "   This may take several minutes as it builds from source..."
-
-    # Try to install with progress bar, fallback to verbose if progress bar not supported
-    if $PIP_EXEC install git+https://github.com/bigscience-workshop/petals.git 2>/dev/null; then
-        echo "✅ Petals installed successfully from git"
-    elif $PIP_EXEC install git+https://github.com/bigscience-workshop/petals.git -v 2>/dev/null; then
-        echo "✅ Petals installed successfully from git (verbose mode)"
-    else
-        echo "⚠️ Failed to install petals from git. Trying fallback installation..."
-        if $PIP_EXEC install petals 2>/dev/null || $PIP_EXEC install petals -v; then
-            echo "✅ Petals installed from PyPI"
-        else
-            echo "⚠️ Failed to install petals. Continuing with local installation..."
-        fi
-    fi
+    PYTORCH_VARIANT="+cpu"
+    PYTORCH_INDEX="--index-url https://download.pytorch.org/whl/cpu"
+    echo "📦 Installing CPU-only PyTorch..."
 fi
-
-# Install tokenizers with comprehensive fallback handling
-# Note: tokenizers installation is now handled after transformers to avoid dependency conflicts
-if [ "${TOKENIZERS_INSTALL_FAILED:-false}" != true ]; then
-    install_tokenizers_with_fallback
-else
-    echo "⚠️ Skipping separate tokenizers installation due to earlier failure"
-fi
-
-# Install compatible versions of transformers and huggingface_hub
-echo "📦 Installing compatible transformers and huggingface_hub versions..."
-
-# Check Python version for compatibility
-PYTHON_VERSION=$(${PYTHON_CMD:-python3} -c "import sys; print('.'.join(map(str, sys.version_info[:2])))" 2>/dev/null || echo "0.0")
-PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
-PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
 
 # Add --only-binary flag if no build tools
 BINARY_FLAG=""
 if [ "$NO_BUILD_TOOLS" = true ]; then
     BINARY_FLAG="--only-binary=all"
-    echo "ℹ️ Using pre-built wheels only (--no-build-tools)"
+    echo "ℹ️ Using pre-built wheels only"
 fi
 
-# Ensure Rust environment is available for any compilation
-if [ -f "$HOME/.cargo/env" ]; then
-    source "$HOME/.cargo/env"
+# Phase 1: Install all major dependencies together to minimize conflicts
+echo "📦 Phase 1: Installing core dependencies with conflict resolution..."
+INSTALL_CMD="$PIP_EXEC install $BINARY_FLAG"
+
+# Build package list excluding problematic git packages
+PYTORCH_PACKAGES="torch==${PYTORCH_VERSION}${PYTORCH_VARIANT} torchvision==0.18.1${PYTORCH_VARIANT} torchaudio==${PYTORCH_VERSION}${PYTORCH_VARIANT}"
+CORE_PACKAGES="transformers==4.43.1 huggingface_hub>=0.34.0 tokenizers>=0.15.0 pyyaml"
+
+# Install core packages with proper dependency resolution
+echo "📦 Installing PyTorch ${PYTORCH_VERSION}${PYTORCH_VARIANT}..."
+if $INSTALL_CMD $PYTORCH_PACKAGES $PYTORCH_INDEX; then
+    echo "✅ PyTorch installed successfully"
+else
+    echo "❌ Failed to install PyTorch"
+    exit 1
 fi
 
-if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -eq 7 ]; then
-    echo "📦 Using Python 3.7 compatible versions..."
-    # Try transformers 4.21.3 which was the last version with good Python 3.7 support
-    if $PIP_EXEC install $BINARY_FLAG "transformers==4.21.3" "huggingface_hub>=0.8.0,<0.20.0"; then
-        echo "✅ Successfully installed Python 3.7 compatible transformers and huggingface_hub"
+echo "📦 Installing core ML packages..."
+if $INSTALL_CMD $CORE_PACKAGES; then
+    echo "✅ Core ML packages installed successfully"
+else
+    echo "❌ Failed to install core ML packages"
+    exit 1
+fi
+
+# Install hivemind - check if compatible version exists
+echo "📦 Installing hivemind..."
+if $PIP_EXEC install "hivemind>=1.1.10" --upgrade; then
+    echo "✅ hivemind installed successfully"
+else
+    echo "⚠️ Using existing hivemind installation"
+fi
+
+# Install petals
+echo "📦 Installing Petals..."
+if [ "$NO_BUILD_TOOLS" = true ]; then
+    if $PIP_EXEC install petals --only-binary=all; then
+        echo "✅ Petals installed successfully (pre-built)"
+    elif $PIP_EXEC install petals; then
+        echo "✅ Petals installed successfully (PyPI)"
     else
-        echo "⚠️ Failed to install Python 3.7 compatible versions. Trying default versions..."
-        if $PIP_EXEC install $BINARY_FLAG "transformers==4.34.1" "huggingface_hub==0.34.0" "tokenizers==0.14.1"; then
-            echo "✅ Successfully installed default transformers and huggingface_hub"
-        else
-            echo "⚠️ Failed to install transformers/huggingface_hub. May have compatibility issues..."
-        fi
+        echo "❌ Failed to install Petals"
+        exit 1
     fi
 else
-    # Python 3.8+ - use fixed versions that resolve the dependency conflict
-    echo "📦 Installing transformers with dependency conflict resolution..."
-    
-    # Use transformers 4.43.1 (Petals requirement) with compatible versions
-    # This combination was tested and works (from Sept 10th CDN fix)
-
-    # Strategy 1: Install all compatible versions together
-    if $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "huggingface_hub>=0.34.0" "tokenizers>=0.15.0"; then
-        echo "✅ Strategy 1: Installed transformers 4.43.1 with compatible versions"
-    elif $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1" "huggingface_hub>=0.34.0"; then
-        echo "✅ Strategy 2: Installed transformers 4.43.1 and huggingface_hub (tokenizers auto-resolve)"
-    elif $PIP_EXEC install $BINARY_FLAG "transformers==4.43.1"; then
-        echo "✅ Strategy 3: Installed transformers 4.43.1 (dependencies auto-resolve)"
-        # Try to install compatible versions separately
-        $PIP_EXEC install $BINARY_FLAG "huggingface_hub>=0.34.0" "tokenizers>=0.15.0" 2>/dev/null || echo "⚠️ Some dependencies may need manual resolution"
+    if $PIP_EXEC install git+https://github.com/bigscience-workshop/petals.git; then
+        echo "✅ Petals installed successfully (git)"
+    elif $PIP_EXEC install petals; then
+        echo "✅ Petals installed successfully (PyPI fallback)"
     else
-        echo "❌ Failed to install transformers. This is a critical error."
-        echo ""
-        echo "🔧 MANUAL RESOLUTION REQUIRED:"
-        echo "   The dependency conflict preventing installation is:"
-        echo "   - Petals requires transformers==4.43.1"
-        echo "   - transformers==4.43.1 is compatible with tokenizers>=0.15.0"
-        echo "   - We need huggingface_hub>=0.34.0 for CDN compatibility"
-        echo ""
-        echo "   Try installing the correct versions manually:"
-        echo "   pip install 'transformers==4.43.1' 'huggingface_hub>=0.34.0' 'tokenizers>=0.15.0'"
-        echo ""
-        echo "⚠️ Installation will continue but may have issues..."
-    fi
-fi
-
-# Install from the local development version
-INSTALLER_DIR="$(dirname "$0")"
-if [ -d "$INSTALLER_DIR/linux" ]; then
-    echo "📦 Installing from local development version..."
-    if $PIP_EXEC install -e "$INSTALLER_DIR/linux/" 2>/dev/null; then
-        echo "✅ KwaaiNet Linux package installed successfully (local development version)"
-    else
-        echo "⚠️ Failed to install local development version. Installing from GitHub..."
-        
-        # Install PyTorch based on GPU availability (using compatible version)
-        if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
-            echo "📦 Installing PyTorch 2.3.1+cu121 (CUDA version compatible with hivemind)..."
-            echo "   This may take a few minutes to download..."
-            if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cu121" "torchvision==0.18.1+cu121" "torchaudio==2.3.1+cu121" --index-url https://download.pytorch.org/whl/cu121; then
-                echo "✅ PyTorch CUDA 2.3.1 installed successfully"
-                
-                # CRITICAL: Lock PyTorch version to prevent auto-upgrade
-                echo "🔒 Locking PyTorch version to prevent dependency conflicts..."
-                $PIP_EXEC install --force-reinstall --no-deps "torch==2.3.1+cu121" "torchvision==0.18.1+cu121" "torchaudio==2.3.1+cu121"
-                
-                # Verify version lock
-                PYTORCH_VERSION=$($PYTHON_EXEC -c "import torch; print(torch.__version__)" 2>/dev/null || echo "failed")
-                if [[ "$PYTORCH_VERSION" == "2.3.1+cu121" ]]; then
-                    echo "✅ PyTorch version locked at 2.3.1+cu121"
-                else
-                    echo "⚠️ PyTorch version lock may have failed: $PYTORCH_VERSION"
-                fi
-            else
-                echo "⚠️ Failed to install CUDA PyTorch 2.3.1. Falling back to CPU version..."
-                if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu" --index-url https://download.pytorch.org/whl/cpu; then
-                    echo "✅ PyTorch CPU 2.3.1 installed successfully"
-                    
-                    # CRITICAL: Lock PyTorch version to prevent auto-upgrade
-                    echo "🔒 Locking PyTorch CPU version to prevent dependency conflicts..."
-                    $PIP_EXEC install --force-reinstall --no-deps "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu"
-                else
-                    echo "❌ Failed to install PyTorch CPU version"
-                    if command -v diagnose_pip_failure >/dev/null 2>&1; then
-                        diagnose_pip_failure $? "PyTorch installation failed" "torch" "$HOME"
-                    else
-                        echo "Please check your internet connection and available disk space."
-                    fi
-                    exit 1
-                fi
-            fi
-        else
-            echo "📦 Installing PyTorch 2.3.1+cpu (compatible with hivemind)..."
-            echo "   This may take a few minutes to download..."
-            if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu" --index-url https://download.pytorch.org/whl/cpu; then
-                echo "✅ PyTorch CPU 2.3.1 installed successfully"
-                
-                # CRITICAL: Lock PyTorch version to prevent auto-upgrade
-                echo "🔒 Locking PyTorch CPU version to prevent dependency conflicts..."
-                $PIP_EXEC install --force-reinstall --no-deps "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu"
-            else
-                echo "❌ Failed to install PyTorch CPU version"
-                if command -v diagnose_pip_failure >/dev/null 2>&1; then
-                    diagnose_pip_failure $? "PyTorch installation failed" "torch" "$HOME"
-                else
-                    echo "Please check your internet connection and available disk space."
-                fi
-                exit 1
-            fi
-        fi
-        
-        
-        # Install bitsandbytes for quantization support
-        echo "📦 Installing bitsandbytes for quantization support..."
-        if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
-            echo "   Installing CUDA-compatible version for NVIDIA GPU..."
-            # First try standard installation which should auto-detect CUDA
-            if $PIP_EXEC install $BINARY_FLAG bitsandbytes; then
-                echo "✅ bitsandbytes CUDA installed successfully"
-            else
-                echo "⚠️ Failed to install bitsandbytes CUDA. Quantization may not work properly."
-            fi
-        else
-            echo "   Installing CPU version..."
-            if $PIP_EXEC install $BINARY_FLAG bitsandbytes; then
-                echo "✅ bitsandbytes CPU installed successfully"
-            else
-                echo "⚠️ Failed to install bitsandbytes. Quantization may not work properly."
-            fi
-        fi
-        
-        # Install KwaaiNet Linux package from GitHub as fallback
-        echo "📦 Installing KwaaiNet Linux package from GitHub..."
-        if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
-            echo "✅ KwaaiNet Linux package installed successfully"
-        else
-            echo "❌ Failed to install KwaaiNet Linux package from GitHub"
-            if command -v diagnose_pip_failure >/dev/null 2>&1; then
-                diagnose_pip_failure $? "KwaaiNet package installation failed" "kwaainet" "$HOME"
-            else
-                echo "Please check your internet connection and available disk space."
-            fi
-            exit 1
-        fi
-    fi
-else
-    echo "⚠️ Local development version not found. Installing from GitHub repository..."
-    
-    # Install PyTorch based on GPU availability (using compatible version)
-    if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
-        echo "📦 Installing PyTorch 2.3.1+cu121 (CUDA version compatible with hivemind)..."
-        echo "   This may take a few minutes to download..."
-        if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cu121" "torchvision==0.18.1+cu121" "torchaudio==2.3.1+cu121" --index-url https://download.pytorch.org/whl/cu121; then
-            echo "✅ PyTorch CUDA 2.3.1 installed successfully"
-        else
-            echo "⚠️ Failed to install CUDA PyTorch 2.3.1. Falling back to CPU version..."
-            if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu" --index-url https://download.pytorch.org/whl/cpu; then
-                echo "✅ PyTorch CPU 2.3.1 installed successfully"
-            else
-                echo "❌ Failed to install PyTorch (CUDA and CPU versions both failed)"
-                if command -v diagnose_pip_failure >/dev/null 2>&1; then
-                    diagnose_pip_failure $? "PyTorch installation failed" "torch" "$HOME"
-                else
-                    echo "Please check your internet connection and available disk space."
-                fi
-                exit 1
-            fi
-        fi
-    else
-        echo "📦 Installing PyTorch 2.3.1+cpu (compatible with hivemind)..."
-        echo "   This may take a few minutes to download..."
-
-        # Use monitored installation if available
-        if command -v monitor_package_installation >/dev/null 2>&1; then
-            if ! monitor_package_installation "PyTorch CPU" "$PIP_EXEC install $BINARY_FLAG \"torch==2.3.1+cpu\" \"torchvision==0.18.1+cpu\" \"torchaudio==2.3.1+cpu\" --index-url https://download.pytorch.org/whl/cpu" "$HOME"; then
-                exit 1
-            fi
-        else
-            # Fallback to standard installation
-            if $PIP_EXEC install $BINARY_FLAG "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" "torchaudio==2.3.1+cpu" --index-url https://download.pytorch.org/whl/cpu; then
-                echo "✅ PyTorch CPU 2.3.1 installed successfully"
-            else
-                echo "❌ Failed to install PyTorch CPU version"
-                if command -v diagnose_pip_failure >/dev/null 2>&1; then
-                    diagnose_pip_failure $? "PyTorch installation failed" "torch" "$HOME"
-                else
-                    echo "Please check your internet connection and available disk space."
-                fi
-                exit 1
-            fi
-        fi
-    fi
-
-    # Monitor space after PyTorch installation
-    if command -v monitor_installation_space >/dev/null 2>&1; then
-        monitor_installation_space "$HOME" "After PyTorch installation"
-    fi
-
-    # Install bitsandbytes for quantization support
-    echo "📦 Installing bitsandbytes for quantization support..."
-    if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
-        echo "   Installing CUDA-compatible version for NVIDIA GPU..."
-        # First try standard installation which should auto-detect CUDA
-        if $PIP_EXEC install $BINARY_FLAG bitsandbytes; then
-            echo "✅ bitsandbytes CUDA installed successfully"
-        else
-            echo "⚠️ Failed to install bitsandbytes CUDA. Quantization may not work properly."
-        fi
-    else
-        echo "   Installing CPU version..."
-        if $PIP_EXEC install $BINARY_FLAG bitsandbytes; then
-            echo "✅ bitsandbytes CPU installed successfully"
-        else
-            echo "⚠️ Failed to install bitsandbytes. Quantization may not work properly."
-        fi
-    fi
-    
-    # Install KwaaiNet Linux package from GitHub
-    echo "📦 Installing KwaaiNet Linux package..."
-    if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
-        echo "✅ KwaaiNet Linux package installed successfully"
-    else
-        echo "❌ Failed to install KwaaiNet Linux package from GitHub"
-        if command -v diagnose_pip_failure >/dev/null 2>&1; then
-            diagnose_pip_failure $? "KwaaiNet package installation failed" "kwaainet" "$HOME"
-        else
-            echo "Please check your internet connection and available disk space."
-        fi
+        echo "❌ Failed to install Petals"
         exit 1
     fi
 fi
 
-# Ensure correct hivemind version for petals compatibility
-echo "📦 Installing hivemind compatible with petals (v1.1.10.post2)..."
-echo "   Constraining PyTorch version to prevent auto-upgrade..."
-if $PIP_EXEC install --upgrade --force-reinstall "hivemind==1.1.10.post2" "torch>=2.3.0,<2.4.0"; then
-    echo "✅ hivemind 1.1.10.post2 installed (required by petals)"
-    
-    # Apply PyTorch 2.3+ compatibility patch for hivemind
-    echo "🔧 Applying PyTorch compatibility patches for hivemind..."
-    if ! apply_hivemind_pytorch_patch; then
-        echo "⚠️ Patching failed, but continuing installation..."
-        echo "   Manual patching may be required for full functionality"
+# Phase 2: Install KwaaiNet package and finalize installation
+echo "📦 Phase 2: Installing KwaaiNet package..."
+
+# Try local development version first, then fallback to GitHub
+INSTALLER_DIR="$(dirname "$0")"
+if [ -d "$INSTALLER_DIR/linux" ]; then
+    echo "📦 Installing from local development version..."
+    if $PIP_EXEC install -e "$INSTALLER_DIR/linux/"; then
+        echo "✅ KwaaiNet Linux package installed successfully (local development)"
+    else
+        echo "⚠️ Local development install failed. Installing from GitHub..."
+        if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
+            echo "✅ KwaaiNet Linux package installed successfully (GitHub)"
+        else
+            echo "❌ Failed to install KwaaiNet Linux package"
+            exit 1
+        fi
     fi
 else
-    echo "⚠️ Failed to install correct hivemind version. Daemon may fail to start."
+    echo "📦 Installing KwaaiNet from GitHub repository..."
+    if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
+        echo "✅ KwaaiNet Linux package installed successfully (GitHub)"
+    else
+        # Fallback: clone and install in development mode
+        echo "⚠️ GitHub install failed. Trying development mode fallback..."
+        cd /tmp && rm -rf OpenAI-Petal 2>/dev/null || true
+        if git clone https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git && cd OpenAI-Petal; then
+            if $PIP_EXEC install -e Installer/linux/; then
+                echo "✅ KwaaiNet installed successfully (development mode)"
+                cd /tmp && rm -rf OpenAI-Petal
+            else
+                echo "❌ Failed to install KwaaiNet package"
+                cd /tmp && rm -rf OpenAI-Petal
+                exit 1
+            fi
+        else
+            echo "❌ Failed to clone repository"
+            exit 1
+        fi
+    fi
 fi
 
-# Final PyTorch version lock after all installations
-echo ""
-echo "🔒 Final PyTorch version lock to prevent any auto-upgrades..."
-$PIP_EXEC install --force-reinstall --no-deps "torch>=2.3.0,<2.4.0" 2>/dev/null || echo "   ⚠️ Version lock may have failed"
+# Install additional dependencies if needed
+echo "📦 Phase 3: Installing additional support packages..."
 
-# Final post-installation patch attempt (in case earlier patching failed)
-echo ""
-echo "🔧 Final compatibility check and patching..."
+# Install bitsandbytes for quantization support
+if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
+    echo "📦 Installing CUDA-compatible bitsandbytes..."
+    $PIP_EXEC install $BINARY_FLAG bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CUDA install failed"
+else
+    echo "📦 Installing CPU-only bitsandbytes..."
+    if command -v conda >/dev/null 2>&1; then
+        conda install -c conda-forge bitsandbytes-cpu -y &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
+    else
+        $PIP_EXEC install --no-binary bitsandbytes bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
+    fi
+fi
+
+# Apply compatibility patches
+echo "🔧 Applying compatibility patches..."
 if ! apply_hivemind_pytorch_patch; then
-    echo "⚠️ Final patching failed - manual patch may be needed for optimal performance"
+    echo "⚠️ Patching failed, but continuing installation..."
 fi
 
-# Run comprehensive verification of the installation
-echo ""
-echo "🧪 Running installation verification..."
+# Ensure proper default configuration
+echo "⚙️ Setting up default configuration..."
+if [ "$PYTHON_METHOD" = "conda" ]; then
+    # Use conda environment
+    conda run -n kwaainet python -c "
+import sys
+sys.path.insert(0, '$CONDA_BASE/envs/kwaainet/lib/python3.10/site-packages')
+from kwaainet.config import KwaaiNetConfig
+config = KwaaiNetConfig()
+print('✅ Configuration initialized with proper defaults')
+" 2>/dev/null || echo "⚠️ Config setup failed, but continuing..."
+else
+    # Use virtual environment or system python
+    $PYTHON_EXEC -c "
+from kwaainet.config import KwaaiNetConfig
+config = KwaaiNetConfig()
+print('✅ Configuration initialized with proper defaults')
+" 2>/dev/null || echo "⚠️ Config setup failed, but continuing..."
+fi
+
+# Verify installation
+echo "🧪 Verifying optimized installation..."
 if run_comprehensive_verification; then
     echo "✅ Installation verification completed successfully!"
 else
-    echo "⚠️ Installation verification found issues - daemon may not work properly"
-    echo "   Check the logs above for specific problems"
+    echo "⚠️ Installation verification had issues, but continuing..."
 fi
 
-# Configure CUDA library paths for bitsandbytes (NVIDIA GPUs only)
-configure_cuda_paths
-
-# Install KwaaiNet Linux package
-echo "📦 Installing KwaaiNet for Linux..."
-
-# Clear cached versions and uninstall existing packages to avoid conflicts
-echo "🧹 Clearing any cached versions and removing existing packages..."
-$PIP_EXEC cache remove kwaainet &>/dev/null || true
-$PIP_EXEC cache remove kwaainet_linux &>/dev/null || true
-$PIP_EXEC uninstall -y kwaainet kwaainet_linux &>/dev/null || true
-
-# Download and install the current project code
-echo "📦 Downloading KwaaiNet source code..."
-
-# Create permanent installation directory
-INSTALL_DIR="$HOME/.kwaainet/source"
-mkdir -p "$INSTALL_DIR"
-cd "$INSTALL_DIR"
-
-# Remove any existing installation
-rm -rf OpenAI-Petal* 2>/dev/null || true
-
-if command -v git >/dev/null 2>&1; then
-    echo "📡 Cloning repository with git..."
-    git clone --depth 1 https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git
-    PROJECT_PATH="$INSTALL_DIR/OpenAI-Petal"
-else
-    echo "📡 Downloading repository archive..."
-    curl -L https://github.com/Kwaai-AI-Lab/OpenAI-Petal/archive/main.tar.gz -o main.tar.gz
-    tar -xzf main.tar.gz
-    PROJECT_PATH="$INSTALL_DIR/OpenAI-Petal-main"
-fi
-
-# Install the current project in development mode from permanent location
-echo "📦 Installing KwaaiNet for Linux in development mode..."
-cd "$PROJECT_PATH/Installer/linux"
-$PIP_EXEC install -e .
-
-if [ $? -eq 0 ]; then
-    echo "✅ KwaaiNet Linux package installed successfully"
-else
-    echo "❌ Failed to install KwaaiNet Linux package"
-    exit 1
-fi
-
+# Optimized installation complete - redundant sections removed
 # Create launcher script for one-step execution
 echo "🚀 Creating launcher script..."
 LAUNCHER_PATH="$HOME/.local/bin/kwaainet"
