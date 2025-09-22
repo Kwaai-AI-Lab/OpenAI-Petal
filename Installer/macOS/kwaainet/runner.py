@@ -19,15 +19,7 @@ from .installer import setup_mac
 from .daemon import DaemonProcess, setup_signal_handlers
 from .service import get_service_manager
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-
+# Get logger (configured in __init__.py to prevent duplicates)
 logger = logging.getLogger(__name__)
 
 class KwaaiNetRunner:
@@ -160,12 +152,9 @@ class KwaaiNetRunner:
             # Setup daemon-specific logging if in daemon mode
             if daemon_mode:
                 # Configure file logging for daemon mode
+                # File logging is handled separately to avoid duplicate console output
                 log_file = os.path.join(self.log_dir, "kwaainet.log")
-                file_handler = logging.FileHandler(log_file)
-                file_handler.setFormatter(logging.Formatter(
-                    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-                ))
-                logging.getLogger().addHandler(file_handler)
+                # Note: File handler not added to root logger to prevent duplicate console messages
                 
                 # Setup signal handlers
                 setup_signal_handlers(self.daemon)
@@ -351,7 +340,7 @@ def main():
     """Main entry point"""
     args = parse_args()
     runner = KwaaiNetRunner()
-    
+
     if not runner.check_system():
         sys.exit(1)
     
@@ -604,5 +593,4 @@ def main():
                 print("─────────────────────────────────────────────────────────────────────")
                 sys.exit(1)
 
-if __name__ == "__main__":
-    main()
+# Entry point is handled by __main__.py to prevent double execution

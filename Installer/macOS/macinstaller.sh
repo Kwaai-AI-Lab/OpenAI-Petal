@@ -6,13 +6,76 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.3.1"
+INSTALLER_VERSION="0.3.3"
 
-echo "=========================================================="
-echo "KwaaiNet for Mac - One-Step Installer v$INSTALLER_VERSION"
-echo "=========================================================="
+# Set up logging
+LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
+# Log to file without duplicating terminal output
+exec 3>&1 4>&2
+exec 1> >(tee -a "$LOG_FILE")
+exec 2>&1
+
+echo "=== KwaaiNet macOS Installer v$INSTALLER_VERSION ==="
+echo "Installation started at: $(date)"
+echo "Log file: $LOG_FILE"
+echo "System: $(uname -a)"
+echo ""
 echo "This installer will set up KwaaiNet for sharing compute on macOS"
 echo "It includes Python setup, dependencies, and environment configuration"
+echo ""
+
+# Parse command line arguments
+SKIP_SYSTEM_PACKAGES=false
+FORCE_CONDA=false
+FORCE_VENV=false
+NO_BUILD_TOOLS=true
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --no-system-packages)
+            SKIP_SYSTEM_PACKAGES=true
+            shift
+            ;;
+        --force-conda)
+            FORCE_CONDA=true
+            shift
+            ;;
+        --force-venv)
+            FORCE_VENV=true
+            shift
+            ;;
+        --no-build-tools)
+            NO_BUILD_TOOLS=true
+            shift
+            ;;
+        --with-build-tools)
+            NO_BUILD_TOOLS=false
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: $0 [OPTIONS]"
+            echo "Options:"
+            echo "  --no-system-packages  Skip system package installation (assumes all dependencies are available)"
+            echo "  --force-conda         Force using conda environment instead of auto-detection"
+            echo "  --force-venv          Force using virtual environment instead of auto-detection"
+            echo "  --no-build-tools      Use pre-built wheels only (default - saves disk space)"
+            echo "  --with-build-tools    Install build tools for compiling from source (requires extra disk space)"
+            echo "  --help, -h            Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+echo "Configuration:"
+echo "  Skip system packages: $SKIP_SYSTEM_PACKAGES"
+echo "  Force conda: $FORCE_CONDA"
+echo "  Force venv: $FORCE_VENV"
+echo "  No build tools: $NO_BUILD_TOOLS"
 echo ""
 
 # Check if running on macOS
@@ -185,9 +248,12 @@ echo ""
 echo "🔍 Verifying storage space requirements..."
 SKIP_STORAGE_CHECK="${SKIP_STORAGE_CHECK:-false}"
 if [ "$SKIP_STORAGE_CHECK" != "true" ] && command -v check_storage_requirements >/dev/null 2>&1; then
-    # macOS uses conda and typically doesn't need build tools (Homebrew handles them)
+    # Determine installation parameters for space estimation
     USE_CONDA_FOR_SPACE="true"
-    INSTALL_BUILD_TOOLS="false"  # macOS has Xcode Command Line Tools
+    INSTALL_BUILD_TOOLS="true"
+    if [ "$NO_BUILD_TOOLS" = "true" ]; then
+        INSTALL_BUILD_TOOLS="false"
+    fi
 
     # Check storage and exit if insufficient
     if ! check_storage_requirements "$HOME" "$USE_CONDA_FOR_SPACE" "$INSTALL_BUILD_TOOLS"; then
@@ -196,9 +262,11 @@ if [ "$SKIP_STORAGE_CHECK" != "true" ] && command -v check_storage_requirements 
         echo ""
         echo "💡 Options to continue:"
         echo "   1. Free up space using the suggestions above"
-        echo "   2. Use 'brew cleanup' to remove old Homebrew packages"
-        echo "   3. Empty Trash and Downloads folder"
-        echo "   4. Skip storage check: SKIP_STORAGE_CHECK=true bash installer.sh"
+        echo "   2. Use space-saving options:"
+        echo "      --no-build-tools     (saves ~1GB)"
+        echo "   3. Use 'brew cleanup' to remove old Homebrew packages"
+        echo "   4. Empty Trash and Downloads folder"
+        echo "   5. Skip storage check: SKIP_STORAGE_CHECK=true bash installer.sh"
         echo ""
         exit 1
     fi
@@ -302,15 +370,33 @@ fi
 echo "📦 Installing KwaaiNet for Mac in development mode..."
 cd "$PROJECT_PATH/Installer/macOS"
 
+# Add --only-binary flag if no build tools
+# Use conda environment's pip explicitly to avoid broken system pip
+CONDA_ENV_PIP="$CONDA_PREFIX/bin/pip"
+if [ -x "$CONDA_ENV_PIP" ]; then
+    PIP_INSTALL_CMD="$CONDA_ENV_PIP install -e ."
+    if [ "$NO_BUILD_TOOLS" = true ]; then
+        PIP_INSTALL_CMD="$CONDA_ENV_PIP install -e . --only-binary=all"
+        echo "ℹ️ Using pre-built wheels only (--only-binary=all) to avoid compilation"
+    fi
+else
+    # Fallback to regular pip if conda env pip not found
+    PIP_INSTALL_CMD="pip install -e ."
+    if [ "$NO_BUILD_TOOLS" = true ]; then
+        PIP_INSTALL_CMD="pip install -e . --only-binary=all"
+        echo "ℹ️ Using pre-built wheels only (--only-binary=all) to avoid compilation"
+    fi
+fi
+
 # Use monitored installation if available
 if command -v monitor_package_installation >/dev/null 2>&1; then
-    if ! monitor_package_installation "KwaaiNet macOS package" "pip install -e ." "$HOME"; then
+    if ! monitor_package_installation "KwaaiNet macOS package" "$PIP_INSTALL_CMD" "$HOME"; then
         echo "❌ Failed to install KwaaiNet package"
         exit 1
     fi
 else
     # Fallback to standard installation
-    if pip install -e .; then
+    if $PIP_INSTALL_CMD; then
         echo "✅ KwaaiNet macOS package installed successfully"
     else
         echo "❌ Failed to install KwaaiNet package"
@@ -322,6 +408,10 @@ else
         exit 1
     fi
 fi
+
+# Run initial setup now that the package is installed and environment is ready
+echo "⚙️ Running initial setup..."
+python -c "import kwaainet.installer; kwaainet.installer.setup_mac()"
 
 # Monitor space after main package installation
 if command -v monitor_installation_space >/dev/null 2>&1; then
@@ -337,50 +427,61 @@ cat > "$LAUNCHER_PATH" << 'EOF'
 #!/bin/bash
 # KwaaiNet Launcher - Run KwaaiNet without having to activate conda first
 
-# Find conda installation
-if command -v conda >/dev/null 2>&1; then
-    CONDA_PATH=$(dirname $(dirname $(which conda)))
+# Find conda installation (prioritize user installations over system)
+CONDA_PATH=""
+if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
+    CONDA_PATH="$HOME/miniconda3"
+elif [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then
+    CONDA_PATH="$HOME/anaconda3"
 elif [ -f "/opt/homebrew/Caskroom/miniconda/base/etc/profile.d/conda.sh" ]; then
     CONDA_PATH="/opt/homebrew/Caskroom/miniconda/base"
 elif [ -f "/usr/local/Caskroom/miniconda/base/etc/profile.d/conda.sh" ]; then
     CONDA_PATH="/usr/local/Caskroom/miniconda/base"
 elif [ -f "$HOME/miniconda/etc/profile.d/conda.sh" ]; then
     CONDA_PATH="$HOME/miniconda"
-elif [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then
-    CONDA_PATH="$HOME/anaconda3"
-else
-    echo "❌ Error: Could not find conda installation."
+elif command -v conda >/dev/null 2>&1; then
+    # Try to get conda base, but verify it has conda.sh
+    POTENTIAL_PATH=$(conda info --base 2>/dev/null)
+    if [ -n "$POTENTIAL_PATH" ] && [ -f "$POTENTIAL_PATH/etc/profile.d/conda.sh" ]; then
+        CONDA_PATH="$POTENTIAL_PATH"
+    else
+        # Fallback to directory detection
+        CONDA_PATH=$(dirname $(dirname $(which conda)) 2>/dev/null)
+    fi
+fi
+
+if [ -z "$CONDA_PATH" ] || [ ! -f "$CONDA_PATH/etc/profile.d/conda.sh" ]; then
+    echo "❌ Error: Could not find conda installation with conda.sh script."
+    echo "Expected locations:"
+    echo "  - $HOME/miniconda3/etc/profile.d/conda.sh"
+    echo "  - $HOME/anaconda3/etc/profile.d/conda.sh"
+    echo "  - /opt/homebrew/Caskroom/miniconda/base/etc/profile.d/conda.sh"
+    echo "  - /usr/local/Caskroom/miniconda/base/etc/profile.d/conda.sh"
     exit 1
 fi
 
 # Source conda without changing the prompt
-if [ -f "$CONDA_PATH/etc/profile.d/conda.sh" ]; then
-    source "$CONDA_PATH/etc/profile.d/conda.sh"
-else
-    echo "❌ Error: Could not find conda.sh in $CONDA_PATH"
-    exit 1
-fi
+source "$CONDA_PATH/etc/profile.d/conda.sh"
 
 # Activate the environment and run the command
 conda activate kwaainet
 
-# Try to run the module, with fallback to direct execution
-if ! python -m kwaainet.runner "$@" 2>/dev/null; then
-    # Fallback: try running from the source installation directory
-    if [ -d "$HOME/.kwaainet/source" ]; then
-        echo "⚠️ Module import failed, trying fallback from source directory..."
-        SOURCE_DIR=$(find "$HOME/.kwaainet/source" -name "OpenAI-Petal*" -type d | head -1)
-        if [ -n "$SOURCE_DIR" ] && [ -f "$SOURCE_DIR/Installer/macOS/kwaainet/runner.py" ]; then
-            export PYTHONPATH="$SOURCE_DIR/Installer/macOS:$PYTHONPATH"
-            python -m kwaainet.runner "$@"
-        else
-            echo "❌ Error: Could not find KwaaiNet installation. Please run the installer again."
-            exit 1
-        fi
-    else
-        echo "❌ Error: KwaaiNet module not found. Please run the installer again."
-        exit 1
-    fi
+# Check if activation was successful
+if [ $? -ne 0 ]; then
+    echo "❌ Error: Failed to activate kwaainet conda environment."
+    exit 1
+fi
+
+# Run kwaainet command directly via Python to avoid module import recursion
+if [ "$1" = "setup" ]; then
+    exec python -c "import kwaainet.installer; kwaainet.installer.setup_mac()"
+else
+    exec python -c "
+import sys
+sys.argv = ['kwaainet'] + sys.argv[1:]
+import kwaainet.runner
+kwaainet.runner.main()
+" "$@"
 fi
 EOF
 
@@ -480,23 +581,7 @@ if [ -w "/usr/local/bin" ]; then
 fi
 
 # Run initial setup
-echo "⚙️ Running initial setup..."
-# Use the direct PATH to kwaainet if available, otherwise use the launcher script
-if command_exists conda; then
-    # Try to activate conda and run directly
-    if [ -f "$CONDA_PATH/etc/profile.d/conda.sh" ]; then
-        . "$CONDA_PATH/etc/profile.d/conda.sh"
-        if conda activate kwaainet 2>/dev/null; then
-            python -m kwaainet.runner setup
-        else
-            "$LAUNCHER_PATH" setup
-        fi
-    else
-        "$LAUNCHER_PATH" setup
-    fi
-else
-    "$LAUNCHER_PATH" setup
-fi
+# Initial setup is now handled after package installation is complete
 
 # Final space monitoring
 if command -v monitor_installation_space >/dev/null 2>&1; then

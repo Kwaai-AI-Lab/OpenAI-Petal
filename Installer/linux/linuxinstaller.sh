@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.3.1
+# KwaaiNet for Linux - One-Step Installer v0.3.3
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.3.1"
+INSTALLER_VERSION="0.3.3"
 
 # Set up logging
 LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
@@ -39,11 +39,11 @@ while [[ $# -gt 0 ]]; do
             FORCE_VENV=true
             shift
             ;;
-        --no-build-tools)
+        --no-build-tools|-no-build-tools)
             NO_BUILD_TOOLS=true
             shift
             ;;
-        --with-build-tools)
+        --with-build-tools|-with-build-tools)
             NO_BUILD_TOOLS=false
             shift
             ;;
@@ -73,6 +73,13 @@ echo "This installer will set up KwaaiNet for sharing compute on Linux"
 echo "It includes Python setup, dependencies, and environment configuration"
 if [ "$SKIP_SYSTEM_PACKAGES" = true ]; then
     echo "⚠️ Skipping system package installation (--no-system-packages)"
+fi
+if [ "$NO_BUILD_TOOLS" = true ]; then
+    echo "🔧 Installation mode: Pre-built wheels only (--no-build-tools) - DEFAULT"
+    echo "   This saves ~5GB disk space and avoids Rust compilation"
+else
+    echo "🔧 Installation mode: Build from source (--with-build-tools)"
+    echo "   This requires build tools and extra disk space"
 fi
 echo ""
 
@@ -1567,10 +1574,20 @@ fi
 
 # Install hivemind - check if compatible version exists
 echo "📦 Installing hivemind..."
-if $PIP_EXEC install "hivemind>=1.1.10" --upgrade; then
-    echo "✅ hivemind installed successfully"
+if [ "$NO_BUILD_TOOLS" = true ]; then
+    if $PIP_EXEC install "hivemind>=1.1.10" --upgrade $BINARY_FLAG; then
+        echo "✅ hivemind installed successfully (pre-built)"
+    elif $PIP_EXEC install "hivemind>=1.1.10" --upgrade; then
+        echo "✅ hivemind installed successfully (fallback)"
+    else
+        echo "⚠️ Using existing hivemind installation"
+    fi
 else
-    echo "⚠️ Using existing hivemind installation"
+    if $PIP_EXEC install "hivemind>=1.1.10" --upgrade; then
+        echo "✅ hivemind installed successfully"
+    else
+        echo "⚠️ Using existing hivemind installation"
+    fi
 fi
 
 # Install petals
@@ -1602,11 +1619,11 @@ echo "📦 Phase 2: Installing KwaaiNet package..."
 INSTALLER_DIR="$(dirname "$0")"
 if [ -d "$INSTALLER_DIR/linux" ]; then
     echo "📦 Installing from local development version..."
-    if $PIP_EXEC install -e "$INSTALLER_DIR/linux/"; then
+    if $PIP_EXEC install $BINARY_FLAG -e "$INSTALLER_DIR/linux/"; then
         echo "✅ KwaaiNet Linux package installed successfully (local development)"
     else
         echo "⚠️ Local development install failed. Installing from GitHub..."
-        if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
+        if $PIP_EXEC install $BINARY_FLAG "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
             echo "✅ KwaaiNet Linux package installed successfully (GitHub)"
         else
             echo "❌ Failed to install KwaaiNet Linux package"
@@ -1615,14 +1632,14 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
     fi
 else
     echo "📦 Installing KwaaiNet from GitHub repository..."
-    if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
+    if $PIP_EXEC install $BINARY_FLAG "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
         echo "✅ KwaaiNet Linux package installed successfully (GitHub)"
     else
         # Fallback: clone and install in development mode
         echo "⚠️ GitHub install failed. Trying development mode fallback..."
         cd /tmp && rm -rf OpenAI-Petal 2>/dev/null || true
         if git clone https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git && cd OpenAI-Petal; then
-            if $PIP_EXEC install -e Installer/linux/; then
+            if $PIP_EXEC install $BINARY_FLAG -e Installer/linux/; then
                 echo "✅ KwaaiNet installed successfully (development mode)"
                 cd /tmp && rm -rf OpenAI-Petal
             else
@@ -1643,13 +1660,25 @@ echo "📦 Phase 3: Installing additional support packages..."
 # Install bitsandbytes for quantization support
 if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
     echo "📦 Installing CUDA-compatible bitsandbytes..."
-    $PIP_EXEC install $BINARY_FLAG bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CUDA install failed"
+    if [ "$NO_BUILD_TOOLS" = true ]; then
+        $PIP_EXEC install $BINARY_FLAG bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CUDA install failed (pre-built)"
+    else
+        $PIP_EXEC install bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CUDA install failed"
+    fi
 else
     echo "📦 Installing CPU-only bitsandbytes..."
     if command -v conda >/dev/null 2>&1; then
         conda install -c conda-forge bitsandbytes-cpu -y &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
     else
-        $PIP_EXEC install --no-binary bitsandbytes bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
+        if [ "$NO_BUILD_TOOLS" = true ]; then
+            # Try pre-built first for CPU bitsandbytes
+            if ! $PIP_EXEC install $BINARY_FLAG bitsandbytes &>/dev/null; then
+                echo "⚠️ Pre-built CPU bitsandbytes not available, trying fallback"
+                $PIP_EXEC install bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
+            fi
+        else
+            $PIP_EXEC install --no-binary bitsandbytes bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
+        fi
     fi
 fi
 

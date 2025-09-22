@@ -14,13 +14,19 @@ import logging
 import platform
 import sys
 
+# Configure root logger to prevent duplicate messages
+# Force a clean logging setup with a single handler
+root_logger = logging.getLogger()
+root_logger.handlers.clear()
+root_logger.setLevel(logging.INFO)
+
+# Add exactly one handler to stderr
+handler = logging.StreamHandler(sys.stderr)
+handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+root_logger.addHandler(handler)
+
 # Set up package logger
 logger = logging.getLogger(__name__)
-handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
 
 # Cross-platform support - no system restrictions
 
@@ -28,10 +34,23 @@ logger.setLevel(logging.INFO)
 if sys.version_info < (3, 8):
     logger.warning("Python 3.8 or newer is required for this package.")
 
-# Import core components
+# Import core components (lazy import runner to avoid module conflict)
 from .config import KwaaiNetConfig
-from .runner import KwaaiNetRunner
 from .installer import setup_mac
+
+# Lazy import KwaaiNetRunner to prevent python -m kwaainet.runner conflicts
+def _get_runner_class():
+    from .runner import KwaaiNetRunner
+    return KwaaiNetRunner
+
+# Create a property-like access for KwaaiNetRunner
+import sys
+class LazyKwaaiNetRunner:
+    def __new__(cls, *args, **kwargs):
+        return _get_runner_class()(*args, **kwargs)
+
+# Make KwaaiNetRunner available but prevent early import
+KwaaiNetRunner = LazyKwaaiNetRunner
 
 __version__ = "0.2.2"
 __author__ = "Kwaai Labs"
