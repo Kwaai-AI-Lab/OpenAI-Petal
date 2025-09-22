@@ -468,3 +468,7 @@ def main():
             sys.exit(1)
 
 # Entry point is handled by __main__.py to prevent double execution
+
+if __name__ == "__main__":
+    # If called directly, run main
+    main()
