@@ -110,9 +110,9 @@ get_pip_command() {
 show_spinner() {
     local pid=$1
     local delay=0.1
-    local spinstr='|/-\'
+    local spinstr='|/-\\'
     echo -n " "
-    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
+    while ps a | awk '{print $1}' | grep -q "$pid"; do
         local temp=${spinstr#?}
         printf " [%c]  " "$spinstr"
         local spinstr=$temp${spinstr%"$temp"}
@@ -776,13 +776,13 @@ install_system_deps() {
             ;;
         redhat)
             echo "🔄 Updating package list..."
-            if ! $USE_SUDO $PKG_UPDATE 2>/dev/null; then
+            if ! $USE_SUDO "$PKG_UPDATE" 2>/dev/null; then
                 echo "⚠️ Failed to update package list. Continuing..."
             fi
             echo "📦 Installing packages..."
-            $USE_SUDO $PKG_INSTALL curl wget git gcc gcc-c++ make python3 python3-pip python3-devel pciutils
+            $USE_SUDO "$PKG_INSTALL" curl wget git gcc gcc-c++ make python3 python3-pip python3-devel pciutils
             # GPU support packages (optional)
-            $USE_SUDO $PKG_INSTALL mesa-dri-drivers || true
+            $USE_SUDO "$PKG_INSTALL" mesa-dri-drivers || true
             
             # Install Rust compiler for tokenizers (if not already installed)
             if ! command_exists rustc; then
@@ -804,13 +804,13 @@ install_system_deps() {
             ;;
         arch)
             echo "🔄 Updating package list..."
-            if ! $USE_SUDO $PKG_UPDATE 2>/dev/null; then
+            if ! $USE_SUDO "$PKG_UPDATE" 2>/dev/null; then
                 echo "⚠️ Failed to update package list. Continuing..."
             fi
             echo "📦 Installing packages..."
-            $USE_SUDO $PKG_INSTALL curl wget git base-devel python python-pip pciutils
+            $USE_SUDO "$PKG_INSTALL" curl wget git base-devel python python-pip pciutils
             # GPU support packages (optional)
-            $USE_SUDO $PKG_INSTALL mesa || true
+            $USE_SUDO "$PKG_INSTALL" mesa || true
             
             # Install Rust compiler for tokenizers (if not already installed)
             if ! command_exists rustc; then
@@ -831,13 +831,13 @@ install_system_deps() {
             ;;
         suse)
             echo "🔄 Updating package list..."
-            if ! $USE_SUDO $PKG_UPDATE 2>/dev/null; then
+            if ! $USE_SUDO "$PKG_UPDATE" 2>/dev/null; then
                 echo "⚠️ Failed to update package list. Continuing..."
             fi
             echo "📦 Installing packages..."
-            $USE_SUDO $PKG_INSTALL curl wget git gcc gcc-c++ make python3 python3-pip python3-devel pciutils
+            $USE_SUDO "$PKG_INSTALL" curl wget git gcc gcc-c++ make python3 python3-pip python3-devel pciutils
             # GPU support packages (optional)
-            $USE_SUDO $PKG_INSTALL Mesa || true
+            $USE_SUDO "$PKG_INSTALL" Mesa || true
             
             # Install Rust compiler for tokenizers (if not already installed)
             if ! command_exists rustc; then
@@ -1038,7 +1038,7 @@ choose_python_method() {
             # Use simple version comparison instead of bc
             MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
             MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
-            if [ "$MAJOR" -gt 3 ] || [ "$MAJOR" -eq 3 -a "$MINOR" -ge 8 ]; then
+            if [ "$MAJOR" -gt 3 ] || [ "$MAJOR" -eq 3 ] && [ "$MINOR" -ge 8 ]; then
                 PYTHON_METHOD="system"
                 echo "✅ Using system Python $PYTHON_VERSION (${PYTHON_CMD:-python3})"
             else
@@ -1450,7 +1450,7 @@ if [ "$PYTHON_METHOD" = "conda" ]; then
         CONDA_BASE="$HOME/anaconda3"
     elif command_exists conda; then
         # Try to find conda base from existing installation
-        CONDA_BASE=$(conda info --base 2>/dev/null || dirname "$(dirname "$(which conda)")" 2>/dev/null)
+        CONDA_BASE=$(conda info --base 2>/dev/null || dirname "$(dirname "$(command -v conda)")" 2>/dev/null)
     fi
     
     if [ -z "$CONDA_BASE" ] || [ ! -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
@@ -1549,7 +1549,7 @@ fi
 
 # Phase 1: Install all major dependencies together to minimize conflicts
 echo "📦 Phase 1: Installing core dependencies with conflict resolution..."
-INSTALL_CMD="$PIP_EXEC install $BINARY_FLAG"
+INSTALL_CMD="$PIP_EXEC install "$BINARY_FLAG""
 
 # Build package list excluding problematic git packages
 PYTORCH_PACKAGES="torch==${PYTORCH_VERSION}${PYTORCH_VARIANT} torchvision==0.18.1${PYTORCH_VARIANT} torchaudio==${PYTORCH_VERSION}${PYTORCH_VARIANT}"
@@ -1575,7 +1575,7 @@ fi
 # Install hivemind - check if compatible version exists
 echo "📦 Installing hivemind..."
 if [ "$NO_BUILD_TOOLS" = true ]; then
-    if $PIP_EXEC install "hivemind>=1.1.10" --upgrade $BINARY_FLAG; then
+    if $PIP_EXEC install "hivemind>=1.1.10" --upgrade "$BINARY_FLAG"; then
         echo "✅ hivemind installed successfully (pre-built)"
     elif $PIP_EXEC install "hivemind>=1.1.10" --upgrade; then
         echo "✅ hivemind installed successfully (fallback)"
@@ -1619,7 +1619,7 @@ echo "📦 Phase 2: Installing KwaaiNet package..."
 if [ "$NO_BUILD_TOOLS" = true ]; then
     echo "📦 Pre-installing critical dependencies with wheel-only constraints..."
     # Pre-install tokenizers specifically to avoid Rust compilation
-    if ! $PIP_EXEC install $BINARY_FLAG "tokenizers>=0.15.0" --prefer-binary; then
+    if ! $PIP_EXEC install "$BINARY_FLAG" "tokenizers>=0.15.0" --prefer-binary; then
         echo "⚠️ No pre-built tokenizers wheel available for your platform"
         echo "   Your platform: $(python -c 'import platform; print(platform.platform())' 2>/dev/null || echo 'unknown')"
         echo "   Python version: $(python --version 2>/dev/null || echo 'unknown')"
@@ -1632,11 +1632,11 @@ fi
 INSTALLER_DIR="$(dirname "$0")"
 if [ -d "$INSTALLER_DIR/linux" ]; then
     echo "📦 Installing from local development version..."
-    if $PIP_EXEC install $BINARY_FLAG -e "$INSTALLER_DIR/linux/"; then
+    if $PIP_EXEC install "$BINARY_FLAG" -e "$INSTALLER_DIR/linux/"; then
         echo "✅ KwaaiNet Linux package installed successfully (local development)"
     else
         echo "⚠️ Local development install failed. Installing from GitHub..."
-        if $PIP_EXEC install $BINARY_FLAG "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
+        if $PIP_EXEC install "$BINARY_FLAG" "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
             echo "✅ KwaaiNet Linux package installed successfully (GitHub)"
         elif [ "$NO_BUILD_TOOLS" = true ]; then
             echo "⚠️ Wheel-only install failed. Trying with build tools as fallback..."
@@ -1653,7 +1653,7 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
     fi
 else
     echo "📦 Installing KwaaiNet from GitHub repository..."
-    if $PIP_EXEC install $BINARY_FLAG "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
+    if $PIP_EXEC install "$BINARY_FLAG" "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
         echo "✅ KwaaiNet Linux package installed successfully (GitHub)"
     elif [ "$NO_BUILD_TOOLS" = true ]; then
         echo "⚠️ Wheel-only install failed. Trying with build tools as fallback..."
@@ -1682,7 +1682,7 @@ else
         echo "⚠️ GitHub install failed. Trying development mode fallback..."
         cd /tmp && rm -rf OpenAI-Petal 2>/dev/null || true
         if git clone https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git && cd OpenAI-Petal; then
-            if $PIP_EXEC install $BINARY_FLAG -e Installer/linux/; then
+            if $PIP_EXEC install "$BINARY_FLAG" -e Installer/linux/; then
                 echo "✅ KwaaiNet installed successfully (development mode)"
                 cd /tmp && rm -rf OpenAI-Petal
             else
@@ -1704,7 +1704,7 @@ echo "📦 Phase 3: Installing additional support packages..."
 if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
     echo "📦 Installing CUDA-compatible bitsandbytes..."
     if [ "$NO_BUILD_TOOLS" = true ]; then
-        $PIP_EXEC install $BINARY_FLAG bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CUDA install failed (pre-built)"
+        $PIP_EXEC install "$BINARY_FLAG" bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CUDA install failed (pre-built)"
     else
         $PIP_EXEC install bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CUDA install failed"
     fi
@@ -1715,7 +1715,7 @@ else
     else
         if [ "$NO_BUILD_TOOLS" = true ]; then
             # Try pre-built first for CPU bitsandbytes
-            if ! $PIP_EXEC install $BINARY_FLAG bitsandbytes &>/dev/null; then
+            if ! $PIP_EXEC install "$BINARY_FLAG" bitsandbytes &>/dev/null; then
                 echo "⚠️ Pre-built CPU bitsandbytes not available, trying fallback"
                 $PIP_EXEC install bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
             fi
