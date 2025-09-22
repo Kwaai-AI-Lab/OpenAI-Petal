@@ -1829,8 +1829,8 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Run kwaainet command directly via Python module to avoid recursion
-exec python -m kwaainet.runner "$@"
+# Run kwaainet command via proper entry point
+exec python -m kwaainet "$@"
 EOF
 
 else
@@ -1964,7 +1964,7 @@ if [ "$PYTHON_METHOD" = "conda" ]; then
     if [ -n "$CONDA_BASE" ] && [ -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
         . "$CONDA_BASE/etc/profile.d/conda.sh"
         if conda activate kwaainet 2>/dev/null; then
-            python -m kwaainet.runner setup 2>/dev/null || {
+            python -m kwaainet setup 2>/dev/null || {
                 echo "⚠️ Initial setup failed. You may need to run 'kwaainet setup' manually."
             }
         else
