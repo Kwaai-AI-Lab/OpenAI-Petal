@@ -1543,8 +1543,8 @@ fi
 # Add --only-binary flag if no build tools
 BINARY_FLAG=""
 if [ "$NO_BUILD_TOOLS" = true ]; then
-    BINARY_FLAG="--only-binary=all"
-    echo "ℹ️ Using pre-built wheels only"
+    BINARY_FLAG="--only-binary=all --no-build-isolation"
+    echo "ℹ️ Using pre-built wheels only (no source compilation or build isolation)"
 fi
 
 # Phase 1: Install all major dependencies together to minimize conflicts
@@ -1615,6 +1615,19 @@ fi
 # Phase 2: Install KwaaiNet package and finalize installation
 echo "📦 Phase 2: Installing KwaaiNet package..."
 
+# Pre-install critical dependencies with explicit wheel-only flags if needed
+if [ "$NO_BUILD_TOOLS" = true ]; then
+    echo "📦 Pre-installing critical dependencies with wheel-only constraints..."
+    # Pre-install tokenizers specifically to avoid Rust compilation
+    if ! $PIP_EXEC install $BINARY_FLAG "tokenizers>=0.15.0" --prefer-binary; then
+        echo "⚠️ No pre-built tokenizers wheel available for your platform"
+        echo "   Your platform: $(python -c 'import platform; print(platform.platform())' 2>/dev/null || echo 'unknown')"
+        echo "   Python version: $(python --version 2>/dev/null || echo 'unknown')"
+        echo "   This may require source compilation despite --no-build-tools flag"
+        echo "   Consider using --with-build-tools if wheel installation fails"
+    fi
+fi
+
 # Try local development version first, then fallback to GitHub
 INSTALLER_DIR="$(dirname "$0")"
 if [ -d "$INSTALLER_DIR/linux" ]; then
@@ -1625,6 +1638,14 @@ if [ -d "$INSTALLER_DIR/linux" ]; then
         echo "⚠️ Local development install failed. Installing from GitHub..."
         if $PIP_EXEC install $BINARY_FLAG "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
             echo "✅ KwaaiNet Linux package installed successfully (GitHub)"
+        elif [ "$NO_BUILD_TOOLS" = true ]; then
+            echo "⚠️ Wheel-only install failed. Trying with build tools as fallback..."
+            if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
+                echo "✅ KwaaiNet Linux package installed successfully (GitHub - with source compilation)"
+            else
+                echo "❌ Failed to install KwaaiNet Linux package even with build tools"
+                exit 1
+            fi
         else
             echo "❌ Failed to install KwaaiNet Linux package"
             exit 1
@@ -1634,6 +1655,28 @@ else
     echo "📦 Installing KwaaiNet from GitHub repository..."
     if $PIP_EXEC install $BINARY_FLAG "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
         echo "✅ KwaaiNet Linux package installed successfully (GitHub)"
+    elif [ "$NO_BUILD_TOOLS" = true ]; then
+        echo "⚠️ Wheel-only install failed. Trying with build tools as fallback..."
+        if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
+            echo "✅ KwaaiNet Linux package installed successfully (GitHub - with source compilation)"
+        else
+            # Final fallback: clone and install in development mode
+            echo "⚠️ GitHub install failed. Trying development mode fallback..."
+            cd /tmp && rm -rf OpenAI-Petal 2>/dev/null || true
+            if git clone https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git && cd OpenAI-Petal; then
+                if $PIP_EXEC install -e Installer/linux/; then
+                    echo "✅ KwaaiNet installed successfully (development mode - with source compilation)"
+                    cd /tmp && rm -rf OpenAI-Petal
+                else
+                    echo "❌ Failed to install KwaaiNet package"
+                    cd /tmp && rm -rf OpenAI-Petal
+                    exit 1
+                fi
+            else
+                echo "❌ Failed to clone repository"
+                exit 1
+            fi
+        fi
     else
         # Fallback: clone and install in development mode
         echo "⚠️ GitHub install failed. Trying development mode fallback..."
