@@ -371,10 +371,21 @@ echo "📦 Installing KwaaiNet for Mac in development mode..."
 cd "$PROJECT_PATH/Installer/macOS"
 
 # Add --only-binary flag if no build tools
-PIP_INSTALL_CMD="pip install -e ."
-if [ "$NO_BUILD_TOOLS" = true ]; then
-    PIP_INSTALL_CMD="pip install -e . --only-binary=all"
-    echo "ℹ️ Using pre-built wheels only (--only-binary=all) to avoid compilation"
+# Use conda environment's pip explicitly to avoid broken system pip
+CONDA_ENV_PIP="$CONDA_PREFIX/bin/pip"
+if [ -x "$CONDA_ENV_PIP" ]; then
+    PIP_INSTALL_CMD="$CONDA_ENV_PIP install -e ."
+    if [ "$NO_BUILD_TOOLS" = true ]; then
+        PIP_INSTALL_CMD="$CONDA_ENV_PIP install -e . --only-binary=all"
+        echo "ℹ️ Using pre-built wheels only (--only-binary=all) to avoid compilation"
+    fi
+else
+    # Fallback to regular pip if conda env pip not found
+    PIP_INSTALL_CMD="pip install -e ."
+    if [ "$NO_BUILD_TOOLS" = true ]; then
+        PIP_INSTALL_CMD="pip install -e . --only-binary=all"
+        echo "ℹ️ Using pre-built wheels only (--only-binary=all) to avoid compilation"
+    fi
 fi
 
 # Use monitored installation if available
