@@ -349,6 +349,11 @@ _main_executed = False
 
 def main():
     """Main entry point"""
+    global _main_executed
+    if _main_executed:
+        return
+    _main_executed = True
+
     args = parse_args()
     runner = KwaaiNetRunner()
     

@@ -38,8 +38,9 @@ if sys.version_info < (3, 8):
 
 # Import core components
 from .config import KwaaiNetConfig
-from .runner import KwaaiNetRunner
 from .installer import setup_linux
+
+# Defer runner import to avoid circular imports
 
 __version__ = "0.3.0"
 __author__ = "Kwaai Labs"
@@ -47,17 +48,19 @@ __email__ = "contact@kwaai.ai"
 
 def start_node(**kwargs):
     """Start KwaaiNet node with given parameters"""
+    from .runner import KwaaiNetRunner
     runner = KwaaiNetRunner()
-    
+
     # Update configuration if parameters provided
     if kwargs:
         runner.config.update(**kwargs)
-    
+
     # Start the node
     return runner.start()
 
 def stop_node():
     """Stop KwaaiNet node"""
+    from .runner import KwaaiNetRunner
     runner = KwaaiNetRunner()
     return runner.stop()
 
@@ -71,8 +74,7 @@ def get_config():
     return config.as_dict()
 
 __all__ = [
-    'KwaaiNetConfig', 
-    'KwaaiNetRunner', 
+    'KwaaiNetConfig',
     'setup_linux',
     'start_node',
     'stop_node',
