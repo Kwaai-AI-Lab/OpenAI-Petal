@@ -47,7 +47,38 @@ class KwaaiNetRunner:
             
         # Additional system checks can be added here
         return True
-    
+
+    def _get_conda_python_path(self):
+        """Dynamically find the kwaainet conda environment Python path"""
+        # Try common conda installation locations
+        conda_paths = [
+            "/opt/homebrew/Caskroom/miniconda/base",
+            "/usr/local/Caskroom/miniconda/base",
+            os.path.expanduser("~/miniconda3"),
+            os.path.expanduser("~/anaconda3"),
+            os.path.expanduser("~/miniconda")
+        ]
+
+        # Also try to get conda base from conda info command
+        try:
+            result = subprocess.run(['conda', 'info', '--base'],
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode == 0 and result.stdout.strip():
+                conda_paths.insert(0, result.stdout.strip())
+        except (subprocess.SubprocessError, FileNotFoundError):
+            pass
+
+        # Try each potential conda path
+        for conda_base in conda_paths:
+            python_path = os.path.join(conda_base, "envs", "kwaainet", "bin", "python")
+            if os.path.isfile(python_path):
+                logger.debug(f"Found conda Python at: {python_path}")
+                return python_path
+
+        # Fallback to current Python if conda environment not found
+        logger.warning("Could not find kwaainet conda environment, using current Python")
+        return sys.executable
+
     def setup(self):
         """Set up KwaaiNet on Mac"""
         has_gpu = setup_mac()
@@ -99,7 +130,7 @@ class KwaaiNetRunner:
         try:
             # Construct command similar to entrypoint.sh
             # Use conda environment python instead of sys.executable
-            conda_python = "/Users/rrassool/miniconda3/envs/kwaainet/bin/python"
+            conda_python = self._get_conda_python_path()
             command = [
                 conda_python, "-m", "petals.cli.run_server",
                 self.config.get("model"),
