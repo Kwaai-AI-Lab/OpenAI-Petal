@@ -39,14 +39,26 @@ class KwaaiNetRunner:
     def check_system(self):
         """Check if system meets requirements"""
         # Cross-platform support - no macOS restriction
-            
+
         # Check Python version (relaxed requirement for Linux compatibility)
         if sys.version_info.major != 3 or sys.version_info.minor < 8:
             logger.error("Python 3.8+ is required.")
             return False
-            
+
         # Additional system checks can be added here
         return True
+
+    def _check_mps_available(self):
+        """Check if MPS (Metal Performance Shaders) is available for GPU acceleration"""
+        try:
+            import torch
+            return torch.backends.mps.is_available() and torch.backends.mps.is_built()
+        except ImportError:
+            logger.debug("PyTorch not available for MPS check")
+            return False
+        except AttributeError:
+            logger.debug("PyTorch version doesn't support MPS")
+            return False
 
     def _get_conda_python_path(self):
         """Dynamically find the kwaainet conda environment Python path"""
@@ -122,7 +134,14 @@ class KwaaiNetRunner:
         # Log startup information
         logger.info(f"Starting KwaaiNet node with model: {self.config.get('model')}")
         logger.info(f"Sharing {self.config.get('blocks')} blocks")
-        logger.info(f"Using GPU: {self.config.get('use_gpu')}")
+
+        # Show actual device that will be used
+        if self.config.get("use_gpu") and self._check_mps_available():
+            logger.info("Using device: MPS (Metal Performance Shaders)")
+        else:
+            logger.info("Using device: CPU")
+            if self.config.get("use_gpu"):
+                logger.info("Note: GPU requested but MPS not available")
 
         if self.config.get('public_name'):
             logger.info(f"Public name: {self.config.get('public_name')}")
@@ -167,15 +186,14 @@ class KwaaiNetRunner:
                 command.append("--no_auto_relay")
             
             # Add device flag based on GPU availability
-            if self.config.get("use_gpu"):
-                if platform.processor() == 'arm':
-                    # For M1/M2/M3 Macs
-                    command.extend(["--device", "mps"])
-                else:
-                    # For Intel Macs
-                    command.extend(["--device", "cpu"])  # Intel Macs typically use CPU
+            if self.config.get("use_gpu") and self._check_mps_available():
+                # Use MPS if GPU is enabled and MPS is actually available
+                command.extend(["--device", "mps"])
+                logger.debug("Using MPS device for GPU acceleration")
             else:
                 command.extend(["--device", "cpu"])
+                if self.config.get("use_gpu"):
+                    logger.debug("GPU requested but MPS not available, falling back to CPU")
             
             # Log the full command for debugging
             logger.info(f"Running command: {' '.join(command)}")
