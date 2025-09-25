@@ -1,0 +1,46 @@
+node_config:
+  node_id: "test_node_001"
+  listen_port: 8080
+
+  resource_limits:
+    default:
+      max_memory_gb: 4.0
+      max_gpu_memory_gb: 2.0
+      max_models: 2
+      max_cpu_percent: 70.0
+      max_disk_space_gb: 10.0
+
+    schedules:
+      - name: "work_hours"
+        cron: "0 9 * * 1-5"  # 9 AM weekdays
+        duration_hours: 8
+        limits:
+          max_memory_gb: 8.0
+          max_gpu_memory_gb: 4.0
+          max_models: 4
+          max_cpu_percent: 90.0
+          max_disk_space_gb: 20.0
+
+  process_management:
+    restart_policy:
+      type: "exponential_backoff"
+      max_attempts: 3
+      base_delay_seconds: 5
+      max_delay_seconds: 300
+
+    health_check:
+      interval_seconds: 30
+      timeout_seconds: 10
+      failure_threshold: 3
+
+  network:
+    bootstrap_peers:
+      - "/dns/bootstrap-1.kwaai.ai/tcp/8000/p2p/..."
+      - "/dns/bootstrap-2.kwaai.ai/tcp/8000/p2p/..."
+    listen_port: 8080
+
+  logging:
+    level: "INFO"
+    file_path: "~/.kwaainet/logs/node_manager.log"
+    max_file_size_mb: 100
+    backup_count: 5
