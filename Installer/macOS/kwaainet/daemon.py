@@ -163,8 +163,8 @@ class DaemonProcess:
         # Don't write PID file here - we'll write the subprocess PID later
         pid = os.getpid()
         
-        # Register cleanup
-        atexit.register(self._cleanup_pid_file)
+        # Don't register atexit cleanup - the monitoring thread handles cleanup
+        # atexit.register(self._cleanup_pid_file)
         
         # Redirect standard file descriptors
         sys.stdout.flush()
@@ -187,12 +187,12 @@ class DaemonProcess:
         if self.is_running():
             logger.error("Daemon is already running")
             return False
-        
+
         try:
             if daemon_mode:
                 # Fork into daemon mode
                 self.daemonize()
-            
+
             # Start the actual process
             logger.info(f"Starting process: {' '.join(command)}")
             self.process = subprocess.Popen(
@@ -224,16 +224,9 @@ class DaemonProcess:
                 return_code = self.process.wait()
                 return return_code == 0
             else:
-                # In daemon mode, keep the daemon alive to monitor the subprocess
-                while not self.should_stop.is_set() and self.process and self.process.poll() is None:
-                    time.sleep(1)
-                
-                # If we get here, the process has ended
-                if self.process:
-                    logger.warning(f"Process ended with return code: {self.process.returncode}")
-                self._cleanup_pid_file()
-            
-            return True
+                # In daemon mode, the monitoring thread handles process supervision
+                # The main daemon thread should stay alive or return success immediately
+                return True
             
         except Exception as e:
             logger.error(f"Failed to start process: {e}")

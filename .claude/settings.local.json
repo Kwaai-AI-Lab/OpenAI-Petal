@@ -20,7 +20,8 @@
       "Bash(get_available_space_mb \"/Users/rrassool\")",
       "Bash(PATH=/usr/bin:/bin:/usr/sbin:$PATH bash -c 'source Installer/common/storage_check.sh && check_storage_requirements \"\"/Users/rrassool\"\" \"\"true\"\" \"\"true\"\"')",
       "Read(//Users/rrassool/Documents/Kwaai/**)",
-      "Bash(shellcheck:*)"
+      "Bash(shellcheck:*)",
+      "Read(//Users/rrassool/**)"
     ],
     "deny": [],
     "ask": []
