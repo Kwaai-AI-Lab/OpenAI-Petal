@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.3.7"
+INSTALLER_VERSION="0.3.8"
 
 # Set up logging
 LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
@@ -120,7 +120,27 @@ install_miniconda() {
         CONDA_PATH="/usr/local/Caskroom/miniconda/base"
     fi
     
-    $CONDA_PATH/bin/conda init "$(basename "${SHELL}")"
+    # Find the actual conda executable - modern Homebrew conda has shebang issues, use _conda
+    CONDA_EXEC=""
+    if [ -x "$CONDA_PATH/_conda" ]; then
+        echo "ℹ️ Using _conda executable (avoiding Homebrew conda shebang issues)"
+        CONDA_EXEC="$CONDA_PATH/_conda"
+    elif [ -f "$CONDA_PATH/bin/conda" ]; then
+        CONDA_EXEC="$CONDA_PATH/bin/conda"
+    elif [ -d "$CONDA_PATH/pkgs" ]; then
+        # Look for conda in the pkgs directory structure
+        CONDA_EXEC=$(find "$CONDA_PATH/pkgs" -name "conda" -type f -path "*/condabin/conda" | head -1)
+        if [ -z "$CONDA_EXEC" ] || [ ! -x "$CONDA_EXEC" ]; then
+            CONDA_EXEC=$(find "$CONDA_PATH/pkgs" -name "conda" -type f -path "*/bin/conda" | head -1)
+        fi
+    fi
+
+    if [ -z "$CONDA_EXEC" ] || [ ! -x "$CONDA_EXEC" ]; then
+        echo "❌ Error: Cannot initialize conda - executable not found in $CONDA_PATH"
+        exit 1
+    fi
+
+    "$CONDA_EXEC" init "$(basename "${SHELL}")"
     
     echo "✅ Miniconda installed successfully"
 

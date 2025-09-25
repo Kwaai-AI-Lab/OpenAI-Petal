@@ -71,14 +71,7 @@ class KwaaiNetRunner:
             os.path.expanduser("~/miniconda")
         ]
 
-        # Also try to get conda base from conda info command
-        try:
-            result = subprocess.run(['conda', 'info', '--base'],
-                                  capture_output=True, text=True, timeout=10)
-            if result.returncode == 0 and result.stdout.strip():
-                conda_paths.insert(0, result.stdout.strip())
-        except (subprocess.SubprocessError, FileNotFoundError):
-            pass
+        # Note: conda info --base can hang on Homebrew installations, so we rely on static paths
 
         # Try each potential conda path
         for conda_base in conda_paths:
@@ -643,3 +636,7 @@ def main():
                 sys.exit(1)
 
 # Entry point is handled by __main__.py to prevent double execution
+
+if __name__ == "__main__":
+    # If called directly, run main
+    main()
