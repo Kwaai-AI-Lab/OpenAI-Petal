@@ -21,7 +21,8 @@
       "Bash(PATH=/usr/bin:/bin:/usr/sbin:$PATH bash -c 'source Installer/common/storage_check.sh && check_storage_requirements \"\"/Users/rrassool\"\" \"\"true\"\" \"\"true\"\"')",
       "Read(//Users/rrassool/Documents/Kwaai/**)",
       "Bash(shellcheck:*)",
-      "Read(//Users/rrassool/**)"
+      "Read(//Users/rrassool/**)",
+      "Bash(PYTHONPATH=/Users/rrassool/Source/OpenAI-Petal/NodeManager/src python3 -m pytest tests/test_process_manager.py -v)"
     ],
     "deny": [],
     "ask": []
