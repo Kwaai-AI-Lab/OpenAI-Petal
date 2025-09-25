@@ -120,18 +120,25 @@ install_miniconda() {
         CONDA_PATH="/usr/local/Caskroom/miniconda/base"
     fi
     
-    # Find the actual conda executable - modern Homebrew conda has shebang issues, use _conda
+    # Find the actual conda executable - avoid temporary/bundled versions
     CONDA_EXEC=""
-    if [ -x "$CONDA_PATH/_conda" ]; then
+
+    # First try the standard bin/conda location
+    if [ -x "$CONDA_PATH/bin/conda" ]; then
+        CONDA_EXEC="$CONDA_PATH/bin/conda"
+        echo "ℹ️ Using standard conda executable at $CONDA_EXEC"
+    # Only use _conda if it's in the expected Homebrew location (not temporary)
+    elif [ -x "$CONDA_PATH/_conda" ] && [[ "$CONDA_PATH/_conda" == *"Caskroom"* ]]; then
         echo "ℹ️ Using _conda executable (avoiding Homebrew conda shebang issues)"
         CONDA_EXEC="$CONDA_PATH/_conda"
-    elif [ -f "$CONDA_PATH/bin/conda" ]; then
-        CONDA_EXEC="$CONDA_PATH/bin/conda"
     elif [ -d "$CONDA_PATH/pkgs" ]; then
         # Look for conda in the pkgs directory structure
         CONDA_EXEC=$(find "$CONDA_PATH/pkgs" -name "conda" -type f -path "*/condabin/conda" | head -1)
         if [ -z "$CONDA_EXEC" ] || [ ! -x "$CONDA_EXEC" ]; then
             CONDA_EXEC=$(find "$CONDA_PATH/pkgs" -name "conda" -type f -path "*/bin/conda" | head -1)
+        fi
+        if [ -n "$CONDA_EXEC" ]; then
+            echo "ℹ️ Using conda from packages directory: $CONDA_EXEC"
         fi
     fi
 
