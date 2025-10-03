@@ -50,7 +50,15 @@
 
 ## 🚀 Recent Updates
 
-### 📈 **v0.4.0 - P2P Network Monitoring & Reconnection** (Latest)
+### 🔄 **v0.4.1 - Auto-Update System** (Latest)
+- ✅ **Version Detection**: Automatic checks for new releases via GitHub API and VERSION file
+- ✅ **Smart Caching**: 1-hour cache to avoid rate limits, with force refresh option
+- ✅ **Update Notifications**: Non-intrusive notifications in status display
+- ✅ **Interactive Updates**: Guided update process with confirmation prompts
+- ✅ **Config Backup**: Automatic configuration backup before updates
+- ✅ **Multi-Method Detection**: Supports git, installer, and pip installation methods
+
+### 📈 **v0.4.0 - P2P Network Monitoring & Reconnection**
 - ✅ **Connection Monitoring**: 24-hour time-series tracking of P2P network health
 - ✅ **Smart Alerting**: Webhook notifications for prolonged disconnections (configurable thresholds)
 - ✅ **Manual Reconnect**: `kwaainet reconnect` command for network refresh without full restart
@@ -107,6 +115,7 @@ All core features are **complete and stable**:
 - **📊 Smart Status Monitoring**: Real-time process metrics with CPU, memory, uptime, and connection tracking
 - **📈 P2P Network Monitoring**: 24-hour connection history with statistics, alerts, and webhook notifications
 - **🔄 Manual Reconnection**: Force P2P network refresh without daemon restart
+- **🔄 Auto-Update System**: Automatic version checking with guided updates and configuration backup
 
 ## 🏗️ Architecture
 - **FastAPI Backend**: High-performance async web server with CORS support
@@ -496,6 +505,48 @@ kwaainet monitor alert
 
   ⚠️  Disconnection Periods:
      • 2.5 minutes (ended 2025-01-03T14:30:00)
+```
+
+### Auto-Update System
+Keep KwaaiNet up-to-date with automatic version checking and guided updates:
+
+```bash
+# Check for available updates
+kwaainet update --check
+
+# Install the latest version (with confirmation)
+kwaainet update
+
+# Force update check (bypass 1-hour cache)
+kwaainet update --force
+```
+
+**Update Features:**
+- **Automatic detection**: Checks GitHub for new releases
+- **Smart caching**: 1-hour cache prevents rate limiting
+- **Status notifications**: Non-intrusive update alerts in `kwaainet status`
+- **Configuration backup**: Automatic backup before updates
+- **User control**: Requires confirmation before installing
+- **Daemon management**: Automatically stops/restarts daemon during updates
+
+**Update Process:**
+1. Check status: `kwaainet status` shows if update available
+2. Review changes: `kwaainet update --check` displays release notes
+3. Install: `kwaainet update` backs up config, installs, and guides restart
+
+**Example Update Check:**
+```
+╭─────────────────────────────────────────────────────────────────────╮
+│                        🔄 KwaaiNet Update                            │
+╰─────────────────────────────────────────────────────────────────────╯
+
+  📌 Current version: v0.4.0
+  🔍 Checking for updates...
+
+  🎉 New version available: v0.4.1
+  🔗 Details: https://github.com/Kwaai-AI-Lab/OpenAI-Petal/releases/tag/v0.4.1
+
+  💡 Run 'kwaainet update' (without --check) to install
 ```
 
 ### Initial Setup
