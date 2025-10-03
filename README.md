@@ -50,7 +50,15 @@
 
 ## 🚀 Recent Updates
 
-### 🔧 **v0.3.1 - Enhanced Reliability & User Experience** (Latest)
+### 📈 **v0.4.0 - P2P Network Monitoring & Reconnection** (Latest)
+- ✅ **Connection Monitoring**: 24-hour time-series tracking of P2P network health
+- ✅ **Smart Alerting**: Webhook notifications for prolonged disconnections (configurable thresholds)
+- ✅ **Manual Reconnect**: `kwaainet reconnect` command for network refresh without full restart
+- ✅ **Statistics Dashboard**: `kwaainet monitor stats` shows uptime, disconnections, and network health
+- ✅ **Development Workflow**: Installer now uses local source in git repositories (no more GitHub cloning)
+- ✅ **Alert Configuration**: Customize webhook URLs, thresholds, and minimum connection counts
+
+### 🔧 **v0.3.1 - Enhanced Reliability & User Experience**
 - ✅ **Shell Script Quality**: Fixed all critical shellcheck issues for better installer robustness
 - ✅ **No-Build-Tools Default**: Pre-built wheels only by default (saves ~5GB disk space)
 - ✅ **Improved Verification Messages**: Less alarming warning symbols (⚠️ vs ❌) for better UX
@@ -88,7 +96,7 @@ All core features are **complete and stable**:
 
 ## ⚡ Key Features
 - **🔌 OpenAI API Compatibility**: Drop-in replacement supporting standard endpoints
-- **🌐 Petals Integration**: Leverages distributed inference for efficient model serving  
+- **🌐 Petals Integration**: Leverages distributed inference for efficient model serving
 - **🛠️ Advanced Tool Calling**: Function calling with model-specific formatting (Hermes, Llama 3, Mistral, etc.)
 - **💻 Cross-Platform**: Linux and macOS support with automatic GPU detection (NVIDIA, AMD, Intel, Apple Silicon). Windows support under development.
 - **⚡ High Performance**: FastAPI backend with streaming support and smart token processing
@@ -97,6 +105,8 @@ All core features are **complete and stable**:
 - **🎨 Beautiful CLI Interface**: Professional visual design with Unicode borders, contextual icons, and enhanced UX
 - **🔧 Comprehensive Management**: Full daemon control with `start`, `stop`, `restart`, `status`, `logs` commands
 - **📊 Smart Status Monitoring**: Real-time process metrics with CPU, memory, uptime, and connection tracking
+- **📈 P2P Network Monitoring**: 24-hour connection history with statistics, alerts, and webhook notifications
+- **🔄 Manual Reconnection**: Force P2P network refresh without daemon restart
 
 ## 🏗️ Architecture
 - **FastAPI Backend**: High-performance async web server with CORS support
@@ -443,6 +453,49 @@ kwaainet config --view
 # Set configuration values
 kwaainet config --set model "meta-llama/Llama-2-7b-hf"
 kwaainet config --set blocks 4
+```
+
+### P2P Network Monitoring & Reconnection
+Monitor network health and manage connections without restarting:
+
+```bash
+# Force P2P network reconnection (no restart needed)
+kwaainet reconnect
+
+# View connection statistics (last 60 minutes)
+kwaainet monitor stats
+
+# Configure alerts for disconnections
+kwaainet monitor alert --enable
+kwaainet monitor alert --threshold 10              # Alert after 10 min disconnect
+kwaainet monitor alert --webhook "https://your-webhook.com/alert"
+kwaainet monitor alert --min-connections 2         # Alert if connections < 2
+
+# View current alert configuration
+kwaainet monitor alert
+```
+
+**Monitoring Features:**
+- **24-hour history**: Tracks connections, threads, CPU, memory every 60 seconds
+- **Disconnection detection**: Identifies periods of network isolation
+- **Webhook alerts**: POST JSON notifications to configured endpoints
+- **Cooldown protection**: 1-hour cooldown prevents alert spam
+- **Persistent storage**: History saved to `~/.kwaainet/monitoring/`
+
+**Example Statistics Output:**
+```
+╭─────────────────────────────────────────────────────────────────────╮
+│                  📈 P2P Connection Statistics                        │
+╰─────────────────────────────────────────────────────────────────────╯
+
+  📊 Samples: 60 (last 60 minutes)
+  🔗 Current Connections: 12
+  📈 Average Connections: 10.5
+  📉 Min/Max: 8 / 15
+  ⏱️  Uptime: 98.3%
+
+  ⚠️  Disconnection Periods:
+     • 2.5 minutes (ended 2025-01-03T14:30:00)
 ```
 
 ### Initial Setup
