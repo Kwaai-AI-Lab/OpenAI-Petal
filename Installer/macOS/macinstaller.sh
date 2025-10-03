@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.3.10"
+INSTALLER_VERSION="0.3.11"
 
 # Set up logging
 LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
@@ -176,10 +176,10 @@ add_line_if_not_exists() {
     local file="$1"
     local line="$2"
     local comment="$3"
-    
+
     # Escape the line for grep
     local escaped_line=$(echo "$line" | sed 's/[]\/$*.^|[]/\\&/g')
-    
+
     if ! grep -q "$escaped_line" "$file"; then
         if [ -n "$comment" ]; then
             echo "" >> "$file"
@@ -189,6 +189,195 @@ add_line_if_not_exists() {
         return 0
     fi
     return 1
+}
+
+# Function to get the appropriate pip command for the current environment
+get_pip_command() {
+    # If we're in a conda environment, use pip directly
+    if [ "${CONDA_DEFAULT_ENV:-}" = "kwaainet" ] || [ "${PYTHON_METHOD:-}" = "conda" ]; then
+        echo "pip"
+    # If we're in a venv and it has its own pip, use it
+    elif [ -n "${VIRTUAL_ENV:-}" ] && [ -f "${VIRTUAL_ENV}/bin/pip" ]; then
+        echo "${VIRTUAL_ENV}/bin/pip"
+    # Otherwise, try to find the best system pip
+    elif command_exists pip3; then
+        echo "pip3"
+    elif command_exists pip && ${PYTHON_CMD:-python3} -c "import sys; exit(0 if sys.version_info[0] == 3 else 1)" 2>/dev/null; then
+        echo "pip"
+    else
+        echo "${PYTHON_CMD:-python3} -m pip"
+    fi
+}
+
+# Function to test Hugging Face connectivity
+test_huggingface_connectivity() {
+    echo "🌐 Testing Hugging Face model download connectivity..."
+
+    # Test basic HF connectivity
+    if ! curl -s --connect-timeout 10 "https://huggingface.co" > /dev/null; then
+        echo "⚠️ Warning: Cannot reach huggingface.co"
+        echo "   Model downloads may fail due to network connectivity issues"
+        return 1
+    fi
+
+    # Test model file access (small config file)
+    if curl -s --connect-timeout 10 "https://huggingface.co/gpt2/resolve/main/config.json" > /dev/null; then
+        echo "✅ Hugging Face model download connectivity verified"
+        return 0
+    else
+        echo "⚠️ Warning: Cannot access Hugging Face model files"
+        echo "   This may be due to network restrictions or firewall settings"
+        echo "   Model downloads may fail, but installation will continue"
+        return 1
+    fi
+}
+
+# Function to verify package versions are correct
+verify_package_versions() {
+    echo "🔍 Verifying package versions..."
+
+    local expected_versions=(
+        "torch:2.3.1"
+        "hivemind:1.1.10.post2"
+        "petals:2.2.0.post1"
+        "transformers:4.43.1"
+    )
+
+    local all_good=true
+    for package_version in "${expected_versions[@]}"; do
+        local package
+        local expected
+        local actual
+        package=$(echo "$package_version" | cut -d: -f1)
+        expected=$(echo "$package_version" | cut -d: -f2)
+
+        actual=$($PYTHON_EXEC -c "
+try:
+    import $package
+    print($package.__version__.split('+')[0])
+except ImportError:
+    print('NOT_FOUND')
+except AttributeError:
+    print('NO_VERSION')
+" 2>/dev/null)
+
+        if [[ "$actual" == "NOT_FOUND" ]]; then
+            echo "   ❌ $package: not installed"
+            all_good=false
+        elif [[ "$actual" == "NO_VERSION" ]]; then
+            echo "   ⚠️ $package: installed but version unknown"
+        elif [[ "$actual" != "$expected"* ]]; then
+            echo "   ⚠️ $package: expected $expected, got $actual (newer version)"
+            # Don't fail verification for newer versions - they usually work fine
+        else
+            echo "   ✅ $package: $actual"
+        fi
+    done
+
+    if [[ "$all_good" == "true" ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to verify import compatibility
+verify_import_compatibility() {
+    echo "🔍 Testing import compatibility..."
+
+    # Test critical imports that were failing
+    local imports=(
+        "torch:import torch; print(f'PyTorch {torch.__version__}')"
+        "hivemind:import hivemind; print(f'hivemind {hivemind.__version__}')"
+        "petals:import petals; print('petals imported successfully')"
+        "transformers:from transformers import AutoModel; print('transformers imports working')"
+    )
+
+    local all_imports_good=true
+    for import_test in "${imports[@]}"; do
+        local package
+        local test_code
+        package=$(echo "$import_test" | cut -d: -f1)
+        test_code=$(echo "$import_test" | cut -d: -f2-)
+
+        if $PYTHON_EXEC -c "$test_code" 2>/dev/null >/dev/null; then
+            echo "   ✅ $package imports successfully"
+        else
+            echo "   ⚠️ $package import had issues (may still work)"
+            all_imports_good=false
+        fi
+    done
+
+    if [[ "$all_imports_good" == "true" ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to verify KwaaiNet functionality
+verify_kwaainet_functionality() {
+    echo "🔍 Testing KwaaiNet functionality..."
+
+    # Test basic command availability
+    if ! command_exists kwaainet; then
+        echo "   ❌ kwaainet command not found"
+        return 1
+    fi
+
+    # Test help command
+    if kwaainet --help >/dev/null 2>&1; then
+        echo "   ✅ kwaainet command accessible"
+    else
+        echo "   ❌ kwaainet command failed"
+        return 1
+    fi
+
+    # Test configuration system (without starting daemon)
+    if $PYTHON_EXEC -c "
+import sys
+try:
+    from kwaainet.config import load_config
+    config = load_config()
+    print('✅ Configuration system working')
+except Exception as e:
+    print(f'❌ Configuration failed: {e}')
+    exit(1)
+" 2>/dev/null >/dev/null; then
+        echo "   ✅ Configuration system functional"
+        return 0
+    else
+        echo "   ⚠️ Configuration system had issues (may work after restart)"
+        return 1
+    fi
+}
+
+# Master verification function
+run_comprehensive_verification() {
+    echo "🧪 Running comprehensive installation verification..."
+
+    local tests=(
+        "verify_package_versions"
+        "verify_import_compatibility"
+        "verify_kwaainet_functionality"
+    )
+
+    local all_tests_passed=true
+    for test in "${tests[@]}"; do
+        if ! $test; then
+            echo "ℹ️ Note: $test had warnings (installation likely still functional)"
+            all_tests_passed=false
+        fi
+    done
+
+    if [[ "$all_tests_passed" == "true" ]]; then
+        echo "✅ All verification tests passed!"
+        echo "🎉 Installation completed successfully and is ready for daemon startup"
+        return 0
+    else
+        echo "ℹ️ Installation completed with minor warnings (likely still functional)"
+        return 1
+    fi
 }
 
 # Install Xcode Command Line Tools if needed
@@ -360,6 +549,12 @@ if ! conda activate kwaainet 2>/dev/null; then
 else
     echo "✅ Environment activated using conda activate"
 fi
+
+# Set PYTHON_EXEC for verification functions
+PYTHON_EXEC=$(which python)
+
+# Test Hugging Face connectivity before proceeding
+test_huggingface_connectivity
 
 # Clear cached versions of the package
 echo "🧹 Clearing any cached versions of KwaaiNet..."
@@ -614,6 +809,11 @@ fi
 if command -v monitor_installation_space >/dev/null 2>&1; then
     monitor_installation_space "$HOME" "Installation completed"
 fi
+
+# Run comprehensive verification
+echo ""
+run_comprehensive_verification
+echo ""
 
 # Display success message
 echo ""
