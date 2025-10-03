@@ -115,7 +115,11 @@ class UpdateChecker:
         try:
             import requests
 
-            response = requests.get(VERSION_FILE_URL, timeout=5)
+            # Add cache-busting parameter to avoid GitHub CDN cache
+            cache_bust = f"?t={int(time.time())}"
+            url = VERSION_FILE_URL + cache_bust
+
+            response = requests.get(url, timeout=5)
 
             if response.status_code == 200:
                 return response.text.strip()
@@ -146,17 +150,25 @@ class UpdateChecker:
                     return cached
                 return None
 
-        # Try GitHub Releases API first (includes changelog)
+        # Try both GitHub Releases API and VERSION file
         latest_info = self._fetch_latest_version_from_api()
+        version_file = self._fetch_latest_version_from_file()
 
-        # Fallback to VERSION file if API fails
-        if not latest_info:
-            latest_version = self._fetch_latest_version_from_file()
-            if latest_version:
+        # Use whichever version is higher (or VERSION file if API fails)
+        if latest_info and version_file:
+            api_version = latest_info.get('version', '')
+            if self._compare_versions(version_file, api_version) > 0:
+                # VERSION file has newer version than latest release
                 latest_info = {
-                    'version': latest_version,
-                    'url': f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases/tag/v{latest_version}"
+                    'version': version_file,
+                    'url': f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases/tag/v{version_file}"
                 }
+        elif version_file and not latest_info:
+            # API failed, use VERSION file
+            latest_info = {
+                'version': version_file,
+                'url': f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases/tag/v{version_file}"
+            }
 
         if not latest_info:
             logger.debug("Could not fetch latest version information")
