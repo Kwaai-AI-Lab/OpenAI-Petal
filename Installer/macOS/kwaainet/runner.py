@@ -20,6 +20,7 @@ from .installer import setup_mac
 from .daemon import DaemonProcess, setup_signal_handlers
 from .service import get_service_manager
 from .monitor import ConnectionMonitor
+from .updater import UpdateChecker, Updater
 
 # Get logger (configured in __init__.py to prevent duplicates)
 logger = logging.getLogger(__name__)
@@ -354,6 +355,14 @@ def parse_args():
   kwaainet monitor alert --threshold 10      # ⏱️  Alert after 10 min disconnect
 
 ╭─────────────────────────────────────────────────────────────────────╮
+│                          🔄 Auto-Update                              │
+╰─────────────────────────────────────────────────────────────────────╯
+
+  kwaainet update --check                    # 🔍 Check for available updates
+  kwaainet update                            # 📦 Install latest version
+  kwaainet update --force                    # 🔄 Force update check (bypass cache)
+
+╭─────────────────────────────────────────────────────────────────────╮
 │  📚 More info: https://github.com/Kwaai-AI-Lab/OpenAI-Petal          │
 ╰─────────────────────────────────────────────────────────────────────╯"""
     )
@@ -436,6 +445,13 @@ def parse_args():
     alert_parser.add_argument("--webhook", type=str, metavar="URL", help="Webhook URL for alerts")
     alert_parser.add_argument("--min-connections", type=int, help="Minimum connections before alert")
 
+    # Update commands
+    update_parser = subparsers.add_parser("update",
+        help="🔄 Update KwaaiNet to latest version",
+        description="Check for and install updates")
+    update_parser.add_argument("--check", action="store_true", help="Check for updates without installing")
+    update_parser.add_argument("--force", action="store_true", help="Force update check (bypass cache)")
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -497,10 +513,10 @@ def main():
         print("│                      📊 KwaaiNet Daemon Status                       │")
         print("╰─────────────────────────────────────────────────────────────────────╯")
         print()
-        
+
         if status.get("running"):
             print(f"  🟢 Status: Running (PID: {status.get('pid')})")
-            
+
             uptime_seconds = status.get('uptime', 0)
             uptime_hours = uptime_seconds / 3600
             if uptime_hours >= 24:
@@ -514,7 +530,7 @@ def main():
                     print(f"  ⏰ Uptime: {uptime_minutes:.1f} minutes")
                 else:
                     print(f"  ⏰ Uptime: {uptime_seconds:.1f} seconds")
-            
+
             print(f"  🖥️  CPU: {status.get('cpu_percent', 0):.1f}%")
             print(f"  💾 Memory: {status.get('memory_percent', 0):.1f}% ({status.get('memory_mb', 0):.1f} MB)")
             print(f"  🔗 Connections: {status.get('connections', 0)}")
@@ -523,7 +539,18 @@ def main():
             print(f"  🔴 Status: Not running")
             if status.get("error"):
                 print(f"  ⚠️  Error: {status['error']}")
-        
+
+        # Check for updates (non-blocking)
+        try:
+            checker = UpdateChecker()
+            update_info = checker.check_for_updates()
+            if update_info:
+                print()
+                print(f"  ℹ️  Update available: v{update_info.get('version')} (current: v{checker.current_version})")
+                print(f"     Run 'kwaainet update' to install")
+        except Exception as e:
+            logger.debug(f"Update check failed: {e}")
+
         print()
         print("─────────────────────────────────────────────────────────────────────")
     
@@ -786,6 +813,91 @@ def main():
             print(f"    • Min Connections: {config['min_connections']}")
             print(f"    • Webhook URL: {config['webhook_url'] or 'Not configured'}")
             print("─────────────────────────────────────────────────────────────────────")
+
+    elif args.command == "update":
+        print()
+        print("╭─────────────────────────────────────────────────────────────────────╮")
+        print("│                        🔄 KwaaiNet Update                            │")
+        print("╰─────────────────────────────────────────────────────────────────────╯")
+        print()
+
+        checker = UpdateChecker()
+        force_check = getattr(args, 'force', False)
+        check_only = getattr(args, 'check', False)
+
+        # Check for updates
+        print(f"  📌 Current version: v{checker.current_version}")
+        print(f"  🔍 Checking for updates...")
+        print()
+
+        update_info = checker.check_for_updates(force=force_check)
+
+        if not update_info:
+            print("  ✅ You are running the latest version!")
+            print("─────────────────────────────────────────────────────────────────────")
+        else:
+            latest_version = update_info.get('version')
+            print(f"  🎉 New version available: v{latest_version}")
+
+            if update_info.get('name'):
+                print(f"  📝 Release: {update_info['name']}")
+
+            if update_info.get('url'):
+                print(f"  🔗 Details: {update_info['url']}")
+
+            if update_info.get('body'):
+                # Show first few lines of release notes
+                body_lines = update_info['body'].split('\n')[:5]
+                if body_lines:
+                    print()
+                    print("  📋 Release Notes:")
+                    for line in body_lines:
+                        if line.strip():
+                            print(f"     {line[:65]}")
+
+            print()
+
+            if check_only:
+                print("  💡 Run 'kwaainet update' (without --check) to install")
+                print("─────────────────────────────────────────────────────────────────────")
+            else:
+                # Perform update
+                print("  🚀 Starting update process...")
+                print()
+
+                updater = Updater()
+
+                # Check if daemon is running
+                if runner.daemon.is_running():
+                    print("  ⚠️  Daemon is currently running")
+                    print("     Update will stop the daemon. Restart it after update.")
+                    print()
+                    response = input("  Continue with update? [y/N]: ")
+                    if response.lower() != 'y':
+                        print()
+                        print("  ❌ Update cancelled")
+                        print("─────────────────────────────────────────────────────────────────────")
+                        sys.exit(0)
+
+                    # Stop daemon
+                    print()
+                    print("  🛑 Stopping daemon...")
+                    runner.stop()
+
+                print("  📦 Updating KwaaiNet...")
+                if updater.update():
+                    print()
+                    print("  ✅ Update completed successfully!")
+                    print(f"  🎉 Now running v{latest_version}")
+                    print()
+                    print("  💡 Restart the daemon with: kwaainet start --daemon")
+                    print("─────────────────────────────────────────────────────────────────────")
+                else:
+                    print()
+                    print("  ❌ Update failed")
+                    print("  💡 Please check the logs or try manual installation")
+                    print("─────────────────────────────────────────────────────────────────────")
+                    sys.exit(1)
 
 # Entry point is handled by __main__.py to prevent double execution
 

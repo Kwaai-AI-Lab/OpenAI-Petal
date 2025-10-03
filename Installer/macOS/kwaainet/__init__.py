@@ -52,7 +52,7 @@ class LazyKwaaiNetRunner:
 # Make KwaaiNetRunner available but prevent early import
 KwaaiNetRunner = LazyKwaaiNetRunner
 
-__version__ = "0.2.2"
+__version__ = "0.4.0"
 __author__ = "Kwaai Labs"
 __email__ = "contact@kwaai.ai"
 
