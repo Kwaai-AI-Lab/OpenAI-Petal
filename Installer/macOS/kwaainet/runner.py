@@ -337,11 +337,21 @@ def parse_args():
 
   kwaainet start --daemon                    # 🟢 Start in background
   kwaainet start --daemon --model "meta-llama/Llama-2-7b-hf" --blocks 4
-  kwaainet stop                              # 🛑 Stop daemon  
+  kwaainet stop                              # 🛑 Stop daemon
   kwaainet status                            # 📊 Check daemon status
   kwaainet logs --lines 100                  # 📜 View recent logs
   kwaainet restart                           # 🔄 Restart daemon
   kwaainet service install                   # 🚀 Enable auto-start on boot
+
+╭─────────────────────────────────────────────────────────────────────╮
+│                   📈 P2P Monitoring & Reconnection                    │
+╰─────────────────────────────────────────────────────────────────────╯
+
+  kwaainet reconnect                         # 🔄 Force P2P network reconnect
+  kwaainet monitor stats                     # 📊 View connection statistics
+  kwaainet monitor alert --enable            # 🚨 Enable disconnect alerts
+  kwaainet monitor alert --webhook URL       # 🔔 Configure webhook alerts
+  kwaainet monitor alert --threshold 10      # ⏱️  Alert after 10 min disconnect
 
 ╭─────────────────────────────────────────────────────────────────────╮
 │  📚 More info: https://github.com/Kwaai-AI-Lab/OpenAI-Petal          │
