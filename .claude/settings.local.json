@@ -22,7 +22,12 @@
       "Read(//Users/rrassool/Documents/Kwaai/**)",
       "Bash(shellcheck:*)",
       "Read(//Users/rrassool/**)",
-      "Bash(PYTHONPATH=/Users/rrassool/Source/OpenAI-Petal/NodeManager/src python3 -m pytest tests/test_process_manager.py -v)"
+      "Bash(PYTHONPATH=/Users/rrassool/Source/OpenAI-Petal/NodeManager/src python3 -m pytest tests/test_process_manager.py -v)",
+      "Read(//Users/rezarassool/.kwaainet/logs/**)",
+      "Read(//Users/rezarassool/.kwaainet/**)",
+      "Read(//Users/rezarassool/.local/bin/**)",
+      "Read(//opt/homebrew/Caskroom/miniconda/base/etc/profile.d/**)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

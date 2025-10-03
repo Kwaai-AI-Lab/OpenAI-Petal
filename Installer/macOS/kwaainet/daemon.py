@@ -195,11 +195,18 @@ class DaemonProcess:
 
             # Start the actual process
             logger.info(f"Starting process: {' '.join(command)}")
+
+            # Setup log files for subprocess output
+            log_dir = os.path.expanduser("~/.kwaainet/logs")
+            os.makedirs(log_dir, exist_ok=True)
+            stdout_log = open(os.path.join(log_dir, "service.log"), "a")
+            stderr_log = open(os.path.join(log_dir, "service.error.log"), "a")
+
             self.process = subprocess.Popen(
                 command,
                 env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=stdout_log,
+                stderr=stderr_log,
                 preexec_fn=os.setsid  # Create new process group
             )
             

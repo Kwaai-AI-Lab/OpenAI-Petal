@@ -2,10 +2,12 @@ README.md
 setup.py
 kwaainet/__init__.py
 kwaainet/__main__.py
+kwaainet/bitsandbytes_patch.py
 kwaainet/config.py
 kwaainet/daemon.py
 kwaainet/data_structures.py
 kwaainet/installer.py
+kwaainet/preflight.py
 kwaainet/runner.py
 kwaainet/service.py
 kwaainet/utils.py

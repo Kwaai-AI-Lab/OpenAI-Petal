@@ -1,0 +1,14 @@
+services:
+  web:
+    container_name: kwaainet-health-local
+    build:
+      context: ../../
+      dockerfile: docker/kwaainet_health_local/DockerFile-local
+    image: kwaainet-health-local
+    ports:
+      - "8001:8000"  # Use port 8001 to avoid conflicts
+    environment:
+      # Use localhost/local network peers for development
+      - INITIAL_PEERS=/ip4/127.0.0.1/tcp/8000/p2p/QmLocalPeer1,/ip4/127.0.0.1/tcp/8001/p2p/QmLocalPeer2
+    volumes:
+      - ./logs:/app/logs  # Mount logs for easier debugging

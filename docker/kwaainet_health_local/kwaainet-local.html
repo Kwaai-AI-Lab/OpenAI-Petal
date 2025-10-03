@@ -1,0 +1,310 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KwaaiNet - Local Development</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: #fff;
+            border-bottom: 1px solid #ddd;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.4rem;
+            display: flex;
+            align-items: center;
+        }
+        .dev-notice {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 10px 20px;
+            margin: 0;
+        }
+        .tab-container {
+            width: 100%;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .tabs {
+            display: flex;
+            background-color: #fff;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab {
+            padding: 15px 25px;
+            cursor: pointer;
+            font-weight: bold;
+            border-bottom: 3px solid transparent;
+        }
+        .tab.active {
+            border-bottom: 3px solid #007bff;
+            color: #007bff;
+        }
+        .tab-content {
+            flex: 1;
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+            height: 100%;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        #status-view, #table-view {
+            padding: 20px;
+            overflow: auto;
+        }
+
+        /* Table styling */
+        .nodes-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .nodes-table th,
+        .nodes-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .nodes-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .nodes-table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status-online {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status-offline {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .status-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .online { background-color: #00FF00; }
+        .offline { background-color: #FF0000; }
+        .pending { background-color: #FFA500; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔬 KwaaiNet Health Dashboard - Local Development</h1>
+    </div>
+
+    <div class="dev-notice">
+        <strong>⚠️ Development Mode:</strong> This is a localhost testing version with mock data.
+    </div>
+
+    <div class="tab-container">
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('map')">🗺️ Map View</div>
+            <div class="tab" onclick="showTab('table')">📋 Table View</div>
+            <div class="tab" onclick="showTab('status')">📊 Status</div>
+        </div>
+
+        <div id="map-view" class="tab-content active">
+            <div id="map"></div>
+        </div>
+
+        <div id="table-view" class="tab-content">
+            <h2>📋 KwaaiNet Nodes</h2>
+            <table class="nodes-table">
+                <thead>
+                    <tr>
+                        <th>Node ID</th>
+                        <th>Location</th>
+                        <th>Status</th>
+                        <th>Blocks</th>
+                        <th>Model</th>
+                        <th>Last Seen</th>
+                    </tr>
+                </thead>
+                <tbody id="nodes-table-body">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <div id="status-view" class="tab-content">
+            <div class="status-card">
+                <h3>📡 Network Status</h3>
+                <div id="network-status">
+                    <p><span class="status-dot pending"></span>Local testing mode active</p>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <h3>🌐 Mock Peers</h3>
+                <div id="bootstrap-status">
+                    <p><span class="status-dot online"></span>Test Node SF (37.7749, -122.4194)</p>
+                    <p><span class="status-dot online"></span>Test Node NYC (40.7128, -74.0060)</p>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <h3>📊 System Info</h3>
+                <div id="system-info">
+                    <p><strong>Mode:</strong> Local Development</p>
+                    <p><strong>Nodes:</strong> 2 mock nodes</p>
+                    <p><strong>Port:</strong> localhost:8001</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+    <script>
+        let map;
+
+        // Mock node data (shared between map and table)
+        const mockNodes = [
+            {lat: 37.7749, lng: -122.4194, name: "Test Node SF", status: "online", blocks: 2, id: "QmSF123", model: "llama-3.1-8b", location: "San Francisco, CA", lastSeen: "2 minutes ago"},
+            {lat: 40.7128, lng: -74.0060, name: "Test Node NYC", status: "online", blocks: 1, id: "QmNYC456", model: "llama-3.1-8b", location: "New York, NY", lastSeen: "5 minutes ago"},
+            {lat: 51.5074, lng: -0.1278, name: "Test Node London", status: "online", blocks: 3, id: "QmLDN789", model: "llama-3.1-70b", location: "London, UK", lastSeen: "1 minute ago"},
+            {lat: 35.6762, lng: 139.6503, name: "Test Node Tokyo", status: "offline", blocks: 0, id: "QmTKY012", model: "llama-3.1-8b", location: "Tokyo, Japan", lastSeen: "1 hour ago"}
+        ];
+
+        // Tab switching
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName + '-view').classList.add('active');
+            event.target.classList.add('active');
+
+            // Initialize map when map tab is shown
+            if (tabName === 'map' && !map) {
+                initializeMap();
+            }
+        }
+
+        // Initialize the map with mock data
+        function initializeMap() {
+            map = L.map('map').setView([39.8283, -98.5795], 4); // Center on USA
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Add markers for each node using shared mockNodes data
+            mockNodes.forEach(node => {
+                const color = node.status === 'online' ? 'green' : 'red';
+                const marker = L.circleMarker([node.lat, node.lng], {
+                    radius: 8,
+                    fillColor: color,
+                    color: color,
+                    weight: 2,
+                    opacity: 0.8,
+                    fillOpacity: 0.6
+                }).addTo(map);
+
+                marker.bindPopup(`
+                    <b>${node.name}</b><br>
+                    Status: ${node.status}<br>
+                    Blocks: ${node.blocks}<br>
+                    Model: ${node.model}<br>
+                    Last Seen: ${node.lastSeen}<br>
+                    <em>Mock data for testing</em>
+                `);
+            });
+
+            console.log('🗺️ Map initialized with mock data');
+        }
+
+        // Populate the table view
+        function populateTable() {
+            const tableBody = document.getElementById('nodes-table-body');
+            tableBody.innerHTML = '';
+
+            mockNodes.forEach(node => {
+                const row = document.createElement('tr');
+                const statusClass = node.status === 'online' ? 'status-online' : 'status-offline';
+
+                row.innerHTML = `
+                    <td><code>${node.id}</code></td>
+                    <td>${node.location}</td>
+                    <td><span class="status-badge ${statusClass}">${node.status}</span></td>
+                    <td>${node.blocks}</td>
+                    <td>${node.model}</td>
+                    <td>${node.lastSeen}</td>
+                `;
+
+                tableBody.appendChild(row);
+            });
+
+            console.log('📋 Table populated with mock data');
+        }
+
+        // Initialize map immediately if map tab is active
+        if (document.getElementById('map-view').classList.contains('active')) {
+            setTimeout(initializeMap, 100);
+        }
+
+        // Initialize table on page load
+        populateTable();
+
+        console.log('🔬 KwaaiNet Health Dashboard - Local Development Mode with Map & Table');
+    </script>
+</body>
+</html>
