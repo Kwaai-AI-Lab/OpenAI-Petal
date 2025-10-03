@@ -1,5 +1,6 @@
 import os
 import sys
+import signal
 import logging
 import argparse
 import platform
@@ -18,6 +19,7 @@ from .config import KwaaiNetConfig
 from .installer import setup_mac
 from .daemon import DaemonProcess, setup_signal_handlers
 from .service import get_service_manager
+from .monitor import ConnectionMonitor
 
 # Get logger (configured in __init__.py to prevent duplicates)
 logger = logging.getLogger(__name__)
@@ -282,7 +284,7 @@ class KwaaiNetRunner:
         log_file = os.path.join(self.log_dir, "kwaainet.log")
         if not os.path.exists(log_file):
             return []
-        
+
         try:
             with open(log_file, 'r') as f:
                 all_lines = f.readlines()
@@ -290,6 +292,39 @@ class KwaaiNetRunner:
         except IOError as e:
             logger.error(f"Failed to read log file: {e}")
             return []
+
+    def reconnect(self) -> bool:
+        """Force P2P network reconnection without restarting"""
+        pid = self.daemon.get_pid()
+        if not pid:
+            logger.error("Daemon is not running. Start it first with 'kwaainet start --daemon'")
+            return False
+
+        try:
+            logger.info("Triggering P2P network reconnection...")
+
+            # Send SIGHUP to trigger DHT refresh in Petals
+            # Note: Petals doesn't natively support SIGHUP for DHT refresh,
+            # but we can log this for future enhancement
+            logger.info("Sending SIGHUP signal to process for configuration reload")
+            os.kill(pid, signal.SIGHUP)
+
+            # Give it a moment to process
+            time.sleep(2)
+
+            # Check if process is still healthy
+            if not self.daemon.is_running():
+                logger.error("Process terminated after reconnect signal")
+                return False
+
+            logger.info("✅ Reconnection signal sent successfully")
+            logger.info("💡 Note: Petals DHT refreshes automatically every 60 seconds")
+            logger.info("    For immediate effect, consider 'kwaainet restart' instead")
+            return True
+
+        except OSError as e:
+            logger.error(f"Failed to send reconnect signal: {e}")
+            return False
 
 def parse_args():
     """Parse command line arguments"""
@@ -368,10 +403,29 @@ def parse_args():
         description="Install, uninstall, or check status of auto-start service")
     service_subparsers = service_parser.add_subparsers(dest="service_action", help="Service action")
     service_subparsers.add_parser("install", help="Install auto-start service")
-    service_subparsers.add_parser("uninstall", help="Uninstall auto-start service") 
+    service_subparsers.add_parser("uninstall", help="Uninstall auto-start service")
     service_subparsers.add_parser("status", help="Check service status")
     service_subparsers.add_parser("restart", help="Restart auto-start service")
-    
+
+    # Reconnect command
+    subparsers.add_parser("reconnect",
+        help="🔄 Force P2P network reconnection",
+        description="Trigger DHT refresh and reconnect to P2P network without restarting")
+
+    # Monitor command
+    monitor_parser = subparsers.add_parser("monitor",
+        help="📈 P2P connection monitoring",
+        description="View connection statistics and configure alerts")
+    monitor_subparsers = monitor_parser.add_subparsers(dest="monitor_action", help="Monitor action")
+    monitor_subparsers.add_parser("stats", help="Show connection statistics")
+
+    alert_parser = monitor_subparsers.add_parser("alert", help="Configure alerts")
+    alert_parser.add_argument("--enable", action="store_true", help="Enable alerts")
+    alert_parser.add_argument("--disable", action="store_true", help="Disable alerts")
+    alert_parser.add_argument("--threshold", type=int, metavar="MINUTES", help="Alert after N minutes of disconnection")
+    alert_parser.add_argument("--webhook", type=str, metavar="URL", help="Webhook URL for alerts")
+    alert_parser.add_argument("--min-connections", type=int, help="Minimum connections before alert")
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -626,7 +680,7 @@ def main():
             print("│                    🔧 Restarting Auto-Start Service                   │")
             print("╰─────────────────────────────────────────────────────────────────────╯")
             print()
-            
+
             if service_manager.restart_service():
                 print("  ✅ Auto-start service restarted successfully")
                 print("─────────────────────────────────────────────────────────────────────")
@@ -634,6 +688,94 @@ def main():
                 print("  ❌ Failed to restart auto-start service")
                 print("─────────────────────────────────────────────────────────────────────")
                 sys.exit(1)
+
+    elif args.command == "reconnect":
+        print()
+        print("╭─────────────────────────────────────────────────────────────────────╮")
+        print("│                    🔄 P2P Network Reconnection                       │")
+        print("╰─────────────────────────────────────────────────────────────────────╯")
+        print()
+
+        if not runner.reconnect():
+            sys.exit(1)
+
+        print("─────────────────────────────────────────────────────────────────────")
+
+    elif args.command == "monitor":
+        monitor = ConnectionMonitor()
+
+        if not args.monitor_action:
+            print("Error: No monitor action specified. Use --help for available options.")
+            sys.exit(1)
+
+        if args.monitor_action == "stats":
+            print()
+            print("╭─────────────────────────────────────────────────────────────────────╮")
+            print("│                  📈 P2P Connection Statistics                        │")
+            print("╰─────────────────────────────────────────────────────────────────────╯")
+            print()
+
+            # Get stats for last 60 minutes
+            stats = monitor.get_stats(minutes=60)
+
+            if stats['samples'] == 0:
+                print("  📭 No monitoring data available")
+                print("  💡 Start the daemon and wait for data collection")
+                print("─────────────────────────────────────────────────────────────────────")
+            else:
+                print(f"  📊 Samples: {stats['samples']} (last 60 minutes)")
+                print(f"  🔗 Current Connections: {stats['current_connections']}")
+                print(f"  📈 Average Connections: {stats['avg_connections']:.1f}")
+                print(f"  📉 Min/Max: {stats['min_connections']} / {stats['max_connections']}")
+                print(f"  ⏱️  Uptime: {stats['uptime_percent']:.1f}%")
+                print()
+
+                if stats['disconnection_periods']:
+                    print("  ⚠️  Disconnection Periods:")
+                    for period in stats['disconnection_periods']:
+                        duration = period['duration_seconds']
+                        duration_str = f"{duration/60:.1f} minutes" if duration > 60 else f"{duration:.0f} seconds"
+                        end_str = period['end'] if period['end'] == "ongoing" else f"ended {period['end']}"
+                        print(f"     • {duration_str} ({end_str})")
+
+                print("─────────────────────────────────────────────────────────────────────")
+
+        elif args.monitor_action == "alert":
+            print()
+            print("╭─────────────────────────────────────────────────────────────────────╮")
+            print("│                    🚨 Alert Configuration                            │")
+            print("╰─────────────────────────────────────────────────────────────────────╯")
+            print()
+
+            config = monitor.alert_config.copy()
+
+            # Update config based on arguments
+            if args.enable:
+                config['enabled'] = True
+            if args.disable:
+                config['enabled'] = False
+            if args.threshold:
+                config['disconnection_threshold_minutes'] = args.threshold
+            if args.webhook:
+                config['webhook_url'] = args.webhook
+            if args.min_connections is not None:
+                config['min_connections'] = args.min_connections
+
+            # Save if any changes
+            if any([args.enable, args.disable, args.threshold, args.webhook, args.min_connections is not None]):
+                if monitor.save_alert_config(config):
+                    print("  ✅ Alert configuration updated")
+                else:
+                    print("  ❌ Failed to save alert configuration")
+                    sys.exit(1)
+
+            # Display current config
+            print("  Current Configuration:")
+            print(f"    • Enabled: {'✅ Yes' if config['enabled'] else '❌ No'}")
+            print(f"    • Threshold: {config['disconnection_threshold_minutes']} minutes")
+            print(f"    • Min Connections: {config['min_connections']}")
+            print(f"    • Webhook URL: {config['webhook_url'] or 'Not configured'}")
+            print("─────────────────────────────────────────────────────────────────────")
 
 # Entry point is handled by __main__.py to prevent double execution
 

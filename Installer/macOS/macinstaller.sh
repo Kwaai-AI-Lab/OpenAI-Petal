@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.3.11"
+INSTALLER_VERSION="0.4.0"
 
 # Set up logging
 LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
@@ -566,31 +566,43 @@ rm -rf /tmp/pip-* 2>/dev/null || true
 echo "🧹 Removing any existing KwaaiNet packages..."
 pip uninstall -y kwaainet-mac kwaainet_mac &>/dev/null || true
 
-# Download and install the current project code
-echo "📦 Downloading KwaaiNet source code..."
+# Determine source location - use local if available, otherwise download
+echo "📦 Determining KwaaiNet source location..."
 
-# Create permanent installation directory
-INSTALL_DIR="$HOME/.kwaainet/source"
-mkdir -p "$INSTALL_DIR"
-cd "$INSTALL_DIR"
-
-# Remove any existing installation
-rm -rf OpenAI-Petal* 2>/dev/null || true
-
-if command -v git >/dev/null 2>&1; then
-    echo "📡 Cloning repository with git..."
-    git clone --depth 1 https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git
-    PROJECT_PATH="$INSTALL_DIR/OpenAI-Petal"
+# Check if we're running from a local git repository
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -d "$SCRIPT_DIR/../../.git" ] && [ -f "$SCRIPT_DIR/kwaainet/__init__.py" ]; then
+    echo "✅ Found local development repository"
+    echo "   Using source from: $SCRIPT_DIR"
+    PROJECT_PATH="$SCRIPT_DIR"
+    USE_LOCAL_SOURCE=true
 else
-    echo "📡 Downloading repository archive..."
-    curl -L https://github.com/Kwaai-AI-Lab/OpenAI-Petal/archive/main.tar.gz -o main.tar.gz
-    tar -xzf main.tar.gz
-    PROJECT_PATH="$INSTALL_DIR/OpenAI-Petal-main"
+    echo "📡 No local repository found, downloading from GitHub..."
+
+    # Create permanent installation directory
+    INSTALL_DIR="$HOME/.kwaainet/source"
+    mkdir -p "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
+
+    # Remove any existing installation
+    rm -rf OpenAI-Petal* 2>/dev/null || true
+
+    if command -v git >/dev/null 2>&1; then
+        echo "📡 Cloning repository with git..."
+        git clone --depth 1 https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git
+        PROJECT_PATH="$INSTALL_DIR/OpenAI-Petal/Installer/macOS"
+    else
+        echo "📡 Downloading repository archive..."
+        curl -L https://github.com/Kwaai-AI-Lab/OpenAI-Petal/archive/main.tar.gz -o main.tar.gz
+        tar -xzf main.tar.gz
+        PROJECT_PATH="$INSTALL_DIR/OpenAI-Petal-main/Installer/macOS"
+    fi
+    USE_LOCAL_SOURCE=false
 fi
 
-# Install the current project in development mode from permanent location
+# Install the current project in development mode
 echo "📦 Installing KwaaiNet for Mac in development mode..."
-cd "$PROJECT_PATH/Installer/macOS"
+cd "$PROJECT_PATH"
 
 # Add --only-binary flag if no build tools
 # Use conda environment's pip explicitly to avoid broken system pip

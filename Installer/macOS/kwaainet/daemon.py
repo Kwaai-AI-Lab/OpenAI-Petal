@@ -13,6 +13,9 @@ import psutil
 
 logger = logging.getLogger(__name__)
 
+# Global monitoring thread reference
+_monitoring_thread = None
+
 class DaemonProcess:
     """Manages daemon process lifecycle and PID management"""
     
@@ -182,8 +185,10 @@ class DaemonProcess:
         logger.info(f"Daemon started with PID {pid}")
         return pid
     
-    def start_process(self, command: list, env: dict = None, daemon_mode: bool = True):
+    def start_process(self, command: list, env: dict = None, daemon_mode: bool = True, enable_monitoring: bool = True):
         """Start the main process"""
+        global _monitoring_thread
+
         if self.is_running():
             logger.error("Daemon is already running")
             return False
@@ -209,11 +214,11 @@ class DaemonProcess:
                 stderr=stderr_log,
                 preexec_fn=os.setsid  # Create new process group
             )
-            
+
             # Write the subprocess PID to the PID file (not the daemon PID)
             if daemon_mode:
                 self.write_pid(self.process.pid)
-            
+
             # Write initial status
             self.write_status({
                 "pid": self.process.pid,
@@ -221,11 +226,18 @@ class DaemonProcess:
                 "started_at": time.time(),
                 "status": "running"
             })
-            
+
             # Start monitoring thread
             self.monitor_thread = threading.Thread(target=self._monitor_process, daemon=True)
             self.monitor_thread.start()
-            
+
+            # Start connection monitoring if enabled and in daemon mode
+            if daemon_mode and enable_monitoring:
+                from .monitor import MonitoringThread
+                _monitoring_thread = MonitoringThread(self, interval=60)
+                _monitoring_thread.start()
+                logger.debug("Connection monitoring started")
+
             # Wait for process if not in daemon mode
             if not daemon_mode:
                 return_code = self.process.wait()
@@ -234,7 +246,7 @@ class DaemonProcess:
                 # In daemon mode, the monitoring thread handles process supervision
                 # The main daemon thread should stay alive or return success immediately
                 return True
-            
+
         except Exception as e:
             logger.error(f"Failed to start process: {e}")
             self._cleanup_pid_file()

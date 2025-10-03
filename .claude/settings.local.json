@@ -27,7 +27,11 @@
       "Read(//Users/rezarassool/.kwaainet/**)",
       "Read(//Users/rezarassool/.local/bin/**)",
       "Read(//opt/homebrew/Caskroom/miniconda/base/etc/profile.d/**)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Read(//opt/homebrew/Caskroom/miniconda/base/envs/kwaainet/lib/python3.10/site-packages/petals/**)",
+      "Read(//opt/homebrew/Caskroom/miniconda/base/envs/kwaainet/**)",
+      "Bash(xargs cat:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
