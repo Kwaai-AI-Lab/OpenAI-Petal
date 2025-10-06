@@ -3,6 +3,76 @@
 ## Project Overview
 This is the OpenAI API-compatible server for Petals distributed inference, developed by Kwaai-AI-Lab. The project provides cross-platform installers for Linux and macOS to set up the KwaaiNet distributed inference system.
 
+## 🚨 CRITICAL LESSONS LEARNED 🚨
+
+### Lesson 1: ALWAYS Check Remote Repository Status BEFORE Starting Work (2025-10-05)
+
+**Mistake Made:**
+- Started upgrading Linux installer from v0.3.8 to v0.3.10 without checking remote repository
+- Spent significant time implementing features (enhanced conda TOS handling, conda executable detection, error diagnosis, monitored installation, enhanced launcher scripts)
+- Created comprehensive test suite (465 lines, 40 tests)
+- Only discovered after completing all work that remote repository was already at v0.4.1
+- All features already implemented in commits 7cb7b49, 40bcf4b, and beyond
+
+**Impact:**
+- Wasted development time reimplementing existing features
+- Created merge conflicts on push
+- Work became obsolete before it could be committed
+
+**Root Cause:**
+- Did not run `git fetch` and `git status` before beginning work
+- Assumed local repository state was current
+- Did not check `git log origin/main` to see recent commits
+
+**Correct Workflow (MANDATORY FOR FUTURE SESSIONS):**
+
+```bash
+# STEP 1: ALWAYS start every session with repository status check
+cd /path/to/repo
+git fetch origin                                    # Get latest remote refs
+git status                                          # Check current branch state
+git log --oneline origin/main ^main | head -20     # See remote commits not in local
+git log --oneline main | head -20                   # See recent local history
+
+# STEP 2: If remote is ahead, pull BEFORE starting work
+git pull --rebase origin main                       # Get latest changes
+
+# STEP 3: Review what changed
+git log --oneline -10                               # See recent commits
+git diff HEAD~5..HEAD -- path/to/files              # Check specific files if needed
+
+# STEP 4: ONLY THEN start planning work
+# Now you know the current state and won't duplicate existing work
+```
+
+**Prevention Checklist:**
+- [ ] Run `git fetch origin` at session start
+- [ ] Check `git status` for branch state
+- [ ] Review `git log origin/main` for recent commits
+- [ ] Pull latest changes if remote is ahead
+- [ ] Verify file versions before starting modifications
+- [ ] Check for similar recent work in commit history
+
+**When This Failed:**
+```bash
+# What I did (WRONG):
+User: "bring the linuxinstaller up to the same feature level as the macinstaller"
+Me: *immediately started comparing files and implementing features*
+
+# What I SHOULD have done (CORRECT):
+User: "bring the linuxinstaller up to the same feature level as the macinstaller"
+Me:
+  1. git fetch origin
+  2. git status  # Would have seen "Your branch is behind 'origin/main' by 9 commits"
+  3. git log origin/main ^main  # Would have seen v0.4.1 already exists
+  4. Inform user: "The remote repository is already at v0.4.1 with all these features. Should I pull latest first?"
+```
+
+**Key Takeaway:**
+**NEVER assume local repository is current. ALWAYS check remote state FIRST.**
+
+This is especially critical in active repositories where multiple developers or sessions may be contributing. The first action of any development session must be verifying repository state.
+
 ## Current Status (2025-08-20)
 
 ### Completed Work
