@@ -50,7 +50,14 @@
 
 ## 🚀 Recent Updates
 
-### 🔄 **v0.4.1 - Auto-Update System** (Latest)
+### 🔧 **v0.4.2 - macOS Auto-Start Status Detection Fix** (Latest)
+- ✅ **Service Detection**: Status command now correctly detects launchd-managed processes
+- ✅ **Auto-Start Support**: Full compatibility with macOS auto-start service (no PID file needed)
+- ✅ **Enhanced Monitoring**: Process detection via command line for service-managed instances
+- ✅ **Improved Cleanup**: Better process management during service restarts
+- ✅ **Status Indicators**: Includes `service_managed` flag for service-started processes
+
+### 🔄 **v0.4.1 - Auto-Update System**
 - ✅ **Version Detection**: Automatic checks for new releases via GitHub API and VERSION file
 - ✅ **Smart Caching**: 1-hour cache to avoid rate limits, with force refresh option
 - ✅ **Update Notifications**: Non-intrusive notifications in status display
