@@ -31,7 +31,13 @@
       "Read(//opt/homebrew/Caskroom/miniconda/base/envs/kwaainet/lib/python3.10/site-packages/petals/**)",
       "Read(//opt/homebrew/Caskroom/miniconda/base/envs/kwaainet/**)",
       "Bash(xargs cat:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Read(//Users/rezarassool/Library/LaunchAgents/**)",
+      "Bash(launchctl:*)",
+      "Read(//Users/rezarassool/**)",
+      "Bash(sed:*)",
+      "Read(//private/tmp/**)",
+      "Bash(lsof:*)"
     ],
     "deny": [],
     "ask": []

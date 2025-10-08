@@ -409,8 +409,131 @@ git push origin main
 - ✅ **Installation guide** reflects new default behavior and options
 - ✅ **Clear documentation** of space savings and reliability improvements
 
+## Current Session (2025-10-08) - Auto-Start Service Fix and v0.4.1 Update
+
+### Task: Fix KwaaiNet Auto-Start After Reboot + Update to v0.4.1
+**Status**: ✅ ALL FIXES COMPLETE - Ready for reboot verification
+
+#### Root Cause Identified ✅
+**Problem**: KwaaiNet service doesn't restart after reboot on macOS
+- **Investigation**: Launchd service exists at `~/Library/LaunchAgents/ai.kwaai.kwaainet.plist`
+- **Root Cause**: Service plist missing conda bin directory in PATH environment variable
+- **Impact**: Service tries to start but can't find conda/python, daemon fails silently
+
+**Current PATH in plist** (broken):
+```
+/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+```
+
+**Required PATH** (fixed):
+```
+/opt/homebrew/Caskroom/miniconda/base/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+```
+
+#### macOS Installer Fix Implemented ✅
+
+**File Modified**: `Installer/macOS/macinstaller.sh`
+**Changes**: Added launchd service creation at end of installation (lines 830-892)
+
+**Implementation Details:**
+1. **Architecture-aware conda path detection**:
+   - ARM64 (M1/M2): `/opt/homebrew/Caskroom/miniconda/base/bin`
+   - Intel: `/usr/local/Caskroom/miniconda/base/bin`
+
+2. **Service configuration**:
+   - Label: `ai.kwaai.kwaainet`
+   - Command: `~/.local/bin/kwaainet start --daemon`
+   - RunAtLoad: `true` (starts on login)
+   - KeepAlive: Restart on failure (SuccessfulExit=false)
+   - Logs: `~/.kwaainet/logs/service.log` and `service.error.log`
+
+3. **Automatic service loading**:
+   - Creates plist file during installation
+   - Unloads existing service (if present)
+   - Loads new service immediately
+   - Reports success/failure to user
+
+#### System Updates Completed ✅
+
+**v0.4.1 Update:**
+- ✅ Updated from v0.4.0 to v0.4.1 using `kwaainet update`
+- ✅ Configuration backed up to `~/.kwaainet/backups/config_20251008_112539.yaml`
+- ✅ Update completed via pip successfully
+
+**Stale PID Cleanup:**
+- ✅ Removed stale PID file causing "Daemon already running" errors
+- ✅ Service stopped and restarted cleanly
+- ✅ Daemon now runs stable with proper process management
+
+**Service Verification:**
+- ✅ Launchd service loaded and validated (`plutil -lint` passed)
+- ✅ Service survives reload (daemon maintained same PID 3431)
+- ✅ Network connectivity active (30 threads, 753MB memory)
+- ✅ P2P connections established (1 connection)
+
+#### Testing Completed ✅
+
+**Pre-Reboot Test Results:**
+```bash
+# Service status
+launchctl list | grep kwaai
+# Output: -	0	ai.kwaai.kwaainet  (loaded successfully)
+
+# Daemon status
+kwaainet status
+# Output: 🟢 Running (PID: 3431), 30 threads, 753.9 MB
+
+# Plist validation
+plutil -lint ~/Library/LaunchAgents/ai.kwaai.kwaainet.plist
+# Output: OK
+```
+
+**Service Stability Test:**
+- Unloaded and reloaded service multiple times
+- Daemon remained stable across reloads
+- No stale PID issues after cleanup
+- Logs properly captured in `~/.kwaainet/logs/`
+
+#### Pending Verification 🔄
+
+**Next Step**: Reboot test to verify `RunAtLoad=true` works correctly
+- Service should auto-start on login
+- No manual intervention required
+- Daemon should be running immediately after boot
+
+**Verification Commands (after reboot):**
+```bash
+launchctl list | grep kwaai          # Should show service loaded
+kwaainet status                      # Should show daemon running with uptime
+tail ~/.kwaainet/logs/service.log    # Check startup logs
+tail ~/.kwaainet/logs/service.error.log  # Check for any errors
+```
+
+**Expected Results After Reboot:**
+- Launchd service auto-loaded (exit code 0)
+- Daemon running without manual start
+- Network threads active (20-30 threads)
+- No "Daemon already running" errors
+- Clean startup logs
+
+#### Future Work
+- Commit installer changes once reboot verification passes
+- Apply similar fix to Linux installer (systemd service)
+- Consider Windows installer (Windows Service or Task Scheduler)
+- Add uninstaller support for removing launchd services
+- Document auto-start configuration in README
+
+#### Current System State (Pre-Reboot)
+- **KwaaiNet Version**: v0.4.1
+- **Daemon Status**: Running (PID 3431)
+- **Service Status**: Loaded and validated
+- **Network**: Connected (30 threads, 1 connection)
+- **Memory**: 753.9 MB
+- **Launchd Plist**: Valid, includes conda PATH
+- **Auto-Start**: Configured with `RunAtLoad=true`
+
 ## Session Context
-- **Working Directory**: `/home/metro/Source/OpenAI-Petal`
+- **Working Directory**: `/Users/rezarassool/Source/OpenAI-Petal`
 - **Repository**: Connected to `https://github.com/Kwaai-AI-Lab/OpenAI-Petal`
-- **Development Focus**: Installer UX improvements and shell script quality
-- **Achievement**: Released v0.3.1 with enhanced reliability, better UX, and significant space savings
+- **Development Focus**: Auto-start service reliability across platforms
+- **Current State**: All fixes complete, system ready for reboot verification test

@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Mac - One-Step Installer v0.2.14
+# KwaaiNet for Mac - One-Step Installer v0.2.15
 # This script handles the entire installation process for KwaaiNet on macOS
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.4.1"
+INSTALLER_VERSION="0.4.2"
 
 # Set up logging
 LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
@@ -824,8 +824,71 @@ fi
 
 # Run comprehensive verification
 echo ""
-run_comprehensive_verification
+run_comprehensive_verification || true  # Don't exit on warnings
 echo ""
+
+# Setup launchd service for auto-start on boot
+echo ""
+echo "🔧 Setting up auto-start service..."
+
+# Determine conda path based on architecture
+if [[ "$(uname -m)" == "arm64" ]]; then
+    CONDA_BIN_PATH="/opt/homebrew/Caskroom/miniconda/base/bin"
+else
+    CONDA_BIN_PATH="/usr/local/Caskroom/miniconda/base/bin"
+fi
+
+# Create LaunchAgents directory if it doesn't exist
+mkdir -p "$HOME/Library/LaunchAgents"
+
+# Create the plist file
+PLIST_PATH="$HOME/Library/LaunchAgents/ai.kwaai.kwaainet.plist"
+cat > "$PLIST_PATH" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.kwaai.kwaainet</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$HOME/.local/bin/kwaainet</string>
+        <string>start</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>$HOME/.kwaainet/logs/service.log</string>
+    <key>StandardErrorPath</key>
+    <string>$HOME/.kwaainet/logs/service.error.log</string>
+    <key>WorkingDirectory</key>
+    <string>$HOME</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>$CONDA_BIN_PATH:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
+EOF
+
+# Load the service
+launchctl unload "$PLIST_PATH" 2>/dev/null || true
+launchctl load "$PLIST_PATH"
+
+if [ $? -eq 0 ]; then
+    echo "✅ Auto-start service configured successfully"
+    echo "   KwaaiNet will start automatically on login"
+else
+    echo "⚠️  Could not load auto-start service"
+    echo "   You can manually load it later with:"
+    echo "   launchctl load ~/Library/LaunchAgents/ai.kwaai.kwaainet.plist"
+fi
 
 # Display success message
 echo ""

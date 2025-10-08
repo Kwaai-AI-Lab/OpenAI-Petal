@@ -39,17 +39,18 @@ class DaemonProcess:
             if os.path.exists(self.pid_file):
                 with open(self.pid_file, 'r') as f:
                     pid = int(f.read().strip())
-                
+
                 # Check if process is actually running
                 if psutil.pid_exists(pid):
                     try:
                         proc = psutil.Process(pid)
-                        # Additional check: verify it's a kwaainet process
-                        if any('kwaainet' in arg or 'petals' in arg for arg in proc.cmdline()):
+                        # Additional check: verify it's a petals server process (not the launcher)
+                        cmdline = ' '.join(proc.cmdline())
+                        if 'petals.cli.run_server' in cmdline:
                             return pid
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         pass
-                
+
                 # PID file exists but process is not running, clean up
                 self._cleanup_pid_file()
             return None
@@ -83,15 +84,20 @@ class DaemonProcess:
         try:
             import psutil
             killed_pids = []
+            current_pid = os.getpid()
 
             for proc in psutil.process_iter(['pid', 'cmdline', 'name']):
                 try:
+                    # Skip the current process and its parent
+                    if proc.info['pid'] == current_pid or proc.info['pid'] == os.getppid():
+                        continue
+
                     cmdline = ' '.join(proc.info['cmdline'] or [])
                     name = proc.info['name'] or ''
 
-                    # Look for petals or kwaainet processes
-                    if any(keyword in cmdline.lower() or keyword in name.lower()
-                           for keyword in ['petals.cli.run_server', 'kwaainet', 'petals-server']):
+                    # Only look for petals server processes, NOT the kwaainet launcher itself
+                    # This prevents killing the launcher during launchd retry attempts
+                    if 'petals.cli.run_server' in cmdline.lower() or 'petals-server' in name.lower():
                         proc.terminate()
                         killed_pids.append(proc.info['pid'])
                         logger.debug(f"Terminated related process {proc.info['pid']}: {name}")
@@ -135,6 +141,23 @@ class DaemonProcess:
     def is_running(self) -> bool:
         """Check if daemon is running"""
         return self.get_pid() is not None
+
+    def _find_service_process(self) -> Optional[int]:
+        """Find Petals process running via launchd service (without daemon PID file)"""
+        try:
+            for proc in psutil.process_iter(['pid', 'cmdline', 'ppid']):
+                try:
+                    cmdline = ' '.join(proc.info['cmdline'] or [])
+                    # Look for petals server process not in a daemon context
+                    if 'petals.cli.run_server' in cmdline:
+                        # Return the main process (lowest PID among related processes)
+                        return proc.info['pid']
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    pass
+            return None
+        except Exception as e:
+            logger.debug(f"Error finding service process: {e}")
+            return None
     
     def daemonize(self):
         """Fork current process into daemon mode"""
@@ -372,7 +395,7 @@ class DaemonProcess:
         """Get comprehensive daemon status"""
         pid = self.get_pid()
         status = self.read_status() or {}
-        
+
         if pid:
             try:
                 proc = psutil.Process(pid)
@@ -393,10 +416,32 @@ class DaemonProcess:
                     "error": "Process not accessible"
                 })
         else:
-            status.update({
-                "running": False
-            })
-        
+            # Check if running via launchd service (no PID file in daemon mode)
+            service_pid = self._find_service_process()
+            if service_pid:
+                try:
+                    proc = psutil.Process(service_pid)
+                    status.update({
+                        "running": True,
+                        "pid": service_pid,
+                        "uptime": time.time() - proc.create_time(),
+                        "cpu_percent": proc.cpu_percent(),
+                        "memory_percent": proc.memory_percent(),
+                        "memory_mb": proc.memory_info().rss / 1024 / 1024,
+                        "connections": len(proc.connections()),
+                        "threads": proc.num_threads(),
+                        "status": proc.status(),
+                        "service_managed": True
+                    })
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    status.update({
+                        "running": False
+                    })
+            else:
+                status.update({
+                    "running": False
+                })
+
         return status
 
 
