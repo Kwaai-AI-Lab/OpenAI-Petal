@@ -3,6 +3,129 @@
 ## Project Overview
 This is the OpenAI API-compatible server for Petals distributed inference, developed by Kwaai-AI-Lab. The project provides cross-platform installers for Linux and macOS to set up the KwaaiNet distributed inference system.
 
+## Current Session (2025-10-08) - v0.4.3: Concurrent Instance Prevention & MPS Compatibility
+
+### Task: Fix Auto-Start Daemon Issues and Prevent Duplicate Instances
+**Status**: ✅ COMPLETED - All fixes implemented and tested
+
+#### Issues Discovered and Resolved ✅
+
+**Auto-Start Daemon Crashes**: Daemon kept restarting after reboot due to torch.mps errors
+- **Root Cause**: Outdated kwaainet package (v0.4.0) lacked MPS compatibility patches for PyTorch 2.8+
+- **Error**: `AttributeError: module 'torch.mps' has no attribute 'current_device'`
+- **Solution**: Reinstalled kwaainet from latest repository with updated MPS patches in Petals server.py
+
+**Duplicate Network Instances**: Two nodes appeared on network map simultaneously
+- **Root Cause**: Both launchd service and manual daemon start were running concurrently
+- **Impact**: Multiple instances trying to bind to same port, wasted resources, confusing network status
+- **Solution**: Implemented `--concurrent` flag with smart instance management
+
+#### Features Implemented ✅
+
+**1. Smart Instance Management (Default Behavior)**
+- `kwaainet start` now automatically stops ALL existing kwaainet/petals/p2pd processes before starting
+- Prevents accidental duplicate instances from launchd + manual starts
+- Uses `_cleanup_all_kwaainet_processes()` method to terminate:
+  - Petals server processes (`petals.cli.run_server`)
+  - P2P daemon processes (`p2pd`, hivemind)
+  - Orphaned child processes
+- Graceful termination with SIGTERM, followed by SIGKILL if needed
+
+**2. --concurrent Flag (Optional)**
+- New command-line flag: `kwaainet start --concurrent`
+- Allows multiple instances to run simultaneously when explicitly requested
+- Useful for testing or running multiple models on different ports
+- Skips automatic cleanup when specified
+
+**3. MPS Compatibility Fixes**
+- Installer now patches Petals server.py directly with `patch_torch_mps()` function
+- Adds missing methods to torch.mps module:
+  - `current_device()` → returns 0
+  - `device_count()` → returns 1
+  - `get_device_properties(device)` → returns mock DeviceProperties object
+- Compatible with PyTorch 2.8+ on macOS M1/M2/M3
+
+#### Technical Implementation Details ✅
+
+**Files Modified:**
+- `Installer/macOS/kwaainet/runner.py`:
+  - Added `concurrent` parameter to `start()` method
+  - Added `--concurrent` argument to argparse
+  - Pass concurrent flag through to daemon manager
+
+- `Installer/macOS/kwaainet/daemon.py`:
+  - Added `concurrent` parameter to `start_process()` method
+  - Created `_cleanup_all_kwaainet_processes()` method
+  - Integrated cleanup into startup flow (runs before PID check unless concurrent=True)
+
+**Process Cleanup Logic:**
+```python
+def _cleanup_all_kwaainet_processes(self):
+    # Finds and terminates:
+    # - petals.cli.run_server processes
+    # - p2pd (hivemind DHT) processes
+    # - Related child processes
+    # Skips current process and parent
+    # Graceful SIGTERM → wait 2s → SIGKILL if needed
+```
+
+#### Testing Results ✅
+
+**Before Fix:**
+- 2 main Petals server instances running (launchd + manual)
+- 20+ total processes (main servers + their children)
+- Duplicate nodes on network map
+- Port conflicts and resource waste
+
+**After Fix:**
+- `kwaainet start --daemon` stopped 12 existing processes
+- Single main Petals server (PID 14404)
+- 10 child processes (normal Python multiprocessing workers)
+- Only 1 p2pd process listening on port 8080
+- **Single node on network map** ✅
+
+**Daemon Stability:**
+- Uptime: Stable, no crashes
+- Threads: 24-31 (healthy P2P networking)
+- Connections: 50+ to network
+- Memory: ~700MB-1.6GB (normal for model loading)
+
+#### Git Commits Made ✅
+- **`<pending>`**: Add concurrent instance prevention and MPS compatibility fixes (v0.4.3)
+
+### Current Fully Working State ✅
+
+**v0.4.3 Features:**
+- ✅ **Smart instance management** prevents duplicate nodes by default
+- ✅ **--concurrent flag** allows multiple instances when needed
+- ✅ **MPS compatibility** fixed for PyTorch 2.8+ on macOS
+- ✅ **Clean process management** removes orphaned processes
+- ✅ **Stable daemon operation** after reboot with auto-start service
+- ✅ **Single network presence** eliminates confusion from duplicates
+
+**Installation & Auto-Start:**
+- ✅ Installer applies MPS patches during installation
+- ✅ Launchd service configured with RunAtLoad=true
+- ✅ Auto-start works correctly after reboot
+- ✅ No manual intervention needed
+
+**User Experience Improvements:**
+- Users no longer see duplicate nodes on network map
+- No "already running" errors from port conflicts
+- Clear, predictable behavior: one start command = one instance
+- Advanced users can still run multiple instances with `--concurrent`
+
+### Version Management ✅
+- **Previous**: v0.4.2
+- **Released**: v0.4.3
+- **Files Updated**: VERSION, README.md, runner.py, daemon.py, CLAUDE.md
+
+### Next Steps
+- Monitor for any edge cases with concurrent flag
+- Consider similar fixes for Linux installer
+- Test auto-start on fresh macOS installation
+- Document --concurrent flag usage for advanced scenarios
+
 ## 🚨 CRITICAL LESSONS LEARNED 🚨
 
 ### Lesson 1: ALWAYS Check Remote Repository Status BEFORE Starting Work (2025-10-05)

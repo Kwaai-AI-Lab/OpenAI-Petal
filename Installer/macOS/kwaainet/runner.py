@@ -95,7 +95,7 @@ class KwaaiNetRunner:
             self.config.update(use_gpu=False)
         return True
     
-    def start(self, daemon_mode: bool = False):
+    def start(self, daemon_mode: bool = False, concurrent: bool = False):
         """Start KwaaiNet node"""
         # Run pre-flight checks first
         from .preflight import run_preflight_checks, suggest_solutions
@@ -205,7 +205,7 @@ class KwaaiNetRunner:
                 setup_signal_handlers(self.daemon)
             
             # Start the process using daemon manager
-            success = self.daemon.start_process(command, env, daemon_mode)
+            success = self.daemon.start_process(command, env, daemon_mode, concurrent=concurrent)
             
             if not success:
                 logger.error("Failed to start KwaaiNet node")
@@ -242,7 +242,7 @@ class KwaaiNetRunner:
                 logger.info(f"Running command (CPU fallback): {' '.join(command)}")
                 
                 # Start fallback process using daemon manager
-                success = self.daemon.start_process(command, env, daemon_mode)
+                success = self.daemon.start_process(command, env, daemon_mode, concurrent=concurrent)
                 
                 if not success:
                     logger.error("KwaaiNet node (CPU mode) failed to start")
@@ -383,6 +383,7 @@ def parse_args():
     start_parser.add_argument("--announce-addr", type=str, help="Custom announce address for P2P networking")
     start_parser.add_argument("--no-relay", action="store_true", help="Disable automatic relay")
     start_parser.add_argument("--daemon", action="store_true", help="🔧 Run in daemon mode (background process)")
+    start_parser.add_argument("--concurrent", action="store_true", help="🔀 Allow concurrent instances (don't stop existing processes)")
     
     # Stop command
     subparsers.add_parser("stop", 
@@ -491,7 +492,8 @@ def main():
             
         # Start the node (with daemon mode if requested)
         daemon_mode = getattr(args, 'daemon', False)
-        if not runner.start(daemon_mode):
+        concurrent = getattr(args, 'concurrent', False)
+        if not runner.start(daemon_mode, concurrent):
             sys.exit(1)
             
     elif args.command == "stop":

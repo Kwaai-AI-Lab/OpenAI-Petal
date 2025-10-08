@@ -37,7 +37,11 @@
       "Read(//Users/rezarassool/**)",
       "Bash(sed:*)",
       "Read(//private/tmp/**)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(~/.local/bin/kwaainet:*)",
+      "Bash(pip show:*)",
+      "Bash(/opt/homebrew/Caskroom/miniconda/base/envs/kwaainet/bin/pip show kwaainet)",
+      "Bash(/opt/homebrew/Caskroom/miniconda/base/envs/kwaainet/bin/python -c \"import kwaainet; print(''kwaainet location:'', kwaainet.__file__)\")"
     ],
     "deny": [],
     "ask": []
