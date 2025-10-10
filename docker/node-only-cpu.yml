@@ -14,6 +14,9 @@ services:
       # Node identification on the network
       - PUBLIC_NAME=${USER:-kwaainet_user}
 
+      # Public IP address (required for appearing on network map)
+      - PUBLIC_IP=${PUBLIC_IP:-}
+
       # Fewer blocks for CPU (limited by memory, not VRAM)
       # CPU: Use 2-4 blocks max for reasonable performance
       - KWAAINET_BLOCKS=2

@@ -14,6 +14,10 @@ services:
       # Node identification on the network
       - PUBLIC_NAME=${USER:-kwaainet_user}
 
+      # Public IP address (required for appearing on network map)
+      # Set this to your server's public IP or leave blank for auto-detect
+      - PUBLIC_IP=${PUBLIC_IP:-}
+
       # Number of model blocks to serve (adjust based on VRAM)
       # 2 blocks  ≈ 2-4GB VRAM
       # 4 blocks  ≈ 4-8GB VRAM
