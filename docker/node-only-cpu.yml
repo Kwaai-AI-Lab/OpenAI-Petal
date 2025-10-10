@@ -1,0 +1,42 @@
+version: "3.9"
+
+# KwaaiNet Node Only - CPU Version
+# Deploy this on machines without GPU
+# Note: CPU inference is much slower but still contributes to the network
+
+services:
+  kwaainet-node:
+    image: kwaailab/kwaainet-node:latest
+    container_name: kwaainet-node
+    restart: unless-stopped
+
+    environment:
+      # Node identification on the network
+      - PUBLIC_NAME=${USER:-kwaainet_user}
+
+      # Fewer blocks for CPU (limited by memory, not VRAM)
+      # CPU: Use 2-4 blocks max for reasonable performance
+      - KWAAINET_BLOCKS=2
+
+    volumes:
+      # Persistent model cache (models are ~16GB)
+      - ${HOME}/.cache/huggingface:/root/.cache
+
+    ports:
+      # Node status/health endpoint
+      - "8080:8080"
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 300s  # Allow 5 minutes for model download/load
+
+    # CPU resource limits
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 8G
+    #       cpus: '4.0'

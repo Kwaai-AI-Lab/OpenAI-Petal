@@ -1,0 +1,47 @@
+version: "3.9"
+
+# KwaaiNet API Only - OpenAI-Compatible API Server
+# Deploy this on machines that serve API requests to clients
+# Typical use: Application servers, API gateways, public-facing endpoints
+# Note: API connects to distributed network, doesn't need local GPU
+
+services:
+  kwaainet-api:
+    image: kwaailab/kwaainet-api:latest
+    container_name: kwaainet-api
+    restart: unless-stopped
+
+    environment:
+      # API server configuration
+      - KWAAINET_API_HOST=0.0.0.0
+      - KWAAINET_API_PORT=8000
+
+      # Optional: Configure which model to serve
+      # - KWAAINET_DEFAULT_MODEL=unsloth/Llama-3.1-8B-Instruct
+
+      # Optional: Performance tuning
+      # - KWAAINET_MAX_LENGTH=2048
+      # - OMP_NUM_THREADS=2
+
+    volumes:
+      # Model metadata cache (much smaller than node)
+      - ${HOME}/.cache/huggingface:/root/.cache:z
+
+    ports:
+      # OpenAI-compatible API endpoint
+      - "8000:8000"
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # Optional: Resource limits (API is lightweight)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 2G
+    #       cpus: '1.0'

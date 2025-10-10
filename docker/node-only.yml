@@ -1,0 +1,52 @@
+version: "3.9"
+
+# KwaaiNet Node Only - Distributed Inference Node
+# Deploy this on machines with GPU to contribute compute to the network
+# Typical use: GPU servers, mining rigs, workstations with spare GPU capacity
+
+services:
+  kwaainet-node:
+    image: kwaailab/kwaainet-node:latest
+    container_name: kwaainet-node
+    restart: unless-stopped
+
+    environment:
+      # Node identification on the network
+      - PUBLIC_NAME=${USER:-kwaainet_user}
+
+      # Number of model blocks to serve (adjust based on VRAM)
+      # 2 blocks  ≈ 2-4GB VRAM
+      # 4 blocks  ≈ 4-8GB VRAM
+      # 8 blocks  ≈ 8-16GB VRAM
+      # 16 blocks ≈ 16-32GB VRAM
+      # 32 blocks ≈ 32-48GB VRAM (full model)
+      - KWAAINET_BLOCKS=4
+
+    volumes:
+      # Persistent model cache (models are ~16GB)
+      - ${HOME}/.cache/huggingface:/root/.cache
+
+    ports:
+      # Node status/health endpoint
+      - "8080:8080"
+
+    # GPU device access (NVIDIA)
+    devices:
+      - "/dev/nvidia0:/dev/nvidia0"
+      - "/dev/nvidiactl:/dev/nvidiactl"
+      - "/dev/nvidia-uvm:/dev/nvidia-uvm"
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 300s  # Allow 5 minutes for model download/load
+
+    # Optional: Resource limits
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 16G
+    #       cpus: '4.0'

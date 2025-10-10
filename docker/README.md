@@ -1,6 +1,23 @@
 # KwaaiNet Docker Installation
 
-Quick setup for KwaaiNet distributed inference nodes using Docker/Podman.
+Quick setup for KwaaiNet distributed inference using Docker/Podman.
+
+## Deployment Modes
+
+KwaaiNet supports three deployment scenarios:
+
+1. **Node Only** (Most Common) - GPU server contributing compute to the network
+   - File: `node-only.yml` (GPU) or `node-only-cpu.yml` (CPU)
+   - Use case: Mining rigs, GPU servers, workstations with spare capacity
+
+2. **API Only** - API server for client applications
+   - File: `api-only.yml`
+   - Use case: Application servers, API gateways, public endpoints
+   - Connects to distributed network, no local GPU needed
+
+3. **Both Services** - All-in-one deployment (less common)
+   - File: `compose.yml`
+   - Use case: Testing, development, single-server deployments
 
 ## Quick Start (New Machine)
 
@@ -72,14 +89,30 @@ cd ~/kwaainet
 
 ### Step 4: Download Compose File
 
-**With GPU:**
+Choose the deployment mode that fits your use case:
+
+**Node Only (GPU) - Most Common:**
 ```bash
-wget https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/compose.yml
+wget https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/node-only.yml
 ```
 
-**CPU Only:**
+**Node Only (CPU):**
 ```bash
-wget -O compose.yml https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/compose-cpu.yml
+wget https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/node-only-cpu.yml
+```
+
+**API Only:**
+```bash
+wget https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/api-only.yml
+```
+
+**Both Services (All-in-One):**
+```bash
+# With GPU
+wget https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/compose.yml
+
+# CPU only
+wget https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/compose-cpu.yml
 ```
 
 ### Step 5: Enable Auto-Restart (Podman only)
@@ -91,7 +124,12 @@ sudo systemctl enable podman-restart.service
 ### Step 6: Start Services
 
 ```bash
-sudo podman compose up -d
+# Specify the compose file you downloaded
+sudo podman compose -f node-only.yml up -d
+# OR
+sudo podman compose -f api-only.yml up -d
+# OR
+sudo podman compose -f compose.yml up -d
 ```
 
 ## Verifying Installation
@@ -289,11 +327,21 @@ sudo systemctl disable podman-restart.service
 
 ## Files
 
-- `compose.yml` - Main compose configuration (GPU)
-- `compose-cpu.yml` - CPU-only configuration
+**Deployment Configurations:**
+- `node-only.yml` - Node only with GPU (most common)
+- `node-only-cpu.yml` - Node only with CPU
+- `api-only.yml` - API server only (no GPU needed)
+- `compose.yml` - Both node + API with GPU
+- `compose-cpu.yml` - Both node + API with CPU
+
+**Installer & Tools:**
 - `install.sh` - Automated installation script
 - `fix-restart.sh` - Fix auto-restart after reboot
 - `README.md` - This file
+
+**Additional:**
+- `caddy-compose.yml` - HTTPS reverse proxy (optional)
+- `Caddyfile` - Caddy configuration
 
 ## Support
 
