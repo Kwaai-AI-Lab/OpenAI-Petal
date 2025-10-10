@@ -230,8 +230,13 @@ For containerized deployment, you can use Docker or Podman with the provided com
 
 #### Using Docker
 ```bash
-# Download the compose file
+# Download the compose file and .env.example
 curl -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/compose.yml
+curl -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/.env.example
+
+# Configure your deployment
+cp .env.example .env
+# Edit .env to set PUBLIC_IP and PUBLIC_NAME
 
 # Start the services
 docker-compose up -d
@@ -242,8 +247,13 @@ docker-compose ps
 
 #### Using Podman (Rootless - Recommended)
 ```bash
-# Download the compose file
+# Download the compose file and .env.example
 curl -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/compose.yml
+curl -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/.env.example
+
+# Configure your deployment
+cp .env.example .env
+# Edit .env to set PUBLIC_IP and PUBLIC_NAME
 
 # Start the services (no sudo required)
 podman-compose up -d
@@ -252,11 +262,24 @@ podman-compose up -d
 podman-compose ps
 ```
 
+#### Configuration (.env file)
+Create a `.env` file with your server's configuration:
+```bash
+# Required for network map visibility
+PUBLIC_IP=your.public.ip.address
+
+# Identifies your node (note: _docker suffix distinguishes from bare-metal)
+PUBLIC_NAME=yourname_docker@kwaai
+
+# Optional: Number of model blocks (adjust based on VRAM)
+# KWAAINET_BLOCKS=4
+```
+
 **Container Services:**
-- **kwaainet-node**: Distributed inference node (port 8081)
+- **kwaainet-node**: Distributed inference node (port 8080)
   - Connects to KwaaiNet bootstrap peers
   - Serves 4 blocks of Llama-3.1-8B-Instruct (configurable)
-  - Public name defaults to your username
+  - Public name uses `_docker` suffix to distinguish from bare-metal nodes
   - GPU-accelerated (NVIDIA support included)
 - **kwaainet-api**: OpenAI-compatible API server (port 8000)
   - Fully compatible with OpenAI API format
@@ -267,16 +290,32 @@ podman-compose ps
 - ✅ **Rootless operation** with Podman (enhanced security)
 - ✅ **Easy cleanup** and management
 - ✅ **GPU support** included for NVIDIA devices
-- ✅ **Automatic restarts** with `unless-stopped` policy
+- ✅ **Automatic restarts** after reboot with `unless-stopped` policy
+- ✅ **Network map visibility** with PUBLIC_IP announcement
+- ✅ **Flexible deployment** - node-only, API-only, or combined configurations
+
+#### Auto-Restart After Reboot (Podman)
+For existing Podman deployments, enable auto-restart:
+```bash
+# Download and run the fix script
+curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/fix-restart.sh | bash
+```
 
 **Quick Start with Containers:**
 ```bash
-# Download and start in one command (Podman)
-curl -fsSL https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/compose.yml | podman-compose -f - up -d
+# Download compose file
+curl -O https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/compose.yml
 
-# Access the services
+# Configure (set your PUBLIC_IP and PUBLIC_NAME)
+echo "PUBLIC_IP=your.public.ip" > .env
+echo "PUBLIC_NAME=yourname_docker@kwaai" >> .env
+
+# Start services
+podman-compose up -d
+
+# Verify services
 curl http://localhost:8000/v1/models     # API endpoint
-curl http://localhost:8081/health        # Node health check
+curl http://localhost:8080/health        # Node health check
 ```
 
 **Testing Container Installation:**
