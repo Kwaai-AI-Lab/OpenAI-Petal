@@ -1,0 +1,27 @@
+version: "3.9"
+
+# CPU-only configuration (no GPU devices)
+# Use this on systems without NVIDIA GPUs
+
+services:
+  kwaainet-node:
+    image: kwaailab/kwaainet-node:latest
+    container_name: kwaainet-node
+    restart: unless-stopped
+    environment:
+    - PUBLIC_NAME=${USER:-kwaainet_user}
+    - KWAAINET_BLOCKS=4
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache
+    ports:
+      - "8081:8080"
+
+
+  kwaainet-api:
+    image: kwaailab/kwaainet-api:latest
+    container_name: kwaainet-api
+    restart: unless-stopped
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache:z
+    ports:
+      - "8000:8000"

@@ -1,0 +1,30 @@
+api.kwaai.ai {
+    reverse_proxy localhost:8000
+    
+    # Enable automatic HTTPS
+    tls {
+        protocols tls1.2 tls1.3
+    }
+    
+    # Add CORS headers for API access
+    header {
+        Access-Control-Allow-Origin "*"
+        Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        Access-Control-Allow-Headers "Content-Type, Authorization"
+    }
+    
+    # Handle preflight OPTIONS requests
+    @options method OPTIONS
+    respond @options 204
+    
+    # Log requests
+    log {
+        output file /var/log/caddy/api.log
+        format single_field common_log
+    }
+}
+
+# Redirect HTTP to HTTPS
+http://api.kwaai.ai {
+    redir https://api.kwaai.ai{uri} permanent
+}
