@@ -6,6 +6,16 @@ import platform
 if platform.system() != "Darwin":
     print("WARNING: This package is specifically designed for macOS systems.")
 
+# Read version from VERSION file
+def read_version():
+    version_file = os.path.join(os.path.dirname(__file__), '..', '..', 'VERSION')
+    if os.path.exists(version_file):
+        with open(version_file, 'r') as f:
+            return f.read().strip()
+    return "0.0.0"  # Fallback version
+
+VERSION = read_version()
+
 # Define dependencies - no CUDA packages as they're not needed on macOS
 dependencies = [
     "torch>=2.0.0",  # Updated for security and compatibility
@@ -32,7 +42,7 @@ if platform.system() == "Darwin":
 
 setup(
     name="kwaainet-mac",
-    version="0.2.3",
+    version=VERSION,
     description="KwaaiNet Node for Mac systems to share compute/GPU resources",
     author="Kwaai Labs",
     author_email="contact@kwaai.ai",
@@ -45,6 +55,9 @@ setup(
         "console_scripts": [
             "kwaainet=kwaainet.runner:main",
         ],
+    },
+    package_data={
+        'kwaainet': ['VERSION'],  # Include VERSION file in package
     },
     classifiers=[
         "Development Status :: 3 - Alpha",
