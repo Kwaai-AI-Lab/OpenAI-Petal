@@ -6,13 +6,13 @@ services:
     container_name: kwaainet-node
     restart: unless-stopped
     environment:
-    - PUBLIC_NAME=${USER:-kwaainet_user}
+    - PUBLIC_NAME=${PUBLIC_NAME:-anonymous_docker@kwaai}
     - PUBLIC_IP=${PUBLIC_IP:-}
     - KWAAINET_BLOCKS=4
     volumes:
       - ${HOME}/.cache/huggingface:/root/.cache
     ports:
-      - "8081:8080"
+      - "8080:8080"
     devices:
       - "/dev/nvidia0:/dev/nvidia0"
       - "/dev/nvidiactl:/dev/nvidiactl"

@@ -15,8 +15,9 @@ services:
       - caddy_config:/config
       - caddy_logs:/var/log/caddy
     
-    # Use host networking to access localhost:8000
-    network_mode: host
+    # Connect to docker_default network to access API container
+    networks:
+      - docker_default
     
     environment:
       - CADDY_ADMIN=:2019
@@ -25,29 +26,33 @@ services:
     command: |
       sh -c 'echo "
       api.kwaai.ai {
-          reverse_proxy localhost:8000
-          
-          tls {
-              protocols tls1.2 tls1.3
-          }
-          
+          reverse_proxy kwaainet-api:8000
+
           header {
               Access-Control-Allow-Origin \"*\"
               Access-Control-Allow-Methods \"GET, POST, PUT, DELETE, OPTIONS\"
               Access-Control-Allow-Headers \"Content-Type, Authorization\"
           }
-          
+
           @options method OPTIONS
           respond @options 204
-          
+
           log {
               output file /var/log/caddy/api.log
-              format single_field common_log
           }
       }
 
       http://api.kwaai.ai {
-          redir https://api.kwaai.ai{uri} permanent
+          reverse_proxy kwaainet-api:8000
+
+          header {
+              Access-Control-Allow-Origin \"*\"
+              Access-Control-Allow-Methods \"GET, POST, PUT, DELETE, OPTIONS\"
+              Access-Control-Allow-Headers \"Content-Type, Authorization\"
+          }
+
+          @options method OPTIONS
+          respond @options 204
       }
       " > /etc/caddy/Caddyfile && caddy run --config /etc/caddy/Caddyfile'
     
@@ -58,6 +63,10 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+networks:
+  docker_default:
+    external: true
 
 volumes:
   caddy_data:
