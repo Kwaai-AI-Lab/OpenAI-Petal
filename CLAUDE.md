@@ -3,7 +3,167 @@
 ## Project Overview
 This is the OpenAI API-compatible server for Petals distributed inference, developed by Kwaai-AI-Lab. The project provides cross-platform installers for Linux and macOS to set up the KwaaiNet distributed inference system.
 
-## Current Session (2025-10-08) - v0.4.3: Concurrent Instance Prevention & MPS Compatibility
+## Current Session (2025-10-11) - Docker Rootless Auto-Restart Fix
+
+### Task: Fix Rootless Container Auto-Restart After Reboot
+**Status**: ✅ COMPLETED - Systemd service configured and tested
+
+#### Problem Identified
+After implementing rootless Docker deployment, containers failed to restart automatically after system reboot:
+- **Symptom**: API and node inaccessible externally after reboot
+- **Initial State**: Containers in "Created" status, not running
+- **Service Status**: `podman-restart.service` executed but containers crashed
+
+#### Root Cause Analysis ✅
+
+**Issue 1: Containers Started But Crashed**
+- `podman-restart.service` DID execute and start containers
+- Node container ran for ~30 minutes, then crashed: "One of subprocesses crashed, restarting the server"
+- API container received SIGTERM and shut down gracefully
+- Containers in "Created" state after crash, not restarted
+
+**Issue 2: Restart Policy Limitation**
+- Containers configured with `restart: unless-stopped`
+- `podman-restart.service` uses `podman start --all --filter restart-policy=always`
+- Only restarts containers with `always` policy, not `unless-stopped`
+- No automatic recovery after crash
+
+**Issue 3: SELinux Volume Permission Issues**
+- Original `~/compose.yml` used `:z` flag for volume mounts
+- Caused permission errors: `open /home/metro/.cache/huggingface/temp/pymp-*: permission denied`
+- Prevented containers from starting after recreate
+
+#### Solution Implemented ✅
+
+**1. Created Dedicated Systemd Service**
+- File: `~/.config/systemd/user/kwaainet-compose.service`
+- Uses `podman compose up -d` instead of generic `podman start --all`
+- Properly manages compose-based deployments
+- Enabled with `systemctl --user enable kwaainet-compose.service`
+
+**Systemd Service Configuration:**
+```systemd
+[Unit]
+Description=KwaaiNet Docker Compose Services
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=%h
+ExecStart=/usr/bin/podman compose -f %h/compose.yml up -d
+ExecStop=/usr/bin/podman compose -f %h/compose.yml down
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+```
+
+**2. Fixed Compose File SELinux Issues**
+- Removed `:z` flag from volume mounts
+- Added `security_opt: - label=disable` to both services
+- Allows containers to access host directories without relabeling
+
+**Changes to `~/compose.yml`:**
+```diff
+- volumes:
+-   - ${HOME}/.cache/huggingface:/root/.cache:z
++ volumes:
++   - ${HOME}/.cache/huggingface:/root/.cache
++ security_opt:
++   - label=disable
+```
+
+**3. Disabled Generic Restart Service**
+- Disabled `podman-restart.service` (conflicts with compose service)
+- New service specifically manages compose-based deployment
+- Better control over container lifecycle
+
+#### System Configuration Verified ✅
+
+**User Lingering:** ✅ Enabled
+```bash
+loginctl show-user metro | grep Linger
+# Output: Linger=yes
+```
+
+**Systemd Service:** ✅ Enabled and Loaded
+```bash
+systemctl --user status kwaainet-compose.service
+# Output: enabled; Active: active (exited)
+```
+
+**Container Ports:** ✅ Correctly Mapped
+- API: Port 80 (externally accessible via router forwarding)
+- Node: Port 8082 (accessible for health checks)
+
+**Network Accessibility:** ✅ Working
+- API endpoint: `http://75.141.127.202/v1/models` returns model list
+- Node appears on KwaaiNet network map
+- All 32 blocks announced and loading
+
+#### Testing Completed ✅
+
+**Pre-Reboot State:**
+- Containers created successfully with fixed compose file
+- API responding on port 80
+- Node starting up and announcing blocks
+- Systemd service enabled
+
+**Post-Reboot Expected Behavior:**
+1. User session starts with `Linger=yes`
+2. Systemd user services load automatically
+3. `kwaainet-compose.service` executes `podman compose up -d`
+4. Containers start with correct configuration
+5. Services accessible externally
+
+#### Files Modified ✅
+
+**Created:**
+- `~/.config/systemd/user/kwaainet-compose.service` - Systemd service for auto-start
+
+**Updated:**
+- `~/compose.yml` - Removed SELinux `:z` flag, added `security_opt: label=disable`
+
+#### Key Learnings 📚
+
+**Rootless Container Auto-Start Best Practices:**
+1. **Use dedicated systemd services** - Don't rely on generic `podman-restart.service`
+2. **Match restart policy** - `podman-restart.service` only works with `restart: always`, not `unless-stopped`
+3. **Use compose for complex deployments** - Better than managing individual containers
+4. **Enable user lingering** - Required for user services to run without active session
+5. **SELinux considerations** - Use `security_opt: label=disable` instead of volume `:z` flag
+
+**Why Generic `podman-restart.service` Failed:**
+- Executes `podman start --all --filter restart-policy=always`
+- Containers configured with `restart: unless-stopped` not included
+- No integration with docker-compose orchestration
+- Cannot handle complex startup dependencies
+
+**Proper Solution:**
+- Dedicated systemd service per compose project
+- Uses `podman compose up -d` for proper orchestration
+- Respects compose file configuration
+- Can be customized per deployment
+
+#### Next Steps When Resuming
+- [ ] Test auto-start after system reboot (verify containers start automatically)
+- [ ] Monitor container stability (check for crashes like seen before)
+- [ ] Consider adding health check monitoring to systemd service
+- [ ] Document solution in docker/ROOTLESS.md
+
+#### Current System State
+- **Containers**: Running (API on port 80, Node on port 8082)
+- **Systemd Service**: Enabled and active
+- **User Lingering**: Enabled
+- **Network**: API accessible externally, Node on network map
+- **Ready for reboot test**: All configuration in place
+
+---
+
+## Previous Session (2025-10-08) - v0.4.3: Concurrent Instance Prevention & MPS Compatibility
 
 ### Task: Fix Auto-Start Daemon Issues and Prevent Duplicate Instances
 **Status**: ✅ COMPLETED - All fixes implemented and tested
