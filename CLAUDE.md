@@ -195,6 +195,150 @@ podman logs kwaainet-node | grep Announced
 - **Network**: API accessible externally, Node announcing 32 blocks
 - **Auto-restart after reboot**: ✅ VERIFIED WORKING
 
+### Task: Fix Model Cache Detection and Clean Root-Owned Files (2025-10-11 continued)
+**Status**: ✅ COMPLETED - Cache now properly detected on every restart
+
+#### Issues Addressed ✅
+
+**Issue 1: Root-Owned Temp Directory**
+- Previous rootful container runs left behind root-owned files in cache
+- Location: `~/.cache/huggingface/temp/torch-shm-dir-YDxYJ6`
+- Impact: User couldn't access or clean these files without sudo
+
+**Issue 2: Misleading Cache Detection Messages**
+- Startup logs showed "Model not found... Downloading..." on every restart
+- Model was actually cached but in wrong location for detection
+- Script checked: `/root/.cache/huggingface/hub/models--...`
+- Model was at: `/root/.cache/models--...`
+
+**Issue 3: Incorrect Volume Mount**
+- Compose file mounted: `${HOME}/.cache/huggingface:/root/.cache`
+- Should mount: `${HOME}/.cache/huggingface:/root/.cache/huggingface`
+- Container expected cache in `/root/.cache/huggingface/hub/` subdirectory
+
+#### Solution Implemented ✅
+
+**1. Cleaned Root-Owned Files**
+```bash
+# Stopped containers
+podman compose -f ~/compose.yml down
+
+# Removed root-owned temp directory
+sudo rm -rf ~/.cache/huggingface/temp/torch-shm-dir-YDxYJ6
+
+# Verified all files now user-owned
+find ~/.cache/huggingface/ -user root  # Returns: (none)
+```
+
+**2. Fixed Volume Mount in compose.yml**
+```diff
+  kwaainet-node:
+    volumes:
+-     - ${HOME}/.cache/huggingface:/root/.cache
++     - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+
+  kwaainet-api:
+    volumes:
+-     - ${HOME}/.cache/huggingface:/root/.cache
++     - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+```
+
+**3. Reorganized Model Cache Structure**
+```bash
+# Moved model to proper hub/ subdirectory
+mv ~/.cache/huggingface/models--unsloth--Llama-3.1-8B-Instruct \
+   ~/.cache/huggingface/hub/
+
+# Now matches container's expected path structure
+```
+
+#### Testing Results ✅
+
+**Before Fix:**
+```
+Checking if model is already downloaded...
+Model not found at /root/.cache/huggingface/hub/models--unsloth--Llama-3.1-8B-Instruct.. Downloading...
+Fetching 13 files: 100%|██████████| 13/13 [00:00<00:00, 116260.03it/s]
+```
+(Misleading - was using cache but appeared to be downloading)
+
+**After Fix:**
+```
+Checking if model is already downloaded...
+Model already exists. Skipping download.
+Starting Petals server...
+```
+(Clear and accurate - cache properly detected)
+
+**Restart Test:**
+- Ran `podman restart kwaainet-node` multiple times
+- Every restart correctly shows "Model already exists. Skipping download."
+- No actual downloading occurs
+- Startup time reduced (no cache validation needed)
+
+#### Files Modified ✅
+
+**Updated:**
+- `~/compose.yml` - Fixed volume mount paths for both containers
+- Cache structure reorganized on host filesystem
+
+**Current Cache Structure:**
+```
+~/.cache/huggingface/
+├── hub/                                          # Hub cache directory
+│   └── models--unsloth--Llama-3.1-8B-Instruct/  # Model (9.3GB)
+│       ├── blobs/
+│       ├── refs/
+│       └── snapshots/
+├── huggingface/                                  # Petals working dir
+├── temp/                                         # Temporary files (user-owned)
+└── (other petals files)
+```
+
+#### Key Learnings 📚
+
+**Model Cache Detection:**
+1. **Volume mount path matters** - Must align with container's cache environment variables
+2. **HUGGINGFACE_HUB_CACHE=/root/.cache/huggingface/hub** - Determines where models are stored
+3. **Entrypoint script checks specific path** - Cache must be in expected location
+4. **Cache structure has subdirectories** - Models go in `hub/models--<name>/` not root
+
+**Rootless Container Best Practices:**
+1. **Never mix rootful and rootless** - Leaves permission issues
+2. **Clean up after rootful runs** - Check for root-owned files in shared volumes
+3. **Use consistent volume mounts** - Match container's expected paths
+4. **Test cache detection** - Verify logs show "Model already exists"
+
+#### Current System State (FULLY WORKING ✅)
+- **Containers**: Both running (API on port 80, Node on port 8082)
+- **Systemd Service**: Enabled and working correctly
+- **User Lingering**: Enabled
+- **GPU Access**: Working via CDI in rootless mode
+- **Model Cache**: 9.3GB cached at `~/.cache/huggingface/hub/models--unsloth--Llama-3.1-8B-Instruct/`
+- **Cache Detection**: ✅ Working perfectly - "Model already exists. Skipping download."
+- **Cache Ownership**: ✅ All files owned by `metro` user (no root files)
+- **Network**: API accessible externally, Node announcing 32 blocks
+- **Auto-restart after reboot**: ✅ VERIFIED WORKING
+
+#### Reboot Readiness Checklist ✅
+- [x] Systemd service enabled: `~/.config/systemd/user/kwaainet-compose.service`
+- [x] User lingering enabled: `loginctl enable-linger metro`
+- [x] Compose file updated with correct volume mounts
+- [x] Model cache in proper location with correct structure
+- [x] No root-owned files in cache directory
+- [x] Both containers running successfully
+- [x] Cache detection working ("Model already exists")
+- [x] GPU access working via CDI
+- [x] All 32 blocks announced to network
+
+**Expected After Reboot:**
+1. User session starts automatically (lingering enabled)
+2. Systemd service runs: `podman compose -f ~/compose.yml up -d`
+3. Both containers start with correct volume mounts
+4. Node detects cached model immediately ("Model already exists")
+5. All 32 blocks announce to network within ~30 seconds
+6. API accessible on port 80, Node on port 8082
+
 ---
 
 ## Previous Session (2025-10-08) - v0.4.3: Concurrent Instance Prevention & MPS Compatibility
