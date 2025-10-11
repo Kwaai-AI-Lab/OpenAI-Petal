@@ -2,6 +2,18 @@
 
 Quick setup for KwaaiNet distributed inference using Docker/Podman.
 
+## 🔒 Rootless Deployment (Recommended)
+
+**All compose files now support rootless podman by default** - no sudo required!
+
+Benefits:
+- ✅ Better security (runs as your user, not root)
+- ✅ Modern GPU access via CDI (Container Device Interface)
+- ✅ No password prompts for daily operations
+- ✅ Per-user isolation and storage
+
+Simply use `podman compose up -d` instead of `sudo podman compose up -d`. See [ROOTLESS.md](ROOTLESS.md) for complete guide.
+
 ## Deployment Modes
 
 KwaaiNet supports three deployment scenarios:
@@ -115,39 +127,45 @@ wget https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/com
 wget https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/compose-cpu.yml
 ```
 
-### Step 5: Enable Auto-Restart (Podman only)
-
-```bash
-sudo systemctl enable podman-restart.service
-```
-
-### Step 6: Start Services
+### Step 5: Start Services (Rootless - Recommended)
 
 ```bash
 # Specify the compose file you downloaded
+podman compose -f node-only.yml up -d
+# OR
+podman compose -f api-only.yml up -d
+# OR
+podman compose -f compose.yml up -d
+```
+
+For rootless auto-restart on boot, see [ROOTLESS.md](ROOTLESS.md#auto-start-on-boot-rootless).
+
+**Alternative: Rootful (requires sudo)**
+```bash
 sudo podman compose -f node-only.yml up -d
-# OR
-sudo podman compose -f api-only.yml up -d
-# OR
-sudo podman compose -f compose.yml up -d
+sudo systemctl enable podman-restart.service  # Auto-restart on boot
 ```
 
 ## Verifying Installation
 
 ### Check Container Status
 ```bash
-sudo podman ps
+podman ps  # Rootless
+# OR
+sudo podman ps  # Rootful
 ```
 
-Should show both `kwaainet-node` and `kwaainet-api` running.
+Should show `kwaainet-node` and/or `kwaainet-api` running.
 
 ### Check Logs
 ```bash
 # Node logs (should show "Started" message)
-sudo podman logs kwaainet-node
+podman logs kwaainet-node
 
 # API logs
-sudo podman logs kwaainet-api
+podman logs kwaainet-api
+
+# Add 'sudo' prefix if using rootful podman
 ```
 
 ### Test API Endpoint
@@ -161,28 +179,39 @@ https://health.petals.dev/
 
 ## Service Management
 
+**Rootless (Recommended - No Sudo Required):**
+
 ### Start Services
 ```bash
 cd ~/kwaainet
-sudo podman compose up -d
+podman compose up -d
 ```
 
 ### Stop Services
 ```bash
 cd ~/kwaainet
-sudo podman compose down
+podman compose down
 ```
 
 ### Restart Services
 ```bash
 cd ~/kwaainet
-sudo podman compose restart
+podman compose restart
 ```
 
 ### View Logs (Live)
 ```bash
+podman logs -f kwaainet-node
+podman logs -f kwaainet-api
+```
+
+**Rootful (Legacy - Requires Sudo):**
+
+If you're using rootful podman, prefix all commands with `sudo`:
+```bash
+sudo podman compose up -d
+sudo podman compose down
 sudo podman logs -f kwaainet-node
-sudo podman logs -f kwaainet-api
 ```
 
 ### Update Images

@@ -1,0 +1,100 @@
+version: "3.9"
+
+# KwaaiNet Rootless Deployment (Recommended)
+# This configuration is optimized for rootless podman with GPU access
+# No sudo required - run as regular user
+
+services:
+  kwaainet-node:
+    image: kwaailab/kwaainet-node:latest
+    container_name: kwaainet-node
+    restart: unless-stopped
+
+    environment:
+      # Node identification on the network
+      - PUBLIC_NAME=${PUBLIC_NAME:-anonymous_rootless@kwaai}
+
+      # Public IP address (required for appearing on network map)
+      - PUBLIC_IP=${PUBLIC_IP:-}
+
+      # Number of model blocks to serve (adjust based on VRAM)
+      - KWAAINET_BLOCKS=${KWAAINET_BLOCKS:-4}
+
+    volumes:
+      # Persistent model cache - using user's home directory
+      # Note: Container sees this as /root/.cache but it's actually ${HOME}/.cache
+      - ${HOME}/.cache/huggingface:/root/.cache
+
+    ports:
+      # Node status/health endpoint
+      - "8080:8080"
+
+    # GPU access via CDI (Container Device Interface)
+    # Works with rootless podman when nvidia-container-toolkit is configured
+    # This is the modern approach - cleaner than individual device mapping
+    devices:
+      - nvidia.com/gpu=all
+
+    # SELinux label for volume access (RHEL/Fedora/CentOS)
+    security_opt:
+      - label=disable
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 300s  # Allow 5 minutes for model download/load
+
+
+  kwaainet-api:
+    image: kwaailab/kwaainet-api:latest
+    container_name: kwaainet-api
+    restart: unless-stopped
+
+    volumes:
+      # Persistent model cache
+      - ${HOME}/.cache/huggingface:/root/.cache
+
+    ports:
+      # API endpoint
+      - "8000:8000"
+
+    # SELinux label for volume access
+    security_opt:
+      - label=disable
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+# Usage:
+# ------
+# Start services (no sudo needed with rootless podman):
+#   podman-compose -f compose-rootless.yml up -d
+#
+# Or with podman compose:
+#   podman compose -f compose-rootless.yml up -d
+#
+# Check status:
+#   podman ps
+#
+# View logs:
+#   podman logs -f kwaainet-node
+#   podman logs -f kwaainet-api
+#
+# Stop services:
+#   podman-compose -f compose-rootless.yml down
+#
+# Prerequisites:
+# --------------
+# 1. Rootless podman configured (usually automatic on modern systems)
+# 2. nvidia-container-toolkit with CDI support
+# 3. CDI configuration: sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+# 4. GPU device permissions (usually automatic, check: ls -la /dev/nvidia*)
+# 5. User subuid/subgid configured (check: grep $(whoami) /etc/subuid /etc/subgid)

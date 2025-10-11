@@ -34,11 +34,20 @@ services:
       # Node status/health endpoint
       - "8080:8080"
 
-    # GPU device access (NVIDIA)
+    # GPU access via CDI (Container Device Interface)
+    # Modern approach - works with both rootful and rootless podman
     devices:
-      - "/dev/nvidia0:/dev/nvidia0"
-      - "/dev/nvidiactl:/dev/nvidiactl"
-      - "/dev/nvidia-uvm:/dev/nvidia-uvm"
+      - nvidia.com/gpu=all
+
+    # For systems without CDI support, use legacy device mapping:
+    # devices:
+    #   - "/dev/nvidia0:/dev/nvidia0"
+    #   - "/dev/nvidiactl:/dev/nvidiactl"
+    #   - "/dev/nvidia-uvm:/dev/nvidia-uvm"
+
+    # SELinux compatibility (RHEL/Fedora/CentOS)
+    security_opt:
+      - label=disable
 
     # Health check
     healthcheck:

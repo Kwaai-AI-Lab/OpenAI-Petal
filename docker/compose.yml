@@ -8,15 +8,26 @@ services:
     environment:
     - PUBLIC_NAME=${PUBLIC_NAME:-anonymous_docker@kwaai}
     - PUBLIC_IP=${PUBLIC_IP:-}
-    - KWAAINET_BLOCKS=4
+    - KWAAINET_BLOCKS=${KWAAINET_BLOCKS:-4}
     volumes:
       - ${HOME}/.cache/huggingface:/root/.cache
     ports:
       - "8080:8080"
+
+    # GPU access via CDI (Container Device Interface)
+    # Modern approach - works with both rootful and rootless podman
     devices:
-      - "/dev/nvidia0:/dev/nvidia0"
-      - "/dev/nvidiactl:/dev/nvidiactl"
-      - "/dev/nvidia-uvm:/dev/nvidia-uvm"
+      - nvidia.com/gpu=all
+
+    # For systems without CDI support, use legacy device mapping:
+    # devices:
+    #   - "/dev/nvidia0:/dev/nvidia0"
+    #   - "/dev/nvidiactl:/dev/nvidiactl"
+    #   - "/dev/nvidia-uvm:/dev/nvidia-uvm"
+
+    # SELinux compatibility (RHEL/Fedora/CentOS)
+    security_opt:
+      - label=disable
 
 
   kwaainet-api:
@@ -24,7 +35,11 @@ services:
     container_name: kwaainet-api
     restart: unless-stopped
     volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache:z
+      - ${HOME}/.cache/huggingface:/root/.cache
     ports:
       - "8000:8000"
+
+    # SELinux compatibility (RHEL/Fedora/CentOS)
+    security_opt:
+      - label=disable
 

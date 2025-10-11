@@ -1,0 +1,43 @@
+version: "3.9"
+
+# KwaaiNet Rootless Test Configuration
+# Uses alternative ports to avoid conflicts
+
+services:
+  kwaainet-node-test:
+    image: kwaailab/kwaainet-node:latest
+    container_name: kwaainet-node-test
+    restart: unless-stopped
+
+    environment:
+      - PUBLIC_NAME=${PUBLIC_NAME:-rootless_test@kwaai}
+      - PUBLIC_IP=${PUBLIC_IP:-}
+      - KWAAINET_BLOCKS=${KWAAINET_BLOCKS:-2}
+
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache
+
+    ports:
+      - "18080:8080"  # Test port to avoid conflicts
+
+    # GPU access via CDI - rootless compatible
+    devices:
+      - nvidia.com/gpu=all
+
+    # SELinux compatibility
+    security_opt:
+      - label=disable
+
+  kwaainet-api-test:
+    image: kwaailab/kwaainet-api:latest
+    container_name: kwaainet-api-test
+    restart: unless-stopped
+
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache
+
+    ports:
+      - "18000:8000"  # Test port to avoid conflicts
+
+    security_opt:
+      - label=disable
