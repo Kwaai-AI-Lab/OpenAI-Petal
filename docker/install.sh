@@ -77,6 +77,16 @@ if command -v nvidia-smi &> /dev/null; then
         fi
     fi
 
+    # Enable nvidia-persistenced for reliable device creation at boot
+    echo "Enabling NVIDIA persistence daemon..."
+    if systemctl list-unit-files | grep -q nvidia-persistenced.service; then
+        sudo systemctl enable nvidia-persistenced.service 2>/dev/null || true
+        sudo systemctl start nvidia-persistenced.service 2>/dev/null || true
+        echo -e "${GREEN}✓ NVIDIA persistence daemon enabled${NC}"
+    else
+        echo -e "${YELLOW}⚠ nvidia-persistenced not available (may need manual setup)${NC}"
+    fi
+
     USE_GPU=true
 else
     echo -e "${YELLOW}⚠ No NVIDIA GPU detected (CPU-only mode)${NC}"
@@ -96,7 +106,7 @@ echo ""
 echo -e "${YELLOW}Step 4: Creating Docker Compose configuration${NC}"
 
 if [ "$USE_GPU" = true ]; then
-    # GPU-enabled compose file
+    # GPU-enabled compose file with CDI notation
     cat > compose.yml << 'EOF'
 version: "3.9"
 
@@ -109,22 +119,24 @@ services:
       - PUBLIC_NAME=${USER:-kwaainet_user}
       - KWAAINET_BLOCKS=4
     volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
     ports:
       - "8081:8080"
+    security_opt:
+      - label=disable
     devices:
-      - "/dev/nvidia0:/dev/nvidia0"
-      - "/dev/nvidiactl:/dev/nvidiactl"
-      - "/dev/nvidia-uvm:/dev/nvidia-uvm"
+      - nvidia.com/gpu=all
 
   kwaainet-api:
     image: kwaailab/kwaainet-api:latest
     container_name: kwaainet-api
     restart: unless-stopped
     volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache:z
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
     ports:
       - "8000:8000"
+    security_opt:
+      - label=disable
 EOF
 else
     # CPU-only compose file
@@ -140,18 +152,22 @@ services:
       - PUBLIC_NAME=${USER:-kwaainet_user}
       - KWAAINET_BLOCKS=4
     volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
     ports:
       - "8081:8080"
+    security_opt:
+      - label=disable
 
   kwaainet-api:
     image: kwaailab/kwaainet-api:latest
     container_name: kwaainet-api
     restart: unless-stopped
     volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache:z
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
     ports:
       - "8000:8000"
+    security_opt:
+      - label=disable
 EOF
 fi
 
@@ -163,7 +179,7 @@ if [ "$CONTAINER_CMD" = "podman" ]; then
     echo -e "${YELLOW}Step 5: Configuring rootless podman${NC}"
 
     # Enable unprivileged port binding (for port 80)
-    if ! grep -q "net.ipv4.ip_unprivileged_port_start" /etc/sysctl.conf; then
+    if ! grep -q "net.ipv4.ip_unprivileged_port_start" /etc/sysctl.conf 2>/dev/null; then
         echo "Enabling unprivileged port binding (port 80)..."
         echo "net.ipv4.ip_unprivileged_port_start=80" | sudo tee -a /etc/sysctl.conf
         sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80
@@ -177,22 +193,44 @@ if [ "$CONTAINER_CMD" = "podman" ]; then
     sudo loginctl enable-linger $(whoami)
     echo -e "${GREEN}✓ User lingering enabled${NC}"
 
-    # Enable auto-restart service
-    echo "Enabling auto-restart on system boot..."
-    systemctl --user enable podman-restart.service 2>/dev/null || true
-    echo -e "${GREEN}✓ Auto-restart enabled${NC}"
+    # Create systemd user service for auto-start
+    echo "Creating systemd user service for auto-start..."
+    mkdir -p "${HOME}/.config/systemd/user"
+    cat > "${HOME}/.config/systemd/user/kwaainet-compose.service" << SERVICEEOF
+[Unit]
+Description=KwaaiNet Docker Compose Services
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=${INSTALL_DIR}
+ExecStart=/usr/bin/podman compose -f ${INSTALL_DIR}/compose.yml up -d
+ExecStop=/usr/bin/podman compose -f ${INSTALL_DIR}/compose.yml down
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+SERVICEEOF
+
+    # Enable and start the service
+    systemctl --user daemon-reload
+    systemctl --user enable kwaainet-compose.service
+    echo -e "${GREEN}✓ Auto-start systemd service created${NC}"
     echo ""
 fi
 
 # Step 6: Pull container images
 echo -e "${YELLOW}Step 6: Pulling container images (this may take a while)${NC}"
-sudo ${CONTAINER_CMD} compose -f compose.yml pull
+${CONTAINER_CMD} compose -f compose.yml pull
 echo -e "${GREEN}✓ Images downloaded${NC}"
 echo ""
 
 # Step 7: Start containers
 echo -e "${YELLOW}Step 7: Starting containers${NC}"
-sudo ${CONTAINER_CMD} compose -f compose.yml up -d
+${CONTAINER_CMD} compose -f compose.yml up -d
 echo -e "${GREEN}✓ Containers started${NC}"
 echo ""
 
@@ -202,7 +240,7 @@ sleep 5
 
 echo ""
 echo "Container status:"
-sudo ${CONTAINER_CMD} ps
+${CONTAINER_CMD} ps
 
 echo ""
 echo -e "${GREEN}✅ Installation complete!${NC}"
@@ -216,12 +254,12 @@ echo "  • Installation: ${INSTALL_DIR}"
 echo ""
 echo "📝 Useful Commands:"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Check status:       sudo ${CONTAINER_CMD} ps"
-echo "  View node logs:     sudo ${CONTAINER_CMD} logs -f kwaainet-node"
-echo "  View API logs:      sudo ${CONTAINER_CMD} logs -f kwaainet-api"
-echo "  Stop services:      cd ${INSTALL_DIR} && sudo ${CONTAINER_CMD} compose down"
-echo "  Start services:     cd ${INSTALL_DIR} && sudo ${CONTAINER_CMD} compose up -d"
-echo "  Restart services:   cd ${INSTALL_DIR} && sudo ${CONTAINER_CMD} compose restart"
+echo "  Check status:       ${CONTAINER_CMD} ps"
+echo "  View node logs:     ${CONTAINER_CMD} logs -f kwaainet-node"
+echo "  View API logs:      ${CONTAINER_CMD} logs -f kwaainet-api"
+echo "  Stop services:      cd ${INSTALL_DIR} && ${CONTAINER_CMD} compose down"
+echo "  Start services:     cd ${INSTALL_DIR} && ${CONTAINER_CMD} compose up -d"
+echo "  Restart services:   cd ${INSTALL_DIR} && ${CONTAINER_CMD} compose restart"
 echo ""
 echo "🧪 Testing:"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

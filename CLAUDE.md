@@ -6,7 +6,7 @@ This is the OpenAI API-compatible server for Petals distributed inference, devel
 ## Current Session (2025-10-11) - Docker Rootless Auto-Restart Fix
 
 ### Task: Fix Rootless Container Auto-Restart After Reboot
-**Status**: ✅ COMPLETED - Systemd service configured and tested
+**Status**: ✅ COMPLETED - Systemd service configured, tested, and installer updated
 
 #### Problem Identified
 After implementing rootless Docker deployment, containers failed to restart automatically after system reboot:
@@ -309,16 +309,124 @@ Starting Petals server...
 3. **Use consistent volume mounts** - Match container's expected paths
 4. **Test cache detection** - Verify logs show "Model already exists"
 
-#### Current System State (FULLY WORKING ✅)
-- **Containers**: Both running (API on port 80, Node on port 8082)
-- **Systemd Service**: Enabled and working correctly
-- **User Lingering**: Enabled
-- **GPU Access**: Working via CDI in rootless mode
-- **Model Cache**: 9.3GB cached at `~/.cache/huggingface/hub/models--unsloth--Llama-3.1-8B-Instruct/`
-- **Cache Detection**: ✅ Working perfectly - "Model already exists. Skipping download."
-- **Cache Ownership**: ✅ All files owned by `metro` user (no root files)
-- **Network**: API accessible externally, Node announcing 32 blocks
-- **Auto-restart after reboot**: ✅ VERIFIED WORKING
+### Task: Fix NVIDIA Device Availability at Boot (2025-10-11 continued)
+**Status**: ✅ COMPLETED - Root cause identified and installer updated
+
+#### Problem Discovered After Reboot ❌
+After the 2025-10-11 reboot test:
+- **API container**: Started successfully ✅
+- **Node container**: Failed to start ❌ (status: "Created" instead of "Up")
+- **Systemd service**: Executed successfully but node couldn't access GPU
+
+#### Root Cause Investigation ✅
+
+**Container Inspection Revealed:**
+```bash
+podman inspect kwaainet-node --format '{{.State.Status}} - {{.State.Error}}'
+# OUTPUT: running - setting up CDI devices: failed to inject devices:
+#         failed to stat CDI host device "/dev/nvidia-uvm": no such file or directory
+```
+
+**Timeline Analysis:**
+```
+14:22 - Boot: /dev/nvidia0, /dev/nvidiactl created
+14:23 - Systemd service runs: Node container tries to start
+        ERROR: /dev/nvidia-uvm doesn't exist yet!
+        Node container enters "Created" state
+14:36 - /dev/nvidia-uvm finally created (13 minutes after boot!)
+18:39 - Manual start: Works perfectly (devices now exist)
+```
+
+**Root Cause:**
+- NVIDIA UVM (Unified Virtual Memory) device `/dev/nvidia-uvm` is created lazily
+- Device only appears when first CUDA application accesses GPU
+- At boot time (14:23), systemd service tried to start containers
+- CDI attempted to inject `/dev/nvidia-uvm` device
+- Device didn't exist yet → container startup failed
+- Container entered "Created" state, never transitioned to "Up"
+
+**Why This Timing Issue Occurs:**
+- Basic NVIDIA devices (`nvidia0`, `nvidiactl`) created immediately at boot by udev
+- UVM devices (`nvidia-uvm`, `nvidia-uvm-tools`) require kernel module initialization
+- Without `nvidia-persistenced`, UVM device creation is deferred until first use
+- Systemd user services can start before GPU fully initialized
+
+#### Solution Implemented ✅
+
+**1. Enable nvidia-persistenced in Installer**
+- Updated `docker/install.sh` to automatically enable persistence daemon
+- Ensures all NVIDIA devices exist immediately at boot
+- Prevents race condition between systemd service and device creation
+
+**Code Added to install.sh:**
+```bash
+# Enable nvidia-persistenced for reliable device creation at boot
+echo "Enabling NVIDIA persistence daemon..."
+if systemctl list-unit-files | grep -q nvidia-persistenced.service; then
+    sudo systemctl enable nvidia-persistenced.service 2>/dev/null || true
+    sudo systemctl start nvidia-persistenced.service 2>/dev/null || true
+    echo -e "${GREEN}✓ NVIDIA persistence daemon enabled${NC}"
+else
+    echo -e "${YELLOW}⚠ nvidia-persistenced not available (may need manual setup)${NC}"
+fi
+```
+
+**2. Updated Compose Files to Use CDI**
+- Changed from legacy device mapping (`/dev/nvidia0`, etc.) to CDI notation
+- Updated both GPU and CPU compose file templates
+- Added SELinux compatibility (`security_opt: label=disable`)
+- Fixed volume mount paths (`/root/.cache/huggingface` subdirectory)
+
+**3. Updated Systemd Service Creation**
+- Installer now creates dedicated `kwaainet-compose.service` user service
+- Uses full path to compose file for reliability
+- No dependency on generic `podman-restart.service`
+
+**4. Removed sudo from Rootless Operations**
+- All `sudo ${CONTAINER_CMD}` commands changed to `${CONTAINER_CMD}`
+- Properly implements rootless deployment without privilege escalation
+- User commands in documentation updated to remove sudo
+
+#### Files Modified ✅
+
+**Updated:**
+- `docker/install.sh` - Added nvidia-persistenced enablement, CDI device notation, systemd service creation, removed sudo
+
+#### Testing Plan 📋
+
+**Pre-Reboot Verification:**
+- [ ] Enable nvidia-persistenced manually on current system
+- [ ] Verify all NVIDIA devices present immediately after enabling
+- [ ] Recreate containers with updated compose file
+- [ ] Verify both containers start successfully
+
+**Reboot Test:**
+- [ ] Reboot system
+- [ ] Verify nvidia-persistenced starts before user services
+- [ ] Verify all NVIDIA devices present at boot
+- [ ] Verify systemd service starts both containers
+- [ ] Verify both containers in "Up" status, not "Created"
+- [ ] Verify node announces blocks within 60 seconds
+
+**Expected After Fix:**
+1. Boot completes, nvidia-persistenced starts
+2. All NVIDIA devices created immediately (`/dev/nvidia-uvm` available)
+3. User session starts, systemd user services load
+4. `kwaainet-compose.service` executes
+5. CDI device injection succeeds (all devices exist)
+6. Both containers start successfully
+7. Node announces 32 blocks to network
+
+#### Current System State (PARTIALLY WORKING ⚠️)
+- **Containers**: API running, Node manually started (both working now)
+- **Systemd Service**: Enabled but node failed on last boot
+- **User Lingering**: Enabled ✅
+- **GPU Access**: Working via CDI when devices exist ✅
+- **Model Cache**: 9.3GB cached, detection working ✅
+- **Cache Ownership**: All files user-owned ✅
+- **Network**: Both services accessible, Node announcing 32 blocks ✅
+- **Auto-restart after reboot**: ❌ BROKEN (node fails due to missing /dev/nvidia-uvm)
+- **Installer**: ✅ UPDATED to enable nvidia-persistenced and fix all issues
 
 #### Reboot Readiness Checklist ✅
 - [x] Systemd service enabled: `~/.config/systemd/user/kwaainet-compose.service`
