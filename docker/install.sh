@@ -158,10 +158,28 @@ fi
 echo -e "${GREEN}✓ Compose file created${NC}"
 echo ""
 
-# Step 5: Enable auto-restart on boot (for podman)
+# Step 5: Configure rootless podman for privileged ports
 if [ "$CONTAINER_CMD" = "podman" ]; then
-    echo -e "${YELLOW}Step 5: Enabling auto-restart on system boot${NC}"
-    sudo systemctl enable podman-restart.service
+    echo -e "${YELLOW}Step 5: Configuring rootless podman${NC}"
+
+    # Enable unprivileged port binding (for port 80)
+    if ! grep -q "net.ipv4.ip_unprivileged_port_start" /etc/sysctl.conf; then
+        echo "Enabling unprivileged port binding (port 80)..."
+        echo "net.ipv4.ip_unprivileged_port_start=80" | sudo tee -a /etc/sysctl.conf
+        sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80
+        echo -e "${GREEN}✓ Unprivileged port 80 enabled${NC}"
+    else
+        echo -e "${GREEN}✓ Unprivileged ports already configured${NC}"
+    fi
+
+    # Enable user lingering (containers survive logout)
+    echo "Enabling user lingering for auto-start..."
+    sudo loginctl enable-linger $(whoami)
+    echo -e "${GREEN}✓ User lingering enabled${NC}"
+
+    # Enable auto-restart service
+    echo "Enabling auto-restart on system boot..."
+    systemctl --user enable podman-restart.service 2>/dev/null || true
     echo -e "${GREEN}✓ Auto-restart enabled${NC}"
     echo ""
 fi

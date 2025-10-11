@@ -57,14 +57,52 @@ echo "$(whoami):100000:65536" | sudo tee -a /etc/subuid
 echo "$(whoami):100000:65536" | sudo tee -a /etc/subgid
 ```
 
+### Enable Port 80 for Rootless Containers (Production Deployments)
+
+If you want to expose the API on port 80 (standard HTTP port), enable unprivileged port binding:
+
+```bash
+# Enable port 80 for rootless containers
+echo "net.ipv4.ip_unprivileged_port_start=80" | sudo tee -a /etc/sysctl.conf
+sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80
+
+# Enable user lingering (containers survive logout/reboot)
+sudo loginctl enable-linger $(whoami)
+
+# Enable auto-restart service
+systemctl --user enable podman-restart.service
+```
+
+**Note:** This allows all users to bind to ports 80-1023. This is safe in single-user or trusted environments.
+
 ## Quick Start
+
+### Choose Your Deployment
+
+**Development/Testing** (`compose-rootless.yml`):
+- API on port 8000
+- Node on port 8080
+- No special configuration needed
+
+**Production** (`compose-rootless-production.yml`):
+- API on port 80 (standard HTTP)
+- Node on port 8080
+- Requires unprivileged port binding setup (see above)
 
 ### 1. Download Rootless Compose File
 
+**For development:**
 ```bash
 mkdir -p ~/kwaainet
 cd ~/kwaainet
 wget https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/compose-rootless.yml
+```
+
+**For production (API on port 80):**
+```bash
+mkdir -p ~/kwaainet
+cd ~/kwaainet
+wget https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/docker/compose-rootless-production.yml
 ```
 
 ### 2. Configure (Optional)

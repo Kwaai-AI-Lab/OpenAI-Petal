@@ -1,0 +1,104 @@
+version: "3.9"
+
+# KwaaiNet Rootless Production Deployment
+# API on port 80, Node on port 8080
+# Requires: net.ipv4.ip_unprivileged_port_start=80 in /etc/sysctl.conf
+
+services:
+  kwaainet-api:
+    image: kwaailab/kwaainet-api:latest
+    container_name: kwaainet-api
+    restart: unless-stopped
+
+    volumes:
+      # Persistent model cache
+      - ${HOME}/.cache/huggingface:/root/.cache
+
+    ports:
+      # API on port 80 for external access
+      - "80:8000"
+
+    # SELinux label for volume access (RHEL/Fedora/CentOS)
+    security_opt:
+      - label=disable
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+
+  kwaainet-node:
+    image: kwaailab/kwaainet-node:latest
+    container_name: kwaainet-node
+    restart: unless-stopped
+
+    environment:
+      # Node identification on the network
+      - PUBLIC_NAME=${PUBLIC_NAME:-anonymous@kwaai}
+
+      # Public IP address (required for appearing on network map)
+      - PUBLIC_IP=${PUBLIC_IP:-}
+
+      # Number of model blocks to serve (adjust based on VRAM)
+      - KWAAINET_BLOCKS=${KWAAINET_BLOCKS:-4}
+
+    volumes:
+      # Persistent model cache
+      - ${HOME}/.cache/huggingface:/root/.cache
+
+    ports:
+      # Node status/health endpoint
+      - "8080:8080"
+
+    # GPU access via CDI (Container Device Interface)
+    devices:
+      - nvidia.com/gpu=all
+
+    # SELinux label for volume access
+    security_opt:
+      - label=disable
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 300s  # Allow 5 minutes for model download/load
+
+
+# Usage:
+# ------
+# Prerequisites:
+#   sudo loginctl enable-linger $(whoami)
+#   echo "net.ipv4.ip_unprivileged_port_start=80" | sudo tee -a /etc/sysctl.conf
+#   sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80
+#   systemctl --user enable podman-restart.service
+#
+# Start services (no sudo needed):
+#   podman compose -f compose-rootless-production.yml up -d
+#
+# Set environment variables:
+#   export PUBLIC_NAME="my_node@kwaai"
+#   export PUBLIC_IP="your.public.ip"
+#   export KWAAINET_BLOCKS=32
+#   podman compose -f compose-rootless-production.yml up -d
+#
+# Check status:
+#   podman ps
+#
+# View logs:
+#   podman logs -f kwaainet-node
+#   podman logs -f kwaainet-api
+#
+# Stop services:
+#   podman compose -f compose-rootless-production.yml down
+#
+# Test endpoints:
+#   curl http://localhost/v1/models        # API
+#   curl http://localhost/docs             # API documentation
+#   curl http://localhost:8080/health      # Node health
