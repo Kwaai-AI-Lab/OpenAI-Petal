@@ -148,18 +148,52 @@ systemctl --user status kwaainet-compose.service
 - Respects compose file configuration
 - Can be customized per deployment
 
-#### Next Steps When Resuming
-- [ ] Test auto-start after system reboot (verify containers start automatically)
-- [ ] Monitor container stability (check for crashes like seen before)
-- [ ] Consider adding health check monitoring to systemd service
-- [ ] Document solution in docker/ROOTLESS.md
+#### Reboot Test Results ✅
 
-#### Current System State
-- **Containers**: Running (API on port 80, Node on port 8082)
-- **Systemd Service**: Enabled and active
+**Post-Reboot Issue (2025-10-11):**
+- API restarted successfully ✅
+- Node **failed to start** ❌
+
+**Root Cause**: User's `~/compose.yml` still had legacy GPU device mappings
+- Legacy: `/dev/nvidia0`, `/dev/nvidiactl`, `/dev/nvidia-uvm`
+- These don't work in rootless mode without proper permissions
+- Systemd service ran but node container couldn't access GPU devices
+
+**Final Fix Applied**:
+- Updated `~/compose.yml` to use CDI notation: `devices: ["nvidia.com/gpu=all"]`
+- Restarted services with `podman compose up -d`
+- Both containers now running successfully ✅
+
+**Verification**:
+```bash
+# Container status
+podman ps
+# OUTPUT: Both kwaainet-api and kwaainet-node running
+
+# GPU access
+podman exec kwaainet-node ls -la /dev/nvidia*
+# OUTPUT: All NVIDIA devices accessible (nvidia0, nvidiactl, nvidia-uvm, etc.)
+
+# Network announcement
+podman logs kwaainet-node | grep Announced
+# OUTPUT: Announced that blocks [0-31] are joining
+```
+
+#### Files Modified ✅
+
+**Created:**
+- `~/.config/systemd/user/kwaainet-compose.service` - Systemd service for auto-start
+
+**Updated:**
+- `~/compose.yml` - Removed SELinux `:z` flag, added `security_opt: label=disable`, **changed to CDI GPU access**
+
+#### Current System State (FULLY WORKING ✅)
+- **Containers**: Both running (API on port 80, Node on port 8082)
+- **Systemd Service**: Enabled and working correctly
 - **User Lingering**: Enabled
-- **Network**: API accessible externally, Node on network map
-- **Ready for reboot test**: All configuration in place
+- **GPU Access**: Working via CDI in rootless mode
+- **Network**: API accessible externally, Node announcing 32 blocks
+- **Auto-restart after reboot**: ✅ VERIFIED WORKING
 
 ---
 
