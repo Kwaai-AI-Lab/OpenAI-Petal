@@ -43,6 +43,26 @@ All installers MUST create `~/.local/bin/kwaainet` that:
 3. Works from ANY directory
 4. Added to PATH for immediate availability
 
+### 5. Multi-Platform Development
+**When working across multiple machines, reference platform-specific details:**
+
+```bash
+# Detect current environment
+./.claude/detect-environment.sh
+
+# Read environment-specific configuration
+cat $(./.claude/detect-environment.sh)
+```
+
+**Environment Files:** `.claude/environments/`
+- `macos-rezarassool.md` - macOS development machine
+- `linux-metro.md` - Linux production server
+- Each contains hardware, software, configuration, and platform-specific quirks
+
+**For local-only modifications:**
+- Create `*-local.md` files (gitignored automatically)
+- Example: `macos-rezarassool-local.md` for sensitive or machine-specific notes
+
 ---
 
 ## Recent Sessions
@@ -193,20 +213,126 @@ Successfully implemented and tested rootless container deployment with GPU acces
 
 ---
 
-## Current System State
+## Development Environments
 
-### macOS (rezarassool)
-- **Version:** v0.4.3
-- **Daemon:** Running (PID: 74783)
-- **Auto-Start:** Configured (ai.kwaai.kwaainet.plist)
-- **Network:** Connected (bootstrap-1/2.kwaai.ai)
+> **Note:** Detailed platform-specific configurations are in `.claude/environments/`
+> - `macos-rezarassool.md` - macOS development machine
+> - `linux-metro.md` - Linux production server
+> - See `.claude/environments/README.md` for more info
 
-### Linux Docker (metro)
-- **Deployment:** Rootless + CDI + Auto-Restart
-- **GPU:** NVIDIA RTX A6000
-- **Containers:** kwaainet-node (port 8082), kwaainet-api (port 80)
-- **Model:** Llama-3.1-8B-Instruct (32 blocks)
-- **Systemd Service:** ~/.config/systemd/user/kwaainet-compose.service
+### Quick Environment Reference
+
+#### macOS Dev Machine (rezarassool)
+**Hardware:**
+- **Model:** M1/M2 Mac (ARM64)
+- **RAM:** [specify]
+- **Storage:** [specify]
+
+**Software:**
+- **OS:** macOS 14.x (Sonoma)
+- **Python:** Conda (miniconda base at `/opt/homebrew/Caskroom/miniconda/base`)
+- **Version:** kwaainet v0.4.3
+
+**Configuration:**
+- **Install Type:** Local Python package (editable install)
+- **Launcher:** `~/.local/bin/kwaainet`
+- **Auto-Start:** Launchd service (`~/Library/LaunchAgents/ai.kwaai.kwaainet.plist`)
+- **Daemon Status:** Running (PID: 74783)
+- **Network:** Connected to bootstrap-1/2.kwaai.ai
+
+**Peculiarities:**
+- MPS (Metal Performance Shaders) requires PyTorch 2.8+ compatibility patches
+- Conda path must be in launchd service PATH for auto-start
+- `/opt/homebrew` prefix for ARM64, `/usr/local` for Intel
+
+**Common Commands:**
+```bash
+# Start daemon
+kwaainet start --daemon
+
+# Check status
+kwaainet status
+
+# View logs
+kwaainet logs
+
+# Check launchd service
+launchctl list | grep kwaai
+```
+
+---
+
+### Linux Production Server (metro)
+**Hardware:**
+- **Model:** RHEL-based server
+- **GPU:** NVIDIA RTX A6000 (48GB VRAM)
+- **RAM:** [specify]
+- **Storage:** [specify]
+
+**Software:**
+- **OS:** RHEL/Rocky Linux 9.x
+- **Container Runtime:** Podman 4.9.4-rhel (rootless)
+- **GPU Toolkit:** nvidia-container-toolkit with CDI
+
+**Configuration:**
+- **Deployment:** Docker rootless containers
+- **Compose File:** `~/compose.yml` (uses CDI for GPU: `nvidia.com/gpu=all`)
+- **Ports:** API on 80, Node on 8082
+- **Auto-Start:** Systemd user service (`~/.config/systemd/user/kwaainet-compose.service`)
+- **User Lingering:** Enabled (`loginctl enable-linger metro`)
+- **Network:** Public IP 75.141.127.202, router forwards port 80
+
+**Peculiarities:**
+- SELinux requires `security_opt: label=disable` in compose files (don't use volume `:z` flag)
+- CDI notation required for rootless GPU access
+- Generic `podman-restart.service` doesn't work - needs dedicated compose service
+- Must use systemd user services (`systemctl --user`) not system services
+
+**Common Commands:**
+```bash
+# Container management
+podman ps
+podman compose up -d
+podman compose down
+podman logs kwaainet-node
+
+# Systemd service
+systemctl --user status kwaainet-compose.service
+systemctl --user restart kwaainet-compose.service
+journalctl --user -u kwaainet-compose.service -f
+
+# GPU verification
+podman exec kwaainet-node ls -la /dev/nvidia*
+```
+
+---
+
+### Windows Dev Machine (if applicable)
+**Hardware:**
+- TBD
+
+**Software:**
+- TBD
+
+**Configuration:**
+- TBD
+
+**Peculiarities:**
+- TBD
+
+---
+
+## Current System State (Active Sessions)
+
+### macOS (rezarassool) - Last Active: 2025-10-12
+- **Status:** Daemon running
+- **PID:** 74783
+- **Model:** [specify current model]
+
+### Linux (metro) - Last Active: 2025-10-11
+- **Status:** Containers running
+- **API:** Accessible on port 80
+- **Node:** 32 blocks active on port 8082
 
 ---
 
