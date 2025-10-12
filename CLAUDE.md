@@ -67,6 +67,102 @@ cat $(./.claude/detect-environment.sh)
 
 ## Recent Sessions
 
+### 2025-10-12: Block Calibration Feature Implementation
+**Feature:** Automatic block count optimization based on hardware capabilities
+**Status:** ✅ Phase 1 Complete - Quick estimation working
+
+#### Implementation Summary
+Created comprehensive calibration system to automatically determine optimal block counts:
+- **CalibrationEngine**: Core engine with quick estimation and caching
+- **HardwareInfo**: Auto-detects memory, GPU type (MPS/CUDA/CPU), CPU cores
+- **CalibrationProfile**: Stores min/recommended/max block counts with memory usage
+- **CLI Integration**: New `kwaainet calibrate` command with --apply option
+
+#### Files Created/Modified
+- **Created:** `Installer/macOS/kwaainet/calibration.py` (416 lines)
+  - HardwareInfo, BlockProfile, CalibrationProfile data classes
+  - CalibrationCache for YAML persistence
+  - CalibrationEngine with quick estimation algorithm
+- **Modified:** `Installer/macOS/kwaainet/runner.py`
+  - Added calibrate subparser with --model, --force, --quick, --apply options
+  - Integrated calibration command handler with formatted output
+
+#### Usage Examples
+```bash
+# Run calibration with quick estimation (default)
+kwaainet calibrate --quick
+
+# Force recalibration (ignore cache)
+kwaainet calibrate --force
+
+# Calibrate and apply recommended setting
+kwaainet calibrate --apply recommended
+
+# Calibrate specific model
+kwaainet calibrate --model "meta-llama/Llama-3-8B-Instruct"
+```
+
+#### Test Results on Mac mini M4 Pro (24GB RAM)
+```
+Hardware detected:
+  • Memory: 24.0GB total, 9.6GB available
+  • GPU: MPS
+  • CPU cores: 12
+  • Architecture: arm64
+
+Recommended block counts:
+  🔹 Minimum:      1 blocks  (~1.0GB)
+  ⭐ Recommended:  4 blocks  (~4.0GB)
+  🔸 Maximum:      8 blocks  (~8.0GB)
+```
+
+#### Calibration Cache
+Profiles stored in `~/.kwaainet/calibration.yaml`:
+```yaml
+calibration:
+  models:
+    unsloth/Llama-3.1-8B-Instruct:
+      hardware:
+        total_memory: 25769803776
+        available_memory: 10332733440
+        gpu_type: mps
+        cpu_cores: 12
+      min: {blocks: 1, total_memory: 1073741824}
+      recommended: {blocks: 4, total_memory: 4294967296}
+      max: {blocks: 8, total_memory: 8589934592}
+```
+
+#### Configuration Updated
+- Previous: `blocks: 1` (manual setting, underutilized)
+- After calibration: `blocks: 4` (recommended for hardware)
+- Applied via: `kwaainet calibrate --apply recommended`
+
+#### Future Work (Phase 2+)
+- Full calibration with actual model loading (subprocess memory testing)
+- Binary search algorithm for precise max block detection
+- Stability testing over time
+- Multi-model calibration support
+- Integration into installer (auto-calibrate on first run)
+
+#### Technical Details
+**Algorithm:** Quick estimation mode (Phase 1)
+- Safety margin: 90% of available memory
+- Memory per block estimate: 1GB (heuristic for 8B models)
+- Recommended: 50% of max, minimum 4 blocks if possible
+- Min/max bounds: 1 to total_blocks or memory limit
+
+**Phase 1 Complete:** ✅
+- Data structures and serialization
+- Hardware detection (MPS, CUDA, CPU)
+- Quick estimation algorithm
+- CLI integration with formatted output
+- Caching system with YAML persistence
+- Config application (--apply option)
+
+**Specification:** See `.claude/FEATURE-BLOCKS-CALIBRATION.md` for complete 5-phase plan
+
+---
+
 ### 2025-10-11: Docker Rootless Auto-Restart Fix
 **Fixed:** Rootless containers failing to auto-restart after reboot
 - Created dedicated systemd service (`~/.config/systemd/user/kwaainet-compose.service`)

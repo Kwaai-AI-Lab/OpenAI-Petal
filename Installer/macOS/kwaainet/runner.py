@@ -453,6 +453,16 @@ def parse_args():
     update_parser.add_argument("--check", action="store_true", help="Check for updates without installing")
     update_parser.add_argument("--force", action="store_true", help="Force update check (bypass cache)")
 
+    # Calibration commands
+    calibrate_parser = subparsers.add_parser("calibrate",
+        help="🔧 Calibrate optimal block count for your hardware",
+        description="Automatically determine min/recommended/max block counts based on available memory")
+    calibrate_parser.add_argument("--model", type=str, help="Model to calibrate (default: current config)")
+    calibrate_parser.add_argument("--force", action="store_true", help="Force recalibration (ignore cache)")
+    calibrate_parser.add_argument("--quick", action="store_true", help="Quick estimation without model loading")
+    calibrate_parser.add_argument("--apply", choices=["min", "recommended", "max"],
+        help="Apply calibration result to config")
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -900,6 +910,119 @@ def main():
                     print("  💡 Please check the logs or try manual installation")
                     print("─────────────────────────────────────────────────────────────────────")
                     sys.exit(1)
+
+    elif args.command == "calibrate":
+        from .calibration import CalibrationEngine, format_memory
+
+        print()
+        print("╭─────────────────────────────────────────────────────────────────────╮")
+        print("│                    🔧 KwaaiNet Block Calibration                     │")
+        print("╰─────────────────────────────────────────────────────────────────────╯")
+        print()
+
+        # Get model to calibrate
+        model_name = getattr(args, 'model', None)
+        if not model_name:
+            model_name = runner.config.get("model", "unsloth/Llama-3.1-8B-Instruct")
+
+        force = getattr(args, 'force', False)
+        quick = getattr(args, 'quick', True)  # Default to quick mode
+        apply = getattr(args, 'apply', None)
+
+        print(f"  🤖 Model: {model_name}")
+
+        # Initialize calibration engine
+        engine = CalibrationEngine()
+
+        # Get model info
+        model_info = engine.get_model_info(model_name)
+        total_blocks = model_info["total_blocks"]
+
+        print(f"  🧱 Total blocks in model: {total_blocks}")
+        print()
+
+        # Show hardware info
+        hw = engine.hardware_info
+        print("  💻 Hardware detected:")
+        print(f"     • Memory: {format_memory(hw.total_memory)} total, {format_memory(hw.available_memory)} available")
+        print(f"     • GPU: {hw.gpu_type.upper()}")
+        print(f"     • CPU cores: {hw.cpu_cores}")
+        print(f"     • Architecture: {hw.architecture}")
+        print()
+
+        # Perform calibration
+        mode_str = "Quick estimation" if quick else "Full calibration"
+        cache_str = " (forced)" if force else ""
+        print(f"  🔍 Running {mode_str}{cache_str}...")
+        print()
+
+        try:
+            profile = engine.calibrate_model(
+                model_name=model_name,
+                total_blocks=total_blocks,
+                force=force,
+                quick=quick
+            )
+
+            # Display results
+            print("  ✅ Calibration complete!")
+            print()
+            print("  📊 Recommended block counts:")
+            print("─────────────────────────────────────────────────────────────────────")
+
+            if profile.min_profile:
+                print(f"  🔹 Minimum:     {profile.min_profile.blocks:2d} blocks  "
+                      f"(~{format_memory(profile.min_profile.total_memory)})")
+
+            if profile.recommended_profile:
+                print(f"  ⭐ Recommended: {profile.recommended_profile.blocks:2d} blocks  "
+                      f"(~{format_memory(profile.recommended_profile.total_memory)})")
+
+            if profile.max_profile:
+                print(f"  🔸 Maximum:     {profile.max_profile.blocks:2d} blocks  "
+                      f"(~{format_memory(profile.max_profile.total_memory)})")
+
+            print("─────────────────────────────────────────────────────────────────────")
+            print()
+
+            # Current config
+            current_blocks = runner.config.get("blocks", 1)
+            print(f"  📌 Current configuration: {current_blocks} blocks")
+            print()
+
+            # Apply if requested
+            if apply:
+                if apply == "min" and profile.min_profile:
+                    new_blocks = profile.min_profile.blocks
+                elif apply == "recommended" and profile.recommended_profile:
+                    new_blocks = profile.recommended_profile.blocks
+                elif apply == "max" and profile.max_profile:
+                    new_blocks = profile.max_profile.blocks
+                else:
+                    print(f"  ⚠️  No {apply} profile available")
+                    new_blocks = None
+
+                if new_blocks and new_blocks != current_blocks:
+                    runner.config.set("blocks", new_blocks)
+                    print(f"  ✅ Configuration updated: blocks set to {new_blocks}")
+                    print(f"  💡 Restart daemon to apply changes: kwaainet restart")
+                elif new_blocks == current_blocks:
+                    print(f"  ℹ️  Configuration already set to {apply} value ({new_blocks} blocks)")
+            else:
+                # Suggest applying if different from recommended
+                recommended = profile.get_recommended_blocks()
+                if recommended != current_blocks:
+                    print(f"  💡 To apply recommended setting, run:")
+                    print(f"     kwaainet calibrate --apply recommended")
+                    print()
+
+            print("─────────────────────────────────────────────────────────────────────")
+
+        except Exception as e:
+            print(f"  ❌ Calibration failed: {e}")
+            print("─────────────────────────────────────────────────────────────────────")
+            logger.exception("Calibration error")
+            sys.exit(1)
 
 # Entry point is handled by __main__.py to prevent double execution
 
