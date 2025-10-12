@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.4.3
+# KwaaiNet for Linux - One-Step Installer v0.4.4
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.4.3"
+INSTALLER_VERSION="0.4.4"
 
 # Set up logging
 LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"

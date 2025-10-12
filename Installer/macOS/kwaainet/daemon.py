@@ -7,6 +7,7 @@ import logging
 import subprocess
 import threading
 import json
+import fcntl
 from pathlib import Path
 from typing import Optional, Dict, Any
 import psutil
@@ -23,15 +24,17 @@ class DaemonProcess:
         self.name = name
         self.pid_dir = pid_dir or os.path.expanduser("~/.kwaainet/run")
         self.pid_file = os.path.join(self.pid_dir, f"{name}.pid")
+        self.lock_file = os.path.join(self.pid_dir, f"{name}.lock")
         self.status_file = os.path.join(self.pid_dir, f"{name}.status")
-        
+
         # Ensure PID directory exists
         os.makedirs(self.pid_dir, exist_ok=True)
-        
+
         # Process management
         self.process: Optional[subprocess.Popen] = None
         self.should_stop = threading.Event()
         self.monitor_thread: Optional[threading.Thread] = None
+        self.lock_fd: Optional[int] = None
         
     def get_pid(self) -> Optional[int]:
         """Get PID from PID file if it exists and process is running"""
@@ -57,6 +60,47 @@ class DaemonProcess:
         except (ValueError, IOError, OSError):
             return None
     
+    def acquire_lock(self) -> bool:
+        """
+        Acquire an exclusive lock to prevent multiple instances from starting simultaneously.
+        Returns True if lock acquired, False otherwise.
+        """
+        try:
+            # Open lock file (create if doesn't exist)
+            self.lock_fd = os.open(self.lock_file, os.O_CREAT | os.O_RDWR, 0o644)
+
+            # Try to acquire exclusive lock (non-blocking)
+            fcntl.flock(self.lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+            logger.debug(f"Acquired process lock: {self.lock_file}")
+            return True
+
+        except IOError as e:
+            # Lock is held by another process
+            if e.errno in (11, 35):  # EAGAIN or EWOULDBLOCK
+                logger.warning("Another KwaaiNet instance is starting or running")
+                if self.lock_fd:
+                    os.close(self.lock_fd)
+                    self.lock_fd = None
+                return False
+            else:
+                logger.error(f"Failed to acquire lock: {e}")
+                if self.lock_fd:
+                    os.close(self.lock_fd)
+                    self.lock_fd = None
+                return False
+
+    def release_lock(self):
+        """Release the process lock"""
+        if self.lock_fd:
+            try:
+                fcntl.flock(self.lock_fd, fcntl.LOCK_UN)
+                os.close(self.lock_fd)
+                self.lock_fd = None
+                logger.debug(f"Released process lock: {self.lock_file}")
+            except Exception as e:
+                logger.warning(f"Error releasing lock: {e}")
+
     def write_pid(self, pid: int):
         """Write PID to file"""
         try:
@@ -73,6 +117,9 @@ class DaemonProcess:
                 os.remove(self.pid_file)
             if os.path.exists(self.status_file):
                 os.remove(self.status_file)
+
+            # Release process lock
+            self.release_lock()
 
             # Additional cleanup: look for any remaining petals/kwaainet processes
             self._cleanup_related_processes()
@@ -258,16 +305,22 @@ class DaemonProcess:
         """Start the main process"""
         global _monitoring_thread
 
-        # By default, stop any existing kwaainet/petals processes unless --concurrent is specified
-        if not concurrent:
-            logger.info("Stopping any existing KwaaiNet processes...")
-            self._cleanup_all_kwaainet_processes()
-
-        if self.is_running():
-            logger.error("Daemon is already running")
+        # Acquire lock to prevent race conditions during startup
+        if not self.acquire_lock():
+            logger.error("Could not acquire startup lock - another instance may be starting")
             return False
 
         try:
+            # By default, stop any existing kwaainet/petals processes unless --concurrent is specified
+            if not concurrent:
+                logger.info("Stopping any existing KwaaiNet processes...")
+                self._cleanup_all_kwaainet_processes()
+
+            if self.is_running():
+                logger.error("Daemon is already running")
+                self.release_lock()
+                return False
+
             if daemon_mode:
                 # Fork into daemon mode
                 self.daemonize()
@@ -324,6 +377,7 @@ class DaemonProcess:
         except Exception as e:
             logger.error(f"Failed to start process: {e}")
             self._cleanup_pid_file()
+            self.release_lock()
             return False
     
     def _monitor_process(self):

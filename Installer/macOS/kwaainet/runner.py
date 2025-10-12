@@ -21,6 +21,7 @@ from .daemon import DaemonProcess, setup_signal_handlers
 from .service import get_service_manager
 from .monitor import ConnectionMonitor
 from .updater import UpdateChecker, Updater
+from .utils import find_available_port
 
 # Get logger (configured in __init__.py to prevent duplicates)
 logger = logging.getLogger(__name__)
@@ -141,8 +142,19 @@ class KwaaiNetRunner:
 
         if self.config.get('public_name'):
             logger.info(f"Public name: {self.config.get('public_name')}")
-        
+
         try:
+            # Find an available port (prefer configured port, fallback to alternatives)
+            preferred_port = self.config.get("port", 8080)
+            try:
+                port, is_preferred = find_available_port(preferred_port)
+                if not is_preferred:
+                    logger.warning(f"Port {preferred_port} was not available, using alternate port {port}")
+                    logger.info(f"💡 To use this port permanently, update config: kwaainet config --set port {port}")
+            except RuntimeError as e:
+                logger.error(f"Failed to find available port: {e}")
+                return False
+
             # Construct command similar to entrypoint.sh
             # Use conda environment python instead of sys.executable
             conda_python = self._get_conda_python_path()
@@ -151,9 +163,8 @@ class KwaaiNetRunner:
                 self.config.get("model"),
                 "--num_blocks", str(self.config.get("blocks"))
             ]
-            
-            # Add port
-            port = self.config.get("port", 8080)
+
+            # Add the selected port
             command.extend(["--port", str(port)])
             
             # Add initial peers if configured, otherwise start new swarm
@@ -216,14 +227,14 @@ class KwaaiNetRunner:
         except Exception as e:
             logger.error(f"Failed to start KwaaiNet node: {e}")
             logger.info("Falling back to CPU mode...")
-            
+
             try:
-                # Retry with CPU mode, keeping all other parameters the same
+                # Retry with CPU mode, keeping all other parameters the same (including the selected port)
                 command = [
                     conda_python, "-m", "petals.cli.run_server",
                     self.config.get("model"),
                     "--num_blocks", str(self.config.get("blocks")),
-                    "--port", str(self.config.get("port", 8080)),
+                    "--port", str(port),  # Use the already-selected available port
                     "--device", "cpu"
                 ]
                 
