@@ -7,18 +7,19 @@ hostname
 ```
 
 ## Hardware
-- **Model:** MacBook Pro (M1/M2/M3)
+- **Model:** Mac mini (Mac16,11)
+- **Chip:** Apple M4 Pro
 - **Architecture:** ARM64 (Apple Silicon)
-- **RAM:** [TODO: specify]
-- **Storage:** [TODO: specify]
+- **RAM:** 24 GB
+- **Storage:** 460 GB total, 156 GB available (65% used)
 - **GPU:** Metal Performance Shaders (MPS)
 
 ## Software Stack
-- **OS:** macOS 14.x Sonoma (Darwin 24.6.0)
+- **OS:** macOS 15.6.1 Sequoia (Darwin 24.6.0, Build 24G90)
 - **Shell:** zsh (default macOS shell)
-- **Python:** Miniconda
+- **Python:** Miniconda 3.13.5
   - **Base Environment:** `/opt/homebrew/Caskroom/miniconda/base`
-  - **kwaainet Environment:** `/opt/homebrew/Caskroom/miniconda/base/envs/kwaainet`
+  - **Active Python:** `/opt/homebrew/Caskroom/miniconda/base/bin/python`
 - **Package Manager:** Homebrew (ARM64)
   - **Prefix:** `/opt/homebrew` (ARM64) vs `/usr/local` (Intel)
 - **Current Version:** kwaainet v0.4.3
@@ -177,15 +178,18 @@ cat ~/.kwaainet/kwaainet.pid
 - **Skip Reachability Check:** Yes
 - **Fallback:** Private swarm mode (`--new_swarm`)
 
-## Current State
-- **Status:** Daemon running
-- **PID:** 74783 (as of last check)
-- **Network:** Connected to KwaaiNet
-- **Model:** [TODO: specify current model]
-- **Blocks:** [TODO: specify block count]
-
-## TODO
-- [ ] Fill in hardware specifications (RAM, storage)
-- [ ] Document current model and block count
-- [ ] Add any custom configuration settings
-- [ ] Document any local modifications or experiments
+## Current State (Last Updated: 2025-10-12)
+- **Status:** ✅ Daemon running
+- **PID:** 1012
+- **Uptime:** 1.2 days
+- **CPU Usage:** 0.0%
+- **Memory:** 217.0 MB (0.9%)
+- **Threads:** 24
+- **Connections:** 1
+- **Network:** Connected to KwaaiNet bootstrap peers
+- **Model:** unsloth/Llama-3.1-8B-Instruct
+- **Blocks:** 1 (configured)
+- **Port:** 8080
+- **Public IP:** 76.91.214.120
+- **Public Name:** rezarassool@kwaai
+- **GPU:** Enabled (MPS)
