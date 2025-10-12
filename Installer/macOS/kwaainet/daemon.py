@@ -389,15 +389,17 @@ class DaemonProcess:
                     # Process has terminated
                     return_code = self.process.returncode
                     logger.warning(f"Process terminated with code {return_code}")
-                    
-                    # Update status
-                    self.write_status({
+
+                    # Update status (preserve existing fields like 'command', 'started_at')
+                    existing_status = self.read_status() or {}
+                    existing_status.update({
                         "pid": self.process.pid,
                         "status": "stopped",
                         "exit_code": return_code,
                         "stopped_at": time.time()
                     })
-                    
+                    self.write_status(existing_status)
+
                     self._cleanup_pid_file()
                     break
                 
@@ -405,7 +407,9 @@ class DaemonProcess:
                 if self.process:
                     try:
                         proc = psutil.Process(self.process.pid)
-                        self.write_status({
+                        # Preserve existing status fields (like 'command', 'started_at')
+                        existing_status = self.read_status() or {}
+                        existing_status.update({
                             "pid": self.process.pid,
                             "status": "running",
                             "cpu_percent": proc.cpu_percent(),
@@ -413,6 +417,7 @@ class DaemonProcess:
                             "uptime": time.time() - proc.create_time(),
                             "last_updated": time.time()
                         })
+                        self.write_status(existing_status)
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         pass
                 
