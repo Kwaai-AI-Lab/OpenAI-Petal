@@ -61,7 +61,10 @@ def _read_version():
     if os.path.exists(version_file):
         with open(version_file, 'r') as f:
             return f.read().strip()
-    # Try repository root VERSION file (for development)
+    # Try repository root VERSION file (for development/editable install)
+    # From: /path/to/OpenAI-Petal/Installer/macOS/kwaainet/__init__.py
+    # To:   /path/to/OpenAI-Petal/VERSION
+    # Need to go up 3 levels: kwaainet -> macOS -> Installer -> OpenAI-Petal
     version_file = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'VERSION')
     if os.path.exists(version_file):
         with open(version_file, 'r') as f:
