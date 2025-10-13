@@ -306,36 +306,58 @@ class KwaaiNetRunner:
             return []
 
     def reconnect(self) -> bool:
-        """Force P2P network reconnection without restarting"""
+        """Force P2P network reconnection by restarting the process
+
+        TODO: Implement proper SIGHUP handler in Petals for graceful DHT refresh
+              Currently, we restart the process to force reconnection, but ideally
+              Petals should support SIGHUP to trigger DHT refresh without full restart.
+              This would allow:
+              - Faster reconnection (no model reload)
+              - Less disruption to ongoing requests
+              - Graceful peer discovery refresh
+
+              Implementation ideas:
+              - Add SIGHUP handler in petals.cli.run_server
+              - Trigger hivemind DHT.replicate() to refresh peer list
+              - Log reconnection attempt and new peer count
+        """
+        # Try to get PID from daemon (manual start)
         pid = self.daemon.get_pid()
+        is_service_managed = False
+
+        # If no daemon PID file, check for service-managed process
+        if not pid:
+            pid = self.daemon._find_service_process()
+            is_service_managed = True
+
         if not pid:
             logger.error("Daemon is not running. Start it first with 'kwaainet start --daemon'")
+            logger.error("Or check service status with 'kwaainet service status'")
             return False
 
         try:
             logger.info("Triggering P2P network reconnection...")
 
-            # Send SIGHUP to trigger DHT refresh in Petals
-            # Note: Petals doesn't natively support SIGHUP for DHT refresh,
-            # but we can log this for future enhancement
-            logger.info("Sending SIGHUP signal to process for configuration reload")
-            os.kill(pid, signal.SIGHUP)
+            if is_service_managed:
+                # For service-managed processes, use launchd to restart
+                logger.info("Detected auto-start service. Using service restart...")
+                from .service import get_service_manager
+                service_manager = get_service_manager()
 
-            # Give it a moment to process
-            time.sleep(2)
+                if service_manager.restart_service():
+                    logger.info("✅ Service restarted successfully")
+                    logger.info("💡 Note: Node will reconnect to P2P network during startup")
+                    return True
+                else:
+                    logger.error("Failed to restart service")
+                    return False
+            else:
+                # For daemon-managed processes, trigger restart via command
+                logger.info("Using daemon restart...")
+                return self.restart()
 
-            # Check if process is still healthy
-            if not self.daemon.is_running():
-                logger.error("Process terminated after reconnect signal")
-                return False
-
-            logger.info("✅ Reconnection signal sent successfully")
-            logger.info("💡 Note: Petals DHT refreshes automatically every 60 seconds")
-            logger.info("    For immediate effect, consider 'kwaainet restart' instead")
-            return True
-
-        except OSError as e:
-            logger.error(f"Failed to send reconnect signal: {e}")
+        except Exception as e:
+            logger.error(f"Failed to reconnect: {e}")
             return False
 
 def parse_args():
