@@ -1988,6 +1988,53 @@ if command -v monitor_installation_space >/dev/null 2>&1; then
     monitor_installation_space "$HOME" "Installation completed"
 fi
 
+# Setup systemd user service for auto-start on boot
+echo ""
+echo "🔧 Setting up auto-start service..."
+
+# Create systemd user directory if it doesn't exist
+mkdir -p "$HOME/.config/systemd/user"
+
+# Create the service file
+SERVICE_PATH="$HOME/.config/systemd/user/kwaainet.service"
+cat > "$SERVICE_PATH" << 'EOF'
+[Unit]
+Description=KwaaiNet Bare Metal Node
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+ExecStart=%h/.local/bin/kwaainet start --daemon
+ExecStop=%h/.local/bin/kwaainet stop
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+EOF
+
+# Enable user lingering (allows services to run without active session)
+if command_exists loginctl; then
+    loginctl enable-linger "$USER" 2>/dev/null || {
+        echo "⚠️  Could not enable user lingering. Service may not start on boot without active login."
+        echo "   To enable manually: loginctl enable-linger $USER"
+    }
+fi
+
+# Reload systemd user daemon and enable the service
+if systemctl --user daemon-reload 2>/dev/null && \
+   systemctl --user enable kwaainet.service 2>/dev/null; then
+    echo "✅ Auto-start service configured successfully"
+    echo "   KwaaiNet will start automatically on system boot"
+    echo "   Service: systemctl --user status kwaainet"
+else
+    echo "⚠️  Could not enable auto-start service"
+    echo "   You can manually enable it later with:"
+    echo "   systemctl --user enable kwaainet.service"
+    echo "   systemctl --user start kwaainet.service"
+fi
+
 echo ""
 echo "=========================================================="
 echo "🎉 KwaaiNet for Linux installation COMPLETED!"
@@ -2004,6 +2051,10 @@ echo "   1. Start KwaaiNet node:      kwaainet start"
 echo "   2. Or run in daemon mode:    kwaainet start --daemon"
 echo "   3. Check status:             kwaainet status"
 echo "   4. View help:                kwaainet --help"
+echo ""
+echo "🔄 Auto-start on boot:"
+echo "   The systemd service will automatically start KwaaiNet after system reboot"
+echo "   Manage service: systemctl --user {start|stop|restart|status} kwaainet"
 echo ""
 echo "💡 Quick start example:"
 echo "   kwaainet start --daemon"
