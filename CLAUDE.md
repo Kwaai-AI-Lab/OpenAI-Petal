@@ -3,6 +3,82 @@
 ## Project Overview
 This is the OpenAI API-compatible server for Petals distributed inference, developed by Kwaai-AI-Lab. The project provides cross-platform installers for Linux and macOS to set up the KwaaiNet distributed inference system.
 
+## 🔄 RESUME POINT AFTER REBOOT (2025-10-14)
+
+**IF YOU ARE READING THIS AFTER A REBOOT:**
+
+### Pre-Reboot Status Summary
+✅ **SELinux NVIDIA fix completed** - udev rule installed at `/etc/udev/rules.d/71-nvidia-selinux.rules`
+✅ **Docker rootless containers** - Both kwaainet-api and kwaainet-node configured with CDI GPU access
+✅ **Systemd auto-start** - Service enabled at `~/.config/systemd/user/kwaainet-compose.service`
+✅ **All changes committed** - 5 commits ahead of origin/main, ready to push
+
+### Post-Reboot Verification Checklist
+
+**STEP 1: Verify Login Works** ✅ (You're reading this, so login worked!)
+
+**STEP 2: Check SELinux Contexts Applied Correctly**
+```bash
+ls -laZ /dev/nvidia* | grep -E "(nvidia-modeset|nvidia-uvm)"
+# Expected: All should show xserver_misc_device_t (NOT device_t)
+```
+
+**STEP 3: Check for SELinux Denials**
+```bash
+journalctl -b -0 --no-pager | grep -i "selinux.*denied.*nvidia" | wc -l
+# Expected: 0 or very few (old cached messages ok)
+```
+
+**STEP 4: Verify Docker Containers Auto-Started**
+```bash
+podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+# Expected: kwaainet-api (port 80) and kwaainet-node (port 8082) both "Up"
+```
+
+**STEP 5: Check Systemd Service Status**
+```bash
+systemctl --user status kwaainet-compose.service
+# Expected: active (exited), with container processes shown
+```
+
+**STEP 6: Verify GPU Access in Containers**
+```bash
+podman exec kwaainet-node ls -la /dev/nvidia* | head -5
+# Expected: All NVIDIA devices accessible
+```
+
+**STEP 7: Check Node Network Connectivity**
+```bash
+podman logs kwaainet-node | grep -E "(Announced|Running Petals)"
+# Expected: "Announced that blocks [0-31] are joining"
+```
+
+### If Anything Failed
+
+**If Login Failed:**
+- Boot to recovery mode or single user mode
+- Check: `journalctl -b -0 | grep -i "selinux.*nvidia-modeset"`
+- Verify udev rule exists: `cat /etc/udev/rules.d/71-nvidia-selinux.rules`
+- Manual fix: `sudo restorecon -v /dev/nvidia-modeset /dev/nvidia-uvm /dev/nvidia-uvm-tools`
+
+**If Containers Didn't Start:**
+- Check service: `systemctl --user status kwaainet-compose.service`
+- Check lingering: `loginctl show-user metro | grep Linger` (should be "yes")
+- Manual start: `podman compose -f ~/compose.yml up -d`
+
+**If GPU Not Accessible:**
+- Check CDI: `podman info | grep -i cdi`
+- Check nvidia-persistenced: `systemctl status nvidia-persistenced.service`
+- Verify devices exist: `ls -la /dev/nvidia-uvm` (should exist immediately at boot)
+
+### Next Actions After Verification
+- [ ] Run all verification commands above
+- [ ] Document results in this file
+- [ ] Push all 5 commits if everything works
+- [ ] Celebrate successful reboot! 🎉
+
+---
+
 ## Current Session (2025-10-14) - SELinux NVIDIA Fix Complete with udev Rule
 
 ### Task: Fix SELinux Blocking GNOME Shell GPU Access (2025-10-14)
