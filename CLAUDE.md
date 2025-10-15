@@ -3,15 +3,18 @@
 ## Project Overview
 This is the OpenAI API-compatible server for Petals distributed inference, developed by Kwaai-AI-Lab. The project provides cross-platform installers for Linux and macOS to set up the KwaaiNet distributed inference system.
 
-## 🔄 RESUME POINT AFTER REBOOT (2025-10-14)
+## 🔄 RESUME POINT AFTER REBOOT (2025-10-15)
 
 **IF YOU ARE READING THIS AFTER A REBOOT:**
 
-### Pre-Reboot Status Summary
-✅ **SELinux NVIDIA fix completed** - udev rule installed at `/etc/udev/rules.d/71-nvidia-selinux.rules`
+### Pre-Reboot Status Summary (2025-10-15 11:45 EDT)
+✅ **SELinux NVIDIA fix** - Systemd service at `/etc/systemd/system/nvidia-selinux-fix.service` (replaced udev rule)
 ✅ **Docker rootless containers** - Both kwaainet-api and kwaainet-node configured with CDI GPU access
 ✅ **Systemd auto-start** - Service enabled at `~/.config/systemd/user/kwaainet-compose.service`
-✅ **All changes committed** - 5 commits ahead of origin/main, ready to push
+✅ **ExecStartPre wait loop** - Added to wait for /dev/nvidia-uvm before starting containers
+✅ **Bare metal service fixed** - PIDFile directive added to `~/.config/systemd/user/kwaainet.service`
+✅ **All installer fixes committed** - 10 commits ahead of origin/main, ready to push
+✅ **Node verified on network map** - Announcing 32 blocks at 125.6 tokens/sec before reboot
 
 ### Post-Reboot Verification Checklist
 
@@ -79,7 +82,165 @@ podman logs kwaainet-node | grep -E "(Announced|Running Petals)"
 
 ---
 
-## Current Session (2025-10-14) - SELinux NVIDIA Fix Complete with udev Rule
+## Current Session (2025-10-15) - Installer Auto-Start Fixes
+
+### Task: Fix Systemd Auto-Start Issues for Both Docker and Bare Metal
+**Status**: ✅ COMPLETED - Both installers fixed, ready for reboot verification
+
+#### Issues Discovered and Fixed (2025-10-15)
+
+**Issue 1: Bare Metal Service Immediately Stopped After Starting**
+- **Symptom**: `kwaainet.service` started successfully but stopped 1 second later
+- **Root Cause**: Missing `PIDFile=` directive in systemd service with `Type=forking`
+- **Timeline**: Service started at 19:30:35, systemd called ExecStop at 19:30:35, stopped at 19:30:36
+- **Impact**: Auto-start appeared to work but daemon didn't persist
+
+**Root Cause Analysis:**
+```
+19:30:31 - systemd starts kwaainet.service (process 3278)
+19:30:34 - kwaainet launcher does double-fork to create daemon (PID 5152/5154)
+19:30:34 - Parent process 3278 exits successfully (standard fork behavior)
+19:30:35 - systemd marks service as "Started"
+19:30:35 - systemd IMMEDIATELY calls ExecStop (process 5240) - PROBLEM!
+19:30:36 - ExecStop kills daemon: "Stopping daemon process 5154"
+```
+
+**Why systemd called ExecStop:**
+- With `Type=forking`, systemd expects parent to exit after fork
+- **Without `PIDFile`, systemd cannot track the actual daemon PID**
+- systemd lost track of daemon after fork completed
+- systemd automatically called ExecStop thinking service needed cleanup
+
+**Solution Implemented:**
+```diff
+[Service]
+Type=forking
++PIDFile=%h/.kwaainet/run/kwaainet.pid
+ExecStart=%h/.local/bin/kwaainet start --daemon
+```
+
+**Issue 2: Docker Containers Race Condition at Boot**
+- **Symptom**: Containers may fail to start if `/dev/nvidia-uvm` doesn't exist yet
+- **Root Cause**: Device created lazily, CDI injection fails without it
+- **From previous session**: Took 6+ minutes for device to appear on 2025-10-11 reboot
+- **Impact**: Container enters "Created" state instead of "Up", never transitions
+
+**Solution Implemented:**
+```diff
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=${INSTALL_DIR}
++ExecStartPre=/bin/bash -c 'for i in {1..30}; do [ -c /dev/nvidia-uvm ] && break; sleep 1; done'
+ExecStart=/usr/bin/podman compose -f ${INSTALL_DIR}/compose.yml up -d
+```
+
+#### Files Modified ✅
+
+**1. Installer/linux/linuxinstaller.sh (line 2008)**
+- Added `PIDFile=%h/.kwaainet/run/kwaainet.pid` to bare metal service
+- Fixes systemd daemon tracking for Type=forking
+
+**2. docker/install.sh (line 209)**
+- Added `ExecStartPre` wait loop for /dev/nvidia-uvm
+- Prevents CDI device injection failures
+
+**3. ~/.config/systemd/user/kwaainet.service**
+- Updated current user's service with PIDFile directive
+- Ready for testing after reboot
+
+**4. ~/.config/systemd/user/kwaainet-compose.service**
+- Already had ExecStartPre from previous manual fix
+- Installer now creates this automatically
+
+#### Git Commits Made ✅
+
+**Commit 73dc9a0** - Add NVIDIA UVM device wait to Docker systemd service
+- Prevents race condition at boot
+- Waits up to 30 seconds for device creation
+- Complements nvidia-persistenced enablement
+
+**Commit 932e45f** - Fix Linux bare metal systemd service auto-start issue
+- Adds PIDFile directive for proper daemon tracking
+- Includes detailed root cause analysis in commit message
+- Fixes all future Linux installations
+
+#### Testing Results ✅
+
+**Bare Metal Service:**
+- Not tested (waiting for reboot)
+- Service file updated and reloaded
+- PIDFile directive verified in place
+
+**Docker Compose Service:**
+- ✅ Restart test successful (simulates reboot)
+- ✅ ExecStartPre ran successfully (status=0)
+- ✅ Both containers started (Up 15 seconds)
+- ✅ API responding: `/v1/models` endpoint working
+- ✅ GPU access: All /dev/nvidia* devices in container
+- ✅ **Node visible on network map** - 32 blocks announced
+- ✅ Throughput: 125.6 tokens/sec
+
+**Auto-Start Configuration:**
+- ✅ Service enabled: `kwaainet-compose.service`
+- ✅ User lingering: Enabled (Linger=yes)
+- ✅ ExecStartPre: Checks for /dev/nvidia-uvm
+- ✅ nvidia-persistenced: Ensures early device creation
+- ✅ nvidia-selinux-fix.service: Applies contexts at boot
+
+#### Current System State (Pre-Reboot) ✅
+
+**Services Enabled:**
+```bash
+systemctl --user list-unit-files | grep kwaainet
+kwaainet-compose.service    enabled  # Docker (primary deployment)
+kwaainet.service            enabled  # Bare metal (backup/testing)
+```
+
+**Containers Running:**
+- kwaainet-node: Up, port 8082, 32 blocks announced
+- kwaainet-api: Up, port 80, API responding
+
+**SELinux Protection:**
+- nvidia-selinux-fix.service at `/etc/systemd/system/nvidia-selinux-fix.service`
+- Runs at boot after nvidia-persistenced
+- Applies correct contexts to /dev/nvidia-modeset, nvidia-uvm, nvidia-uvm-tools
+
+**Git Status:**
+- 10 commits ahead of origin/main
+- Working tree clean (except .claude/settings.local.json)
+- Ready to push after reboot verification
+
+#### Safety Verified ✅
+
+**ExecStartPre is safe because:**
+1. ✅ Only WAITS for device - doesn't modify anything
+2. ✅ Doesn't touch SELinux contexts (nvidia-selinux-fix handles that)
+3. ✅ Doesn't interfere with GNOME (runs after login)
+4. ✅ Has 30-second timeout (won't hang forever)
+5. ✅ nvidia-persistenced ensures device exists early
+
+**Boot Timeline (expected):**
+```
+19:30:24 - nvidia-persistenced starts → creates /dev/nvidia-uvm
+19:30:24 - nvidia-selinux-fix.service starts
+19:30:26 - SELinux contexts fixed → GNOME can use GPU
+19:30:31 - User session starts → systemd user services load
+19:30:31 - kwaainet-compose ExecStartPre → waits for /dev/nvidia-uvm (exists)
+19:30:31 - Docker containers start with GPU access
+```
+
+#### Next Steps After Reboot 🔄
+
+1. **Verify login works** (most critical - don't break GNOME again!)
+2. **Run post-reboot verification checklist** (documented above)
+3. **Document results** in this file
+4. **Push commits** if everything works
+5. **Consider disabling bare metal service** (Docker is primary deployment)
+
+---
+
+## Previous Session (2025-10-14) - SELinux NVIDIA Fix Complete with Systemd Service
 
 ### Task: Fix SELinux Blocking GNOME Shell GPU Access (2025-10-14)
 **Status**: ✅ FULLY COMPLETED - SELinux contexts fixed, udev rule installed and active
