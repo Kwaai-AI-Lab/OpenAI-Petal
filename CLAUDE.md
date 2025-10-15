@@ -67,6 +67,59 @@ cat $(./.claude/detect-environment.sh)
 
 ## Recent Sessions
 
+### 2025-10-15: Feature TODO Tracking Document
+**Task:** Create Feature_TODO.md for contributor guidance
+**Status:** ✅ COMPLETED - Comprehensive tracking document created
+
+#### Motivation
+After implementing Linux reconnect feature, need to document remaining feature gaps between macOS and Linux versions for future contributors.
+
+#### Implementation
+Created `Feature_TODO.md` with:
+- **Feature Parity Status**: Current completion at 65% (11/17 features)
+- **Missing Features**: 6 features categorized by priority
+- **Implementation Details**: Requirements, code samples, testing checklists
+- **Progress Tracking**: Effort estimates and completion tracking
+- **Contributor Guidelines**: Code quality, testing requirements, workflow
+
+#### Feature Priorities Identified
+
+**High Priority (9-16 hours total):**
+1. Service management commands (4-6h) - Systemd wrapper for `kwaainet service`
+2. Auto-update functionality (6-8h) - `kwaainet update` command
+3. Concurrent instance flag (1-2h) - `--concurrent` for testing
+
+**Medium Priority (20-26 hours total):**
+4. Connection monitoring (8-10h) - `kwaainet monitor` with alerts
+5. Hardware calibration (12-16h) - `kwaainet calibrate` with CUDA/ROCm
+
+**Low Priority (6-10 hours total):**
+6. Pre-flight checks (4-6h) - Installation validation
+7. GPU compatibility patches (2-4h) - CUDA/ROCm workarounds
+
+#### Files Created
+- **Feature_TODO.md** (486 lines)
+  - Detailed requirements for each missing feature
+  - Code samples and implementation notes
+  - Testing checklists per feature
+  - Progress tracking and roadmap
+
+#### Git Commit
+**4974cd4** - Add Feature_TODO.md for tracking Linux/macOS feature parity
+- Comprehensive contributor guide
+- Priority-ranked feature list
+- Estimated 30-40 hours remaining work
+
+#### Next Steps for Contributors
+1. Pick feature from Feature_TODO.md
+2. Review macOS implementation
+3. Create feature branch
+4. Implement with tests
+5. Update Feature_TODO.md status
+6. Submit PR with detailed description
+
+---
+
 ### 2025-10-15: Linux Reconnect Feature Port
 **Feature:** Port `kwaainet reconnect` command from macOS to Linux
 **Status:** ✅ COMPLETED - Feature parity achieved across platforms
