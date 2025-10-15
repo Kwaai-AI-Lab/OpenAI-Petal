@@ -292,13 +292,17 @@ class DaemonProcess:
                 if self.process:
                     try:
                         proc = psutil.Process(self.process.pid)
+                        # Read existing status to preserve command field
+                        existing_status = self.read_status() or {}
                         self.write_status({
                             "pid": self.process.pid,
                             "status": "running",
                             "cpu_percent": proc.cpu_percent(),
                             "memory_percent": proc.memory_percent(),
                             "uptime": time.time() - proc.create_time(),
-                            "last_updated": time.time()
+                            "last_updated": time.time(),
+                            "command": existing_status.get("command"),  # Preserve command
+                            "started_at": existing_status.get("started_at")  # Preserve start time
                         })
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         pass
@@ -382,7 +386,24 @@ class DaemonProcess:
         # Wait a moment before starting
         time.sleep(2)
         return self.start_process(command, env)
-    
+
+    def _find_service_process(self) -> Optional[int]:
+        """Find Petals process running via systemd service (without daemon PID file)"""
+        try:
+            for proc in psutil.process_iter(['pid', 'cmdline', 'ppid']):
+                try:
+                    cmdline = ' '.join(proc.info['cmdline'] or [])
+                    # Look for petals server process not in a daemon context
+                    if 'petals.cli.run_server' in cmdline:
+                        # Return the main process (lowest PID among related processes)
+                        return proc.info['pid']
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    pass
+            return None
+        except Exception as e:
+            logger.debug(f"Error finding service process: {e}")
+            return None
+
     def get_status(self) -> Dict[str, Any]:
         """Get comprehensive daemon status"""
         pid = self.get_pid()

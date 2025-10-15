@@ -42,7 +42,26 @@ from .installer import setup_linux
 
 # Defer runner import to avoid circular imports
 
-__version__ = "0.3.0"
+# Read version from VERSION file
+def _read_version():
+    """Dynamically read version from VERSION file"""
+    import os
+    # Try package-local VERSION file first (for installed package)
+    version_file = os.path.join(os.path.dirname(__file__), 'VERSION')
+    if os.path.exists(version_file):
+        with open(version_file, 'r') as f:
+            return f.read().strip()
+    # Try repository root VERSION file (for development/editable install)
+    # From: /path/to/OpenAI-Petal/Installer/linux/kwaainet/__init__.py
+    # To:   /path/to/OpenAI-Petal/VERSION
+    # Need to go up 3 levels: kwaainet -> linux -> Installer -> OpenAI-Petal
+    version_file = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'VERSION')
+    if os.path.exists(version_file):
+        with open(version_file, 'r') as f:
+            return f.read().strip()
+    return "0.4.0"  # Fallback version
+
+__version__ = _read_version()
 __author__ = "Kwaai Labs"
 __email__ = "contact@kwaai.ai"
 

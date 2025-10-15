@@ -252,7 +252,91 @@ class KwaaiNetRunner:
         else:
             logger.error("Cannot restart: no previous command found")
             return False
-    
+
+    def reconnect(self) -> bool:
+        """Force P2P network reconnection by restarting the process
+
+        TODO: Implement proper SIGHUP handler in Petals for graceful DHT refresh
+              Currently, we restart the process to force reconnection, but ideally
+              Petals should support SIGHUP to trigger DHT refresh without full restart.
+              This would allow:
+              - Faster reconnection (no model reload)
+              - Less disruption to ongoing requests
+              - Graceful peer discovery refresh
+
+              Implementation ideas:
+              - Add SIGHUP handler in petals.cli.run_server
+              - Trigger hivemind DHT.replicate() to refresh peer list
+              - Log reconnection attempt and new peer count
+        """
+        # Try to get PID from daemon (manual start)
+        pid = self.daemon.get_pid()
+        is_service_managed = False
+
+        # If no daemon PID file, check for service-managed process
+        if not pid:
+            pid = self.daemon._find_service_process()
+            is_service_managed = True
+
+        if not pid:
+            logger.error("Daemon is not running. Start it first with 'kwaainet start --daemon'")
+            logger.error("Or check service status with 'systemctl --user status kwaainet.service'")
+            return False
+
+        try:
+            logger.info("Triggering P2P network reconnection...")
+
+            if is_service_managed:
+                # For service-managed processes, use systemd to restart
+                logger.info("Detected systemd service. Using service restart...")
+                import subprocess
+
+                try:
+                    # Try user service first
+                    result = subprocess.run(
+                        ["systemctl", "--user", "restart", "kwaainet.service"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10
+                    )
+
+                    if result.returncode == 0:
+                        logger.info("✅ Service restarted successfully")
+                        logger.info("💡 Note: Node will reconnect to P2P network during startup")
+                        return True
+                    else:
+                        # Try kwaainet-compose service for Docker deployment
+                        result = subprocess.run(
+                            ["systemctl", "--user", "restart", "kwaainet-compose.service"],
+                            capture_output=True,
+                            text=True,
+                            timeout=10
+                        )
+
+                        if result.returncode == 0:
+                            logger.info("✅ Docker compose service restarted successfully")
+                            logger.info("💡 Note: Containers will reconnect to P2P network during startup")
+                            return True
+                        else:
+                            logger.error("Failed to restart service")
+                            logger.error(f"Error: {result.stderr}")
+                            return False
+
+                except subprocess.TimeoutExpired:
+                    logger.error("Service restart timed out")
+                    return False
+                except FileNotFoundError:
+                    logger.error("systemctl command not found")
+                    return False
+            else:
+                # For daemon-managed processes, trigger restart via command
+                logger.info("Using daemon restart...")
+                return self.restart()
+
+        except Exception as e:
+            logger.error(f"Failed to reconnect: {e}")
+            return False
+
     def status(self):
         """Get daemon status"""
         return self.daemon.get_status()
@@ -283,6 +367,7 @@ def parse_args():
   kwaainet status                            # Check daemon status
   kwaainet logs --lines 100                  # View recent logs
   kwaainet restart                           # Restart daemon
+  kwaainet reconnect                         # Force P2P network reconnect
 
 For more information: https://github.com/Kwaai-AI-Lab/OpenAI-Petal"""
     )
@@ -311,11 +396,15 @@ For more information: https://github.com/Kwaai-AI-Lab/OpenAI-Petal"""
         description="Stop the KwaaiNet daemon process gracefully")
     
     # Restart command
-    subparsers.add_parser("restart", 
+    subparsers.add_parser("restart",
         help="🔄 Restart KwaaiNet daemon",
         description="Restart the KwaaiNet daemon with the same configuration")
-    
-    
+
+    # Reconnect command
+    subparsers.add_parser("reconnect",
+        help="🔄 Force P2P network reconnection",
+        description="Trigger DHT refresh and reconnect to P2P network without restarting")
+
     # Setup command
     subparsers.add_parser("setup", help="Setup KwaaiNet")
     
@@ -398,7 +487,14 @@ def main():
     elif args.command == "restart":
         if not runner.restart():
             sys.exit(1)
-            
+
+    elif args.command == "reconnect":
+        logger.info("Forcing P2P network reconnection...")
+        if not runner.reconnect():
+            logger.error("Failed to reconnect to P2P network")
+            sys.exit(1)
+        logger.info("✅ Reconnection triggered successfully")
+
     elif args.command == "setup":
         if not runner.setup():
             sys.exit(1)
