@@ -2005,6 +2005,7 @@ Wants=network-online.target
 
 [Service]
 Type=forking
+PIDFile=%h/.kwaainet/run/kwaainet.pid
 ExecStart=%h/.local/bin/kwaainet start --daemon
 ExecStop=%h/.local/bin/kwaainet stop
 Restart=on-failure
