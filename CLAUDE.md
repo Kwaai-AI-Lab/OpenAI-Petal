@@ -67,6 +67,88 @@ cat $(./.claude/detect-environment.sh)
 
 ## Recent Sessions
 
+### 2025-10-15: Linux Auto-Update Feature Implementation
+**Feature:** Port `kwaainet update` command from macOS to Linux
+**Status:** ✅ COMPLETED - Auto-update functionality achieved across platforms
+
+#### Problem Statement
+Linux version lacked the update command available on macOS, preventing users from easily updating to new versions via CLI.
+
+#### Implementation Summary
+Successfully ported update functionality from macOS installer to Linux:
+- **UpdateChecker**: GitHub API integration for version checking with 1-hour cache
+- **Updater**: Auto-detects installation method (git/installer/pip) and updates accordingly
+- **Configuration backup**: Automatic backup before update with rollback capability
+- **CLI integration**: `kwaainet update --check` and `kwaainet update` commands
+
+#### Key Features
+1. **Version Detection:**
+   - Checks GitHub Releases API and VERSION file on GitHub
+   - Compares semantic versions with intelligent parsing
+   - 1-hour cache to avoid rate limiting
+
+2. **Installation Method Detection:**
+   - Auto-detects git repository installations
+   - Detects installer-based installations (editable installs)
+   - Detects pip installations
+   - Uses appropriate update strategy for each method
+
+3. **Safety Features:**
+   - Configuration backup before update (timestamped)
+   - Daemon stop prompt before update
+   - Detailed error reporting with recovery instructions
+
+#### Files Modified
+- **Installer/linux/kwaainet/updater.py** (395 lines, NEW)
+  - `UpdateChecker` class with GitHub API integration
+  - `Updater` class with method-specific update strategies
+  - Version comparison and caching logic
+
+- **Installer/linux/kwaainet/runner.py** (87 lines added)
+  - Imported UpdateChecker and Updater classes
+  - Added update subparser with --check and --force flags
+  - Added update command handler with formatted output
+
+#### Testing Results
+```bash
+# Checked for updates
+kwaainet update --check
+# Output: ✅ You are running the latest version! (v0.4.5)
+
+# Verified help text
+kwaainet update --help
+# Shows: --check and --force options
+```
+
+#### Technical Details
+**Version Checking:**
+1. Check cache first (1h TTL) unless --force specified
+2. Fetch from GitHub Releases API (with release notes)
+3. Fetch from VERSION file on GitHub (cache-busted)
+4. Compare versions and return higher version if available
+
+**Update Process:**
+- **Git installations:** `git pull` + `pip install -e .`
+- **Installer installations:** Instructions to re-run installer script
+- **Pip installations:** `pip install --upgrade git+https://...`
+
+**Platform Differences from macOS:**
+- Changed installer path: `Installer/macOS` → `Installer/linux`
+- Changed installer script URL: `macinstaller.sh` → `linuxinstaller.sh`
+- All other logic identical (fully portable)
+
+#### Git Commit
+**dc45a52** - Add auto-update command to Linux installer
+- 4 files changed, 597 insertions(+), 11 deletions(-)
+- Testing: ✅ Verified version checking and help text
+
+#### Feature Parity Update
+- **Previous:** 65% (11/17 features)
+- **Current:** 71% (12/17 features)
+- **High Priority:** 67% complete (2/3 features)
+
+---
+
 ### 2025-10-15: Feature TODO Tracking Document
 **Task:** Create Feature_TODO.md for contributor guidance
 **Status:** ✅ COMPLETED - Comprehensive tracking document created

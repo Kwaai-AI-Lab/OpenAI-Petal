@@ -11,6 +11,7 @@ from pathlib import Path
 from .config import KwaaiNetConfig
 from .installer import setup_linux
 from .daemon import DaemonProcess, setup_signal_handlers
+from .updater import UpdateChecker, Updater
 
 # Logging is configured in __init__.py to prevent duplicates
 
@@ -405,6 +406,13 @@ For more information: https://github.com/Kwaai-AI-Lab/OpenAI-Petal"""
         help="🔄 Force P2P network reconnection",
         description="Trigger DHT refresh and reconnect to P2P network without restarting")
 
+    # Update commands
+    update_parser = subparsers.add_parser("update",
+        help="🔄 Update KwaaiNet to latest version",
+        description="Check for and install updates")
+    update_parser.add_argument("--check", action="store_true", help="Check for updates without installing")
+    update_parser.add_argument("--force", action="store_true", help="Force update check (bypass cache)")
+
     # Setup command
     subparsers.add_parser("setup", help="Setup KwaaiNet")
     
@@ -494,6 +502,91 @@ def main():
             logger.error("Failed to reconnect to P2P network")
             sys.exit(1)
         logger.info("✅ Reconnection triggered successfully")
+
+    elif args.command == "update":
+        print()
+        print("╭─────────────────────────────────────────────────────────────────────╮")
+        print("│                        🔄 KwaaiNet Update                            │")
+        print("╰─────────────────────────────────────────────────────────────────────╯")
+        print()
+
+        checker = UpdateChecker()
+        force_check = getattr(args, 'force', False)
+        check_only = getattr(args, 'check', False)
+
+        # Check for updates
+        print(f"  📌 Current version: v{checker.current_version}")
+        print(f"  🔍 Checking for updates...")
+        print()
+
+        update_info = checker.check_for_updates(force=force_check)
+
+        if not update_info:
+            print("  ✅ You are running the latest version!")
+            print("─────────────────────────────────────────────────────────────────────")
+        else:
+            latest_version = update_info.get('version')
+            print(f"  🎉 New version available: v{latest_version}")
+
+            if update_info.get('name'):
+                print(f"  📝 Release: {update_info['name']}")
+
+            if update_info.get('url'):
+                print(f"  🔗 Details: {update_info['url']}")
+
+            if update_info.get('body'):
+                # Show first few lines of release notes
+                body_lines = update_info['body'].split('\n')[:5]
+                if body_lines:
+                    print()
+                    print("  📋 Release Notes:")
+                    for line in body_lines:
+                        if line.strip():
+                            print(f"     {line[:65]}")
+
+            print()
+
+            if check_only:
+                print("  💡 Run 'kwaainet update' (without --check) to install")
+                print("─────────────────────────────────────────────────────────────────────")
+            else:
+                # Perform update
+                print("  🚀 Starting update process...")
+                print()
+
+                updater = Updater()
+
+                # Check if daemon is running
+                if runner.daemon.is_running():
+                    print("  ⚠️  Daemon is currently running")
+                    print("     Update will stop the daemon. Restart it after update.")
+                    print()
+                    response = input("  Continue with update? [y/N]: ")
+                    if response.lower() != 'y':
+                        print()
+                        print("  ❌ Update cancelled")
+                        print("─────────────────────────────────────────────────────────────────────")
+                        sys.exit(0)
+
+                    # Stop daemon
+                    print()
+                    print("  🛑 Stopping daemon...")
+                    runner.stop()
+
+                print("  📦 Updating KwaaiNet...")
+                if updater.update():
+                    print()
+                    print("  ✅ Update completed successfully!")
+                    print(f"  🎉 Now running v{latest_version}")
+                    print()
+                    print("  💡 Restart the daemon with: kwaainet start --daemon")
+                    print("─────────────────────────────────────────────────────────────────────")
+                else:
+                    print()
+                    print("  ❌ Update failed")
+                    print("  💡 Please check the logs or try manual installation")
+                    print("─────────────────────────────────────────────────────────────────────")
+                    sys.exit(1)
 
     elif args.command == "setup":
         if not runner.setup():

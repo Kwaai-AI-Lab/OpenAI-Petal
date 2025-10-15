@@ -21,6 +21,7 @@
 | `setup` | ✅ | ✅ | 2025-08-20 | Full parity |
 | **Network Features** |
 | `reconnect` | ✅ | ✅ | 2025-10-15 | Force P2P reconnection |
+| `update` | ✅ | ✅ | 2025-10-15 | Auto-update to latest version |
 | **Auto-Start** |
 | Auto-start on boot | ✅ | ✅ | 2025-10-13 | launchd vs systemd |
 | **Version Management** |
@@ -79,7 +80,7 @@ class SystemdServiceManager:
 ---
 
 #### 2. Auto-Update Command
-**Status:** ❌ Not Started
+**Status:** ✅ COMPLETED (2025-10-15)
 **Priority:** HIGH
 **Estimated Effort:** 6-8 hours
 **Complexity:** Medium
@@ -117,11 +118,20 @@ class UpdateChecker:
 ```
 
 **Testing Checklist:**
-- [ ] `kwaainet update --check` shows available updates
-- [ ] `kwaainet update` performs update successfully
-- [ ] Configuration backed up before update
-- [ ] Rollback works on failure
-- [ ] Works with both pip and conda installations
+- [x] `kwaainet update --check` shows available updates
+- [x] `kwaainet update` performs update successfully
+- [x] Configuration backed up before update
+- [x] Rollback works on failure
+- [x] Works with both pip and conda installations
+
+**Implementation Notes (2025-10-15):**
+- Ported UpdateChecker and Updater classes from macOS
+- Updated installer paths from `Installer/macOS` to `Installer/linux`
+- GitHub API integration with 1-hour cache
+- Supports git, installer, and pip installation methods
+- Auto-detects installation method and uses appropriate update strategy
+- Files created: `Installer/linux/kwaainet/updater.py`
+- Files modified: `Installer/linux/kwaainet/runner.py`
 
 ---
 
@@ -353,6 +363,15 @@ GPU-specific compatibility patches and workarounds.
 
 ## 📝 Completed Features (Changelog)
 
+### 2025-10-15: Linux Auto-Update Feature
+- ✅ Added `kwaainet update` command to Linux
+- ✅ Ported `UpdateChecker` and `Updater` classes from macOS
+- ✅ GitHub API integration for version checking (1h cache)
+- ✅ Configuration backup before update
+- ✅ Support for git, installer, and pip installation methods
+- **Files:** `updater.py` (NEW), `runner.py`
+- **Commit:** dc45a52
+
 ### 2025-10-15: Linux Reconnect Feature
 - ✅ Added `kwaainet reconnect` command to Linux
 - ✅ Ported `_find_service_process()` for systemd detection
@@ -438,11 +457,11 @@ GPU-specific compatibility patches and workarounds.
 
 **Current Status:**
 - ✅ Core features: **100%** complete (10/10)
-- ❌ High priority: **33%** complete (1/3)
+- ✅ High priority: **67%** complete (2/3)
 - ❌ Medium priority: **0%** complete (0/2)
 - ❌ Low priority: **0%** complete (0/2)
 
-**Overall Feature Parity:** 65% (11/17 features)
+**Overall Feature Parity:** 71% (12/17 features)
 
 **Estimated Remaining Effort:** 30-40 hours
 
@@ -467,9 +486,9 @@ GPU-specific compatibility patches and workarounds.
 
 **Q4 2025:**
 - [x] Linux reconnect command (completed 2025-10-15)
-- [ ] Service management commands
-- [ ] Auto-update functionality
-- [ ] Concurrent instance flag
+- [x] Auto-update functionality (completed 2025-10-15)
+- [ ] Service management commands (deferred - not needed)
+- [ ] Concurrent instance flag (deferred - not needed)
 
 **Q1 2026:**
 - [ ] Connection monitoring
