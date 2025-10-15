@@ -67,6 +67,87 @@ cat $(./.claude/detect-environment.sh)
 
 ## Recent Sessions
 
+### 2025-10-15: Linux Reconnect Feature Port
+**Feature:** Port `kwaainet reconnect` command from macOS to Linux
+**Status:** ✅ COMPLETED - Feature parity achieved across platforms
+
+#### Problem Statement
+Linux version lacked the reconnect command available on macOS, preventing users from forcing P2P network reconnection without manual daemon restarts.
+
+#### Implementation Summary
+Successfully ported reconnect functionality from macOS installer to Linux:
+- **_find_service_process()**: Added to daemon.py to detect systemd-managed processes
+- **reconnect()**: Implemented in runner.py with systemd service support
+- **Status preservation**: Fixed monitor thread to preserve command field across updates
+- **Version sync**: Updated Linux to use VERSION file like macOS (eliminates hardcoded versions)
+
+#### Key Features
+1. **Smart Process Detection:**
+   - Detects daemon-managed vs systemd-managed processes
+   - Supports both `kwaainet.service` and `kwaainet-compose.service`
+
+2. **Parameter Preservation:**
+   - Full command saved to status file on startup (includes `--num_blocks`, etc.)
+   - reconnect() → restart() → reads command from status file
+   - Blocks count and all parameters preserved across reconnects
+
+3. **Systemd Integration:**
+   - Uses `systemctl --user restart` for service-managed processes
+   - Falls back to daemon restart for manually-started daemons
+   - Timeout protection (10s) prevents hanging
+
+#### Files Modified
+- **Installer/linux/kwaainet/daemon.py** (25 lines added)
+  - Added `_find_service_process()` method to detect Petals processes
+  - Fixed `_monitor_process()` to preserve command and started_at fields
+
+- **Installer/linux/kwaainet/runner.py** (106 lines added)
+  - Implemented `reconnect()` method with systemd support
+  - Added reconnect subparser to CLI
+  - Updated help text to include reconnect command
+
+- **Installer/linux/kwaainet/__init__.py** (21 lines added)
+  - Replaced hardcoded version with VERSION file reader
+  - Matches macOS pattern for version management
+
+#### Testing Results
+```bash
+# Started daemon with 4 blocks
+kwaainet start --daemon --blocks 4
+
+# Triggered reconnect
+kwaainet reconnect
+# Output: ✅ Reconnection triggered successfully
+
+# Verified on network map
+# Result: New instance appeared with 4 blocks preserved
+```
+
+#### Technical Details
+**Status File Flow:**
+1. Daemon starts → saves full command to `~/.kwaainet/run/kwaainet.status`
+2. Monitor thread updates status every 10s → preserves command/started_at fields
+3. reconnect() calls restart() → reads command from status
+4. restart_process() executes saved command → blocks count preserved
+
+**Systemd Service Support:**
+- `kwaainet.service` → bare metal daemon (PIDFile directive)
+- `kwaainet-compose.service` → Docker containers
+- Both preserve configuration through service definition or compose file
+
+#### Version Management
+- **Previous:** Hardcoded `__version__ = "0.3.0"` in Linux
+- **Current:** Dynamic version reading from `/VERSION` file
+- **Benefit:** Automatic sync with repository version (0.4.5)
+- **Pattern:** Matches macOS implementation for consistency
+
+#### Git Commit
+**9e2d77f** - Add reconnect command to Linux installer with version sync
+- 3 files changed, 144 insertions(+), 8 deletions(-)
+- Testing: ✅ Verified on bare metal daemon with 4 blocks
+
+---
+
 ### 2025-10-12: Block Calibration Feature Implementation
 **Feature:** Automatic block count optimization based on hardware capabilities
 **Status:** ✅ Phase 1 Complete - Quick estimation working
