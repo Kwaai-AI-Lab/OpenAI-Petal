@@ -206,6 +206,7 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=${INSTALL_DIR}
+ExecStartPre=/bin/bash -c 'for i in {1..30}; do [ -c /dev/nvidia-uvm ] && break; sleep 1; done'
 ExecStart=/usr/bin/podman compose -f ${INSTALL_DIR}/compose.yml up -d
 ExecStop=/usr/bin/podman compose -f ${INSTALL_DIR}/compose.yml down
 Restart=on-failure
