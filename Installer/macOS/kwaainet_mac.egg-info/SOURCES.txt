@@ -1,8 +1,10 @@
 README.md
 setup.py
+kwaainet/VERSION
 kwaainet/__init__.py
 kwaainet/__main__.py
 kwaainet/bitsandbytes_patch.py
+kwaainet/calibration.py
 kwaainet/config.py
 kwaainet/daemon.py
 kwaainet/data_structures.py

@@ -1,0 +1,9 @@
+# Ignore local environment modifications that contain sensitive data
+*-local.md
+*.local.md
+
+# Allow the templates and shared configurations
+!README.md
+!macos-rezarassool.md
+!linux-metro.md
+!windows-*.md

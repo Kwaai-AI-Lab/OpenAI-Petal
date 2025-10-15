@@ -21,6 +21,7 @@ from .daemon import DaemonProcess, setup_signal_handlers
 from .service import get_service_manager
 from .monitor import ConnectionMonitor
 from .updater import UpdateChecker, Updater
+from .utils import find_available_port
 
 # Get logger (configured in __init__.py to prevent duplicates)
 logger = logging.getLogger(__name__)
@@ -141,8 +142,19 @@ class KwaaiNetRunner:
 
         if self.config.get('public_name'):
             logger.info(f"Public name: {self.config.get('public_name')}")
-        
+
         try:
+            # Find an available port (prefer configured port, fallback to alternatives)
+            preferred_port = self.config.get("port", 8080)
+            try:
+                port, is_preferred = find_available_port(preferred_port)
+                if not is_preferred:
+                    logger.warning(f"Port {preferred_port} was not available, using alternate port {port}")
+                    logger.info(f"💡 To use this port permanently, update config: kwaainet config --set port {port}")
+            except RuntimeError as e:
+                logger.error(f"Failed to find available port: {e}")
+                return False
+
             # Construct command similar to entrypoint.sh
             # Use conda environment python instead of sys.executable
             conda_python = self._get_conda_python_path()
@@ -151,9 +163,8 @@ class KwaaiNetRunner:
                 self.config.get("model"),
                 "--num_blocks", str(self.config.get("blocks"))
             ]
-            
-            # Add port
-            port = self.config.get("port", 8080)
+
+            # Add the selected port
             command.extend(["--port", str(port)])
             
             # Add initial peers if configured, otherwise start new swarm
@@ -216,14 +227,14 @@ class KwaaiNetRunner:
         except Exception as e:
             logger.error(f"Failed to start KwaaiNet node: {e}")
             logger.info("Falling back to CPU mode...")
-            
+
             try:
-                # Retry with CPU mode, keeping all other parameters the same
+                # Retry with CPU mode, keeping all other parameters the same (including the selected port)
                 command = [
                     conda_python, "-m", "petals.cli.run_server",
                     self.config.get("model"),
                     "--num_blocks", str(self.config.get("blocks")),
-                    "--port", str(self.config.get("port", 8080)),
+                    "--port", str(port),  # Use the already-selected available port
                     "--device", "cpu"
                 ]
                 
@@ -295,36 +306,58 @@ class KwaaiNetRunner:
             return []
 
     def reconnect(self) -> bool:
-        """Force P2P network reconnection without restarting"""
+        """Force P2P network reconnection by restarting the process
+
+        TODO: Implement proper SIGHUP handler in Petals for graceful DHT refresh
+              Currently, we restart the process to force reconnection, but ideally
+              Petals should support SIGHUP to trigger DHT refresh without full restart.
+              This would allow:
+              - Faster reconnection (no model reload)
+              - Less disruption to ongoing requests
+              - Graceful peer discovery refresh
+
+              Implementation ideas:
+              - Add SIGHUP handler in petals.cli.run_server
+              - Trigger hivemind DHT.replicate() to refresh peer list
+              - Log reconnection attempt and new peer count
+        """
+        # Try to get PID from daemon (manual start)
         pid = self.daemon.get_pid()
+        is_service_managed = False
+
+        # If no daemon PID file, check for service-managed process
+        if not pid:
+            pid = self.daemon._find_service_process()
+            is_service_managed = True
+
         if not pid:
             logger.error("Daemon is not running. Start it first with 'kwaainet start --daemon'")
+            logger.error("Or check service status with 'kwaainet service status'")
             return False
 
         try:
             logger.info("Triggering P2P network reconnection...")
 
-            # Send SIGHUP to trigger DHT refresh in Petals
-            # Note: Petals doesn't natively support SIGHUP for DHT refresh,
-            # but we can log this for future enhancement
-            logger.info("Sending SIGHUP signal to process for configuration reload")
-            os.kill(pid, signal.SIGHUP)
+            if is_service_managed:
+                # For service-managed processes, use launchd to restart
+                logger.info("Detected auto-start service. Using service restart...")
+                from .service import get_service_manager
+                service_manager = get_service_manager()
 
-            # Give it a moment to process
-            time.sleep(2)
+                if service_manager.restart_service():
+                    logger.info("✅ Service restarted successfully")
+                    logger.info("💡 Note: Node will reconnect to P2P network during startup")
+                    return True
+                else:
+                    logger.error("Failed to restart service")
+                    return False
+            else:
+                # For daemon-managed processes, trigger restart via command
+                logger.info("Using daemon restart...")
+                return self.restart()
 
-            # Check if process is still healthy
-            if not self.daemon.is_running():
-                logger.error("Process terminated after reconnect signal")
-                return False
-
-            logger.info("✅ Reconnection signal sent successfully")
-            logger.info("💡 Note: Petals DHT refreshes automatically every 60 seconds")
-            logger.info("    For immediate effect, consider 'kwaainet restart' instead")
-            return True
-
-        except OSError as e:
-            logger.error(f"Failed to send reconnect signal: {e}")
+        except Exception as e:
+            logger.error(f"Failed to reconnect: {e}")
             return False
 
 def parse_args():
@@ -452,6 +485,16 @@ def parse_args():
         description="Check for and install updates")
     update_parser.add_argument("--check", action="store_true", help="Check for updates without installing")
     update_parser.add_argument("--force", action="store_true", help="Force update check (bypass cache)")
+
+    # Calibration commands
+    calibrate_parser = subparsers.add_parser("calibrate",
+        help="🔧 Calibrate optimal block count for your hardware",
+        description="Automatically determine min/recommended/max block counts based on available memory")
+    calibrate_parser.add_argument("--model", type=str, help="Model to calibrate (default: current config)")
+    calibrate_parser.add_argument("--force", action="store_true", help="Force recalibration (ignore cache)")
+    calibrate_parser.add_argument("--quick", action="store_true", help="Quick estimation without model loading")
+    calibrate_parser.add_argument("--apply", choices=["min", "recommended", "max"],
+        help="Apply calibration result to config")
 
     args = parser.parse_args()
     if not args.command:
@@ -900,6 +943,119 @@ def main():
                     print("  💡 Please check the logs or try manual installation")
                     print("─────────────────────────────────────────────────────────────────────")
                     sys.exit(1)
+
+    elif args.command == "calibrate":
+        from .calibration import CalibrationEngine, format_memory
+
+        print()
+        print("╭─────────────────────────────────────────────────────────────────────╮")
+        print("│                    🔧 KwaaiNet Block Calibration                     │")
+        print("╰─────────────────────────────────────────────────────────────────────╯")
+        print()
+
+        # Get model to calibrate
+        model_name = getattr(args, 'model', None)
+        if not model_name:
+            model_name = runner.config.get("model", "unsloth/Llama-3.1-8B-Instruct")
+
+        force = getattr(args, 'force', False)
+        quick = getattr(args, 'quick', True)  # Default to quick mode
+        apply = getattr(args, 'apply', None)
+
+        print(f"  🤖 Model: {model_name}")
+
+        # Initialize calibration engine
+        engine = CalibrationEngine()
+
+        # Get model info
+        model_info = engine.get_model_info(model_name)
+        total_blocks = model_info["total_blocks"]
+
+        print(f"  🧱 Total blocks in model: {total_blocks}")
+        print()
+
+        # Show hardware info
+        hw = engine.hardware_info
+        print("  💻 Hardware detected:")
+        print(f"     • Memory: {format_memory(hw.total_memory)} total, {format_memory(hw.available_memory)} available")
+        print(f"     • GPU: {hw.gpu_type.upper()}")
+        print(f"     • CPU cores: {hw.cpu_cores}")
+        print(f"     • Architecture: {hw.architecture}")
+        print()
+
+        # Perform calibration
+        mode_str = "Quick estimation" if quick else "Full calibration"
+        cache_str = " (forced)" if force else ""
+        print(f"  🔍 Running {mode_str}{cache_str}...")
+        print()
+
+        try:
+            profile = engine.calibrate_model(
+                model_name=model_name,
+                total_blocks=total_blocks,
+                force=force,
+                quick=quick
+            )
+
+            # Display results
+            print("  ✅ Calibration complete!")
+            print()
+            print("  📊 Recommended block counts:")
+            print("─────────────────────────────────────────────────────────────────────")
+
+            if profile.min_profile:
+                print(f"  🔹 Minimum:     {profile.min_profile.blocks:2d} blocks  "
+                      f"(~{format_memory(profile.min_profile.total_memory)})")
+
+            if profile.recommended_profile:
+                print(f"  ⭐ Recommended: {profile.recommended_profile.blocks:2d} blocks  "
+                      f"(~{format_memory(profile.recommended_profile.total_memory)})")
+
+            if profile.max_profile:
+                print(f"  🔸 Maximum:     {profile.max_profile.blocks:2d} blocks  "
+                      f"(~{format_memory(profile.max_profile.total_memory)})")
+
+            print("─────────────────────────────────────────────────────────────────────")
+            print()
+
+            # Current config
+            current_blocks = runner.config.get("blocks", 1)
+            print(f"  📌 Current configuration: {current_blocks} blocks")
+            print()
+
+            # Apply if requested
+            if apply:
+                if apply == "min" and profile.min_profile:
+                    new_blocks = profile.min_profile.blocks
+                elif apply == "recommended" and profile.recommended_profile:
+                    new_blocks = profile.recommended_profile.blocks
+                elif apply == "max" and profile.max_profile:
+                    new_blocks = profile.max_profile.blocks
+                else:
+                    print(f"  ⚠️  No {apply} profile available")
+                    new_blocks = None
+
+                if new_blocks and new_blocks != current_blocks:
+                    runner.config.set("blocks", new_blocks)
+                    print(f"  ✅ Configuration updated: blocks set to {new_blocks}")
+                    print(f"  💡 Restart daemon to apply changes: kwaainet restart")
+                elif new_blocks == current_blocks:
+                    print(f"  ℹ️  Configuration already set to {apply} value ({new_blocks} blocks)")
+            else:
+                # Suggest applying if different from recommended
+                recommended = profile.get_recommended_blocks()
+                if recommended != current_blocks:
+                    print(f"  💡 To apply recommended setting, run:")
+                    print(f"     kwaainet calibrate --apply recommended")
+                    print()
+
+            print("─────────────────────────────────────────────────────────────────────")
+
+        except Exception as e:
+            print(f"  ❌ Calibration failed: {e}")
+            print("─────────────────────────────────────────────────────────────────────")
+            logger.exception("Calibration error")
+            sys.exit(1)
 
 # Entry point is handled by __main__.py to prevent double execution
 

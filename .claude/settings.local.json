@@ -57,7 +57,10 @@
       "Bash(ip addr:*)",
       "Bash(loginctl show-user:*)",
       "Bash(systemctl:*)",
-      "Bash(journalctl:*)"
+      "Bash(journalctl:*)",
+      "Bash(pstree:*)",
+      "Bash(ps:*)",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "ask": []
