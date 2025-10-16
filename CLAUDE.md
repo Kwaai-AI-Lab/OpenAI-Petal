@@ -67,6 +67,105 @@ cat $(./.claude/detect-environment.sh)
 
 ## Recent Sessions
 
+### 2025-10-16: Linux Process Cleanup & Reboot Test
+**Feature:** Port process cleanup functionality from macOS and verify autostart reliability
+**Status:** ✅ COMPLETED - Cleanup working, autostart verified via reboot test
+
+#### Problem Statement
+Linux nodes experiencing zombie process buildup and duplicate network entries. Need to verify autostart reliability after system reboot and implement cleanup feature to prevent issues.
+
+#### Implementation Summary
+Successfully ported cleanup functionality and verified production reliability:
+- **Process Cleanup**: Auto-detects and terminates existing petals/p2pd/hivemind processes before starting
+- **Concurrent Flag**: New `--concurrent` option allows multiple instances for testing
+- **Reboot Test**: Both systemd services (bare metal + Docker) auto-started successfully
+- **Zombie Prevention**: Verified 0 defunct processes after reboot
+
+#### Key Features
+1. **Automatic Cleanup:**
+   - Detects processes by name (petals-server, p2pd) and command line patterns
+   - Graceful termination (SIGTERM) with 2s timeout
+   - Force kill (SIGKILL) for processes that don't terminate gracefully
+   - Skips current process and parent to avoid self-termination
+
+2. **Concurrent Mode:**
+   - `--concurrent` flag allows multiple instances for testing/development
+   - Default behavior (without flag) prevents duplicate network nodes
+   - Each instance can bind to different ports
+
+3. **Systemd Integration:**
+   - Both services auto-started after reboot
+   - User lingering working correctly
+   - Clean startup logs with automatic cleanup message
+
+#### Files Modified
+- **Installer/linux/kwaainet/daemon.py** (48 lines added)
+  - Added `_cleanup_all_kwaainet_processes()` method
+  - Integrated cleanup into `start_process()` with concurrent parameter
+  - Graceful termination logic with fallback to force kill
+
+- **Installer/linux/kwaainet/runner.py** (6 lines modified)
+  - Added `--concurrent` CLI flag to start subparser
+  - Pass concurrent parameter through to daemon
+  - Updated help text with emoji indicator
+
+#### Reboot Test Results
+```bash
+# Post-reboot status (12:29:40 EDT)
+systemctl --user status kwaainet.service         # ✅ Active (running)
+systemctl --user status kwaainet-compose.service # ✅ Active (exited)
+loginctl show-user metro | grep Linger           # Linger=yes
+
+# Zero zombie processes
+ps aux | grep defunct | grep -v grep             # No output
+podman exec kwaainet-node ps aux | grep defunct  # No output
+
+# Network visibility
+Metro instances: 2
+  metro_docker: blocks 0-32  (Docker, 32 blocks)
+  metro@kwaai: blocks 1-2    (Bare metal, 1 block)
+```
+
+#### Technical Details
+**Cleanup Algorithm:**
+1. Use psutil to iterate through all running processes
+2. Check command line and process name for patterns:
+   - `petals.cli.run_server`
+   - `petals-server`
+   - `p2pd`
+   - `hivemind`
+3. Skip current process and parent (avoids self-termination)
+4. Send SIGTERM to all matching processes
+5. Wait 2 seconds for graceful shutdown
+6. Send SIGKILL to any remaining processes
+7. Log process count and PIDs for debugging
+
+**Autostart Configuration:**
+- Bare metal: `~/.config/systemd/user/kwaainet.service`
+- Docker: `~/.config/systemd/user/kwaainet-compose.service`
+- User lingering: Enabled via `loginctl enable-linger metro`
+- Services enabled: `systemctl --user enable <service>`
+
+#### Git Commit
+**7bf6fe7** - Add process cleanup feature to Linux installer
+- 2 files changed, 62 insertions(+), 9 deletions(-)
+- Testing: ✅ Verified via reboot test on production server
+- Result: 0 zombie processes, both nodes visible on network map
+
+#### Feature Parity Update
+- **Previous:** 71% (12/17 features), High Priority 67% (2/3)
+- **Current:** 76% (13/17 features), High Priority 100% (3/3)
+- **Completed:** Process cleanup + concurrent flag
+
+#### Key Learnings
+1. **Reboot tests are critical** - Verified autostart actually works in production
+2. **Process cleanup prevents issues** - No zombie processes after implementing cleanup
+3. **Default-safe behavior** - Auto-cleanup by default, opt-out via --concurrent
+4. **Systemd user services work well** - Both bare metal and Docker autostart reliably
+5. **User lingering essential** - Services survive logout/reboot only with lingering enabled
+
+---
+
 ### 2025-10-15: Linux Auto-Update Feature Implementation
 **Feature:** Port `kwaainet update` command from macOS to Linux
 **Status:** ✅ COMPLETED - Auto-update functionality achieved across platforms

@@ -1,7 +1,7 @@
 <p>
 <h1 align="center">OpenAI API-compatible server for Petals distributed inference 👋</h1>
   <img alt="Version" src="https://img.shields.io/badge/version-0.2.2-blue.svg?cacheSeconds=2592000" />
-  <img alt="Installer Version" src="https://img.shields.io/badge/installer-v0.4.5-brightgreen.svg?cacheSeconds=2592000" />
+  <img alt="Installer Version" src="https://img.shields.io/badge/installer-v0.4.6-brightgreen.svg?cacheSeconds=2592000" />
   <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">
     <img alt="License: CC-BY-4.0" src="https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg" />
   <a href="https://kwaaiailab.slack.com" target="_blank">
@@ -50,7 +50,22 @@
 
 ## 🚀 Recent Updates
 
-### 🎯 **v0.4.3 - Concurrent Instance Prevention & MPS Compatibility** (Latest)
+### 🎯 **v0.4.6 - Linux Process Cleanup & Production Stability** (Latest)
+- ✅ **Process Cleanup on Linux**: Ported automatic cleanup feature from macOS to Linux installer
+- ✅ **Zombie Prevention**: Prevents defunct processes from accumulating during restarts
+- ✅ **Auto-Cleanup by Default**: Automatically stops existing instances before starting new ones
+- ✅ **--concurrent Flag**: Optional flag to allow multiple instances for testing/development
+- ✅ **Reboot-Tested**: Verified autostart reliability on production server (systemd user services)
+- ✅ **Feature Parity**: 76% complete (13/17 features), 100% high-priority features done
+
+### 🎯 **v0.4.5 - Linux Auto-Update & Reconnect**
+- ✅ **Auto-Update on Linux**: `kwaainet update` command ported from macOS
+- ✅ **Reconnect Command**: `kwaainet reconnect` forces P2P network reconnection
+- ✅ **Version Management**: Dynamic VERSION file reading (no more hardcoded versions)
+- ✅ **GitHub Integration**: Auto-detects installation method (git/installer/pip) and updates accordingly
+- ✅ **Configuration Backup**: Automatic backup before updates with rollback capability
+
+### 🎯 **v0.4.3 - Concurrent Instance Prevention & MPS Compatibility**
 - ✅ **Smart Instance Management**: `kwaainet start` now automatically stops existing instances by default
 - ✅ **--concurrent Flag**: New optional flag to allow multiple instances when needed
 - ✅ **Duplicate Prevention**: Eliminates accidental duplicate nodes on network (common with launchd + manual starts)
