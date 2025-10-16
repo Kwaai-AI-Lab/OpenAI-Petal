@@ -618,7 +618,10 @@ def main():
                     print("  ✅ Update completed successfully!")
                     print(f"  🎉 Now running v{latest_version}")
                     print()
-                    print("  💡 Restart the daemon with: kwaainet start --daemon")
+                    print("  💡 Start the daemon with one of:")
+                    print("     • kwaainet start --daemon  (manual start)")
+                    print("     • kwaainet restart          (if service-managed)")
+                    print("     • systemctl --user start kwaainet.service  (enable auto-start)")
                     print("─────────────────────────────────────────────────────────────────────")
                 else:
                     print()
