@@ -84,7 +84,7 @@ class KwaaiNetRunner:
             logger.warning("PyTorch not available, falling back to CPU")
             return "cpu"
     
-    def start(self, daemon_mode: bool = False):
+    def start(self, daemon_mode: bool = False, concurrent: bool = False):
         """Start KwaaiNet node"""
         # Prepare environment
         env = os.environ.copy()
@@ -176,7 +176,7 @@ class KwaaiNetRunner:
                 setup_signal_handlers(self.daemon)
             
             # Start the process using daemon manager
-            success = self.daemon.start_process(command, env, daemon_mode)
+            success = self.daemon.start_process(command, env, daemon_mode, concurrent=concurrent)
             
             if not success:
                 logger.error("Failed to start KwaaiNet node")
@@ -215,7 +215,7 @@ class KwaaiNetRunner:
                     logger.info(f"Running command (CPU fallback): {' '.join(command)}")
                     
                     # Start fallback process using daemon manager
-                    success = self.daemon.start_process(command, env, daemon_mode)
+                    success = self.daemon.start_process(command, env, daemon_mode, concurrent=concurrent)
                     
                     if not success:
                         logger.error("KwaaiNet node (CPU mode) failed to start")
@@ -390,7 +390,8 @@ For more information: https://github.com/Kwaai-AI-Lab/OpenAI-Petal"""
     start_parser.add_argument("--announce-addr", type=str, help="Custom announce address for P2P networking")
     start_parser.add_argument("--no-relay", action="store_true", help="Disable automatic relay")
     start_parser.add_argument("--daemon", action="store_true", help="🔧 Run in daemon mode (background process)")
-    
+    start_parser.add_argument("--concurrent", action="store_true", help="🔀 Allow concurrent instances (don't stop existing processes)")
+
     # Stop command
     subparsers.add_parser("stop", 
         help="🛑 Stop KwaaiNet daemon",
@@ -485,7 +486,8 @@ def main():
             
         # Start the node (with daemon mode if requested)
         daemon_mode = getattr(args, 'daemon', False)
-        if not runner.start(daemon_mode):
+        concurrent = getattr(args, 'concurrent', False)
+        if not runner.start(daemon_mode, concurrent):
             sys.exit(1)
             
     elif args.command == "stop":

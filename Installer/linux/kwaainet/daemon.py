@@ -110,7 +110,53 @@ class DaemonProcess:
 
         except Exception as e:
             logger.warning(f"Error during process cleanup: {e}")
-    
+
+    def _cleanup_all_kwaainet_processes(self):
+        """Clean up ALL kwaainet/petals processes before starting new instance"""
+        try:
+            import psutil
+            killed_pids = []
+            current_pid = os.getpid()
+
+            for proc in psutil.process_iter(['pid', 'cmdline', 'name']):
+                try:
+                    # Skip the current process and its parent
+                    if proc.info['pid'] == current_pid or proc.info['pid'] == os.getppid():
+                        continue
+
+                    cmdline = ' '.join(proc.info['cmdline'] or [])
+                    name = proc.info['name'] or ''
+
+                    # Look for any petals server processes or p2pd processes (hivemind DHT)
+                    if ('petals.cli.run_server' in cmdline.lower() or
+                        'petals-server' in name.lower() or
+                        'p2pd' in name.lower() or
+                        'hivemind' in cmdline.lower()):
+                        try:
+                            proc.terminate()
+                            killed_pids.append(proc.info['pid'])
+                            logger.debug(f"Terminated process {proc.info['pid']}: {name}")
+                        except (psutil.AccessDenied, psutil.NoSuchProcess):
+                            pass
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    pass
+
+            if killed_pids:
+                logger.info(f"Stopped {len(killed_pids)} existing process(es)")
+                # Wait for graceful termination
+                time.sleep(2)
+
+                # Force kill any that didn't terminate
+                for pid in killed_pids:
+                    try:
+                        if psutil.pid_exists(pid):
+                            os.kill(pid, signal.SIGKILL)
+                            logger.debug(f"Force killed remaining process {pid}")
+                    except (OSError, psutil.NoSuchProcess):
+                        pass
+        except Exception as e:
+            logger.warning(f"Error during process cleanup: {e}")
+
     def write_status(self, status: Dict[str, Any]):
         """Write daemon status to file"""
         try:
@@ -182,17 +228,22 @@ class DaemonProcess:
         logger.info(f"Daemon started with PID {pid}")
         return pid
     
-    def start_process(self, command: list, env: dict = None, daemon_mode: bool = True):
+    def start_process(self, command: list, env: dict = None, daemon_mode: bool = True, concurrent: bool = False):
         """Start the main process"""
+        # By default, stop any existing kwaainet/petals processes unless --concurrent is specified
+        if not concurrent:
+            logger.info("Stopping any existing KwaaiNet processes...")
+            self._cleanup_all_kwaainet_processes()
+
         if self.is_running():
             logger.error("Daemon is already running")
             return False
-        
+
         try:
             if daemon_mode:
                 # Fork into daemon mode
                 self.daemonize()
-            
+
             # Start the actual process
             logger.info(f"Starting process: {' '.join(command)}")
             self.process = subprocess.Popen(
