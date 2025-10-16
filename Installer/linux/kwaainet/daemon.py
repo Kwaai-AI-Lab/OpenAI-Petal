@@ -368,9 +368,14 @@ class DaemonProcess:
     def stop_process(self, timeout: int = 30) -> bool:
         """Stop the daemon process gracefully"""
         pid = self.get_pid()
+
+        # If no PID file, check if running via systemd service
         if not pid:
-            logger.info("No daemon process running")
-            return True
+            pid = self._find_service_process()
+            if not pid:
+                logger.info("No daemon process running")
+                return True
+            logger.debug(f"Found service-managed process: {pid}")
 
         try:
             logger.info(f"Stopping daemon process {pid}")
