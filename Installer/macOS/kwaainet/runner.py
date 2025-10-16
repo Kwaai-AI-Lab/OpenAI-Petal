@@ -366,21 +366,27 @@ def parse_args():
         description="KwaaiNet for macOS - Distributed AI node with daemon support",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""╭─────────────────────────────────────────────────────────────────────╮
-│                        🚀 Daemon Mode Examples                         │
+│                        🚀 Manual Daemon Mode                          │
 ╰─────────────────────────────────────────────────────────────────────╯
-
   kwaainet start --daemon                    # 🟢 Start in background
   kwaainet start --daemon --model "meta-llama/Llama-2-7b-hf" --blocks 4
   kwaainet stop                              # 🛑 Stop daemon
   kwaainet status                            # 📊 Check daemon status
   kwaainet logs --lines 100                  # 📜 View recent logs
   kwaainet restart                           # 🔄 Restart daemon
+
+╭─────────────────────────────────────────────────────────────────────╮
+│                    🔄 Service-Managed (Auto-Start)                   │
+╰─────────────────────────────────────────────────────────────────────╯
   kwaainet service install                   # 🚀 Enable auto-start on boot
+  kwaainet service uninstall                 # 🛑 Disable auto-start
+  launchctl load ~/Library/LaunchAgents/ai.kwaai.kwaainet.plist    # Start
+  launchctl unload ~/Library/LaunchAgents/ai.kwaai.kwaainet.plist  # Stop
+  kwaainet restart                           # 🔄 Restart (works for both modes)
 
 ╭─────────────────────────────────────────────────────────────────────╮
 │                   📈 P2P Monitoring & Reconnection                    │
 ╰─────────────────────────────────────────────────────────────────────╯
-
   kwaainet reconnect                         # 🔄 Force P2P network reconnect
   kwaainet monitor stats                     # 📊 View connection statistics
   kwaainet monitor alert --enable            # 🚨 Enable disconnect alerts
@@ -390,7 +396,6 @@ def parse_args():
 ╭─────────────────────────────────────────────────────────────────────╮
 │                          🔄 Auto-Update                              │
 ╰─────────────────────────────────────────────────────────────────────╯
-
   kwaainet update --check                    # 🔍 Check for available updates
   kwaainet update                            # 📦 Install latest version
   kwaainet update --force                    # 🔄 Force update check (bypass cache)

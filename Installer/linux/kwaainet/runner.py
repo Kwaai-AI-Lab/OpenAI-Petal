@@ -398,16 +398,33 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="KwaaiNet for Linux - Distributed AI node with daemon support",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""Daemon Mode Examples:
-  kwaainet start --daemon                    # Start in background
+        epilog="""╭─────────────────────────────────────────────────────────────────────╮
+│                        🚀 Manual Daemon Mode                          │
+╰─────────────────────────────────────────────────────────────────────╯
+  kwaainet start --daemon                    # 🟢 Start in background
   kwaainet start --daemon --model "meta-llama/Llama-2-7b-hf" --blocks 4
-  kwaainet stop                              # Stop daemon
-  kwaainet status                            # Check daemon status
-  kwaainet logs --lines 100                  # View recent logs
-  kwaainet restart                           # Restart daemon
-  kwaainet reconnect                         # Force P2P network reconnect
+  kwaainet stop                              # 🛑 Stop daemon
+  kwaainet status                            # 📊 Check daemon status
+  kwaainet logs --lines 100                  # 📜 View recent logs
+  kwaainet restart                           # 🔄 Restart daemon
 
-For more information: https://github.com/Kwaai-AI-Lab/OpenAI-Petal"""
+╭─────────────────────────────────────────────────────────────────────╮
+│                    🔄 Service-Managed (Auto-Start)                   │
+╰─────────────────────────────────────────────────────────────────────╯
+  systemctl --user enable kwaainet.service  # 🚀 Enable auto-start on boot
+  systemctl --user start kwaainet.service   # 🟢 Start service
+  systemctl --user stop kwaainet.service    # 🛑 Stop service
+  systemctl --user status kwaainet.service  # 📊 Check service status
+  kwaainet restart                           # 🔄 Restart (works for both modes)
+
+╭─────────────────────────────────────────────────────────────────────╮
+│                   📈 P2P Monitoring & Reconnection                    │
+╰─────────────────────────────────────────────────────────────────────╯
+  kwaainet reconnect                         # 🔄 Force P2P network reconnect
+
+╭─────────────────────────────────────────────────────────────────────╮
+│  📚 More info: https://github.com/Kwaai-AI-Lab/OpenAI-Petal          │
+╰─────────────────────────────────────────────────────────────────────╯"""
     )
     
     # Command subparsers
