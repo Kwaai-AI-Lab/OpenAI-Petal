@@ -12,6 +12,7 @@ from .config import KwaaiNetConfig
 from .installer import setup_linux
 from .daemon import DaemonProcess, setup_signal_handlers
 from .updater import UpdateChecker, Updater
+from .calibration import CalibrationEngine
 
 # Logging is configured in __init__.py to prevent duplicates
 
@@ -86,20 +87,56 @@ class KwaaiNetRunner:
     
     def start(self, daemon_mode: bool = False, concurrent: bool = False):
         """Start KwaaiNet node"""
+        # Auto-calibrate blocks if not explicitly set (still at default value of 1)
+        model_name = self.config.get('model')
+        blocks = self.config.get('blocks')
+
+        # Check if blocks is at default (1) and not explicitly set by user
+        # We consider it "not explicitly set" if it's 1 (the default)
+        if blocks == 1:
+            try:
+                logger.info("🔧 Auto-calibrating optimal block count...")
+                calibration_engine = CalibrationEngine()
+
+                # Get model info for total blocks
+                model_info = calibration_engine.get_model_info(model_name)
+                total_blocks = model_info['total_blocks']
+
+                # Perform quick calibration
+                profile = calibration_engine.calibrate_model(
+                    model_name=model_name,
+                    total_blocks=total_blocks,
+                    quick=True
+                )
+
+                # Use recommended block count
+                recommended_blocks = profile.get_recommended_blocks()
+                logger.info(f"✅ Auto-calibration complete: using {recommended_blocks} blocks (recommended)")
+                logger.info(f"   Hardware: {profile.hardware_info.gpu_type.upper()}, "
+                           f"{profile.hardware_info.available_memory // (1024**3):.1f}GB available")
+
+                # Update config with calibrated value
+                self.config.update(blocks=recommended_blocks)
+                blocks = recommended_blocks
+
+            except Exception as e:
+                logger.warning(f"Auto-calibration failed, using default (1 block): {e}")
+                # Continue with default blocks=1
+
         # Prepare environment
         env = os.environ.copy()
         config_env = self.config.as_env_dict()
         env.update(config_env)
-        
+
         # Fix PyTorch shared memory manager issue
         env["TMPDIR"] = "/tmp"
-        
+
         # Apply compatibility patches
         from .installer import patch_huggingface_hub, patch_torch_cuda, patch_torch_rocm, patch_hivemind_compatibility, patch_transformers_llama
         patch_huggingface_hub()
-        patch_hivemind_compatibility() 
+        patch_hivemind_compatibility()
         patch_transformers_llama()
-        
+
         # Apply GPU patches if needed
         if self.config.get("use_gpu", True):
             gpu_type = self.config.get("gpu_type", "auto")
@@ -107,10 +144,10 @@ class KwaaiNetRunner:
                 patch_torch_cuda()
             elif gpu_type == "rocm":
                 patch_torch_rocm()
-        
+
         # Determine device to use
         device = self._detect_best_device() if self.config.get("use_gpu", True) else "cpu"
-        
+
         # Log startup information
         logger.info(f"Starting KwaaiNet node with model: {self.config.get('model')}")
         logger.info(f"Sharing {self.config.get('blocks')} blocks")

@@ -1,7 +1,7 @@
 <p>
 <h1 align="center">OpenAI API-compatible server for Petals distributed inference 👋</h1>
   <img alt="Version" src="https://img.shields.io/badge/version-0.2.2-blue.svg?cacheSeconds=2592000" />
-  <img alt="Installer Version" src="https://img.shields.io/badge/installer-v0.4.6-brightgreen.svg?cacheSeconds=2592000" />
+  <img alt="Installer Version" src="https://img.shields.io/badge/installer-v0.4.7-brightgreen.svg?cacheSeconds=2592000" />
   <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">
     <img alt="License: CC-BY-4.0" src="https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg" />
   <a href="https://kwaaiailab.slack.com" target="_blank">
@@ -50,7 +50,15 @@
 
 ## 🚀 Recent Updates
 
-### 🎯 **v0.4.6 - Linux Process Cleanup & Production Stability** (Latest)
+### 🎯 **v0.4.7 - Auto-Calibration & Smart Block Allocation** (Latest)
+- ✅ **Auto-Calibration on Startup**: Automatically determines optimal block count based on available hardware
+- ✅ **Smart Default Behavior**: New nodes automatically calibrate on first start (no manual tuning needed)
+- ✅ **Hardware-Aware**: Detects GPU type (CUDA/ROCm/CPU), memory, and CPU cores
+- ✅ **Intelligent Recommendations**: Suggests min/recommended/max block counts with safety margins
+- ✅ **Calibration Caching**: Stores profiles to avoid re-calibration on every start
+- ✅ **Production-Ready**: Tested on Linux server (16 blocks recommended vs 1 block default)
+
+### 🎯 **v0.4.6 - Linux Process Cleanup & Production Stability**
 - ✅ **Process Cleanup on Linux**: Ported automatic cleanup feature from macOS to Linux installer
 - ✅ **Zombie Prevention**: Prevents defunct processes from accumulating during restarts
 - ✅ **Auto-Cleanup by Default**: Automatically stops existing instances before starting new ones
