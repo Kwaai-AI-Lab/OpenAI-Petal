@@ -23,6 +23,7 @@ Based on the comprehensive requirements document (DAEMON_REQUIREMENTS.md), here'
 - [ ] **Exponential backoff retry logic** - 1s → 30s smart retry
 - [ ] **Bootstrap peer rotation** - Multiple peer fallback
 - [ ] **Network change adaptation** - WiFi/Ethernet/VPN switching
+- [ ] **Robust API health check and restart** - Monitor api.kwaai.ai health, auto-restart on 520/timeout errors
 
 ### **Phase 4: Power Management (Week 6)**
 - [ ] **Sleep/wake event handlers** - Platform-specific power events
