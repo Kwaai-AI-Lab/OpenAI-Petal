@@ -1,7 +1,7 @@
 <p>
 <h1 align="center">OpenAI API-compatible server for Petals distributed inference 👋</h1>
   <img alt="Version" src="https://img.shields.io/badge/version-0.2.2-blue.svg?cacheSeconds=2592000" />
-  <img alt="Installer Version" src="https://img.shields.io/badge/installer-v0.4.7-brightgreen.svg?cacheSeconds=2592000" />
+  <img alt="Installer Version" src="https://img.shields.io/badge/installer-v0.4.8-brightgreen.svg?cacheSeconds=2592000" />
   <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">
     <img alt="License: CC-BY-4.0" src="https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg" />
   <a href="https://kwaaiailab.slack.com" target="_blank">

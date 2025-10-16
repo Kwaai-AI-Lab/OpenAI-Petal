@@ -60,7 +60,11 @@
       "Bash(journalctl:*)",
       "Bash(pstree:*)",
       "Bash(ps:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(ping:*)",
+      "Bash(nc:*)",
+      "Bash(ssh -o ConnectTimeout=10 ec2-user@18.119.11.49 \"whoami && hostname\")",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": []
