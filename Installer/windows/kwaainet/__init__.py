@@ -1,75 +1,33 @@
-## 3. kwaainet/__init__.py
-
 """
 KwaaiNet for Windows
-====================
-
-A package to run KwaaiNet node on Windows systems, providing GPU acceleration through CUDA.
-
-This package is designed to be an alternative to the Docker-based deployment
-for Windows users who want native performance and easier setup.
+Distributed AI inference node with OpenAI-compatible API
 """
 
-import logging
-import platform
+import os
 import sys
 
-# Set up package logger
-logger = logging.getLogger(__name__)
-handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+# Add project root to path for common module access
+_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
-# Check if running on Windows
-if platform.system() != "Windows":
-    logger.warning("This package is designed for Windows systems only.")
+# Read version from VERSION file
+def _get_version():
+    version_file = os.path.join(_project_root, 'VERSION')
+    try:
+        with open(version_file, 'r') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return "0.4.8-dev"
 
-# Check Python version
-if sys.version_info < (3, 8):
-    logger.warning("Python 3.8 or newer is recommended for this package.")
-
-# Import core components
-from .config import KwaaiNetConfig
-from .runner import KwaaiNetRunner
-from .installer import setup_linux
-
-__version__ = "0.2.2"
+__version__ = _get_version()
 __author__ = "Kwaai Labs"
-__email__ = "contact@kwaai.ai"
+__license__ = "MIT"
 
-def start_node(**kwargs):
-    """Start KwaaiNet node with given parameters"""
-    runner = KwaaiNetRunner()
-    
-    # Update configuration if parameters provided
-    if kwargs:
-        runner.config.update(**kwargs)
-    
-    # Start the node
-    return runner.start()
-
-def stop_node():
-    """Stop KwaaiNet node"""
-    runner = KwaaiNetRunner()
-    return runner.stop()
-
-def setup():
-    """Set up KwaaiNet on Windows"""
-    return setup_linux()
-
-def get_config():
-    """Get current configuration"""
-    config = KwaaiNetConfig()
-    return config.as_dict()
-
-__all__ = [
-    'KwaaiNetConfig', 
-    'KwaaiNetRunner', 
-    'setup_linux',
-    'start_node',
-    'stop_node',
-    'setup',
-    'get_config'
-]
+# Configure logging
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
