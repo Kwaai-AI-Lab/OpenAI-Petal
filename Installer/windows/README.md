@@ -1,8 +1,14 @@
 # KwaaiNet for Windows
 
-**Status**: ✅ **REBUILT FROM SCRATCH** (v0.4.8+)
+**Status**: 🚧 **WSL2 DEPLOYMENT REQUIRED** (v0.4.8+)
 
-Clean, maintainable Windows installer built on proven Linux/macOS patterns with maximum code reuse.
+## ⚠️ Important: Native Windows Limitation
+
+**Petals (KwaaiNet's core dependency) does not support native Windows** due to `uvloop` requiring Unix-only APIs.
+
+**Solution**: Use **WSL2 (Windows Subsystem for Linux 2)** with NSSM for auto-start before user login.
+
+👉 **See [WSL2-DEPLOYMENT.md](./WSL2-DEPLOYMENT.md) for complete installation guide**
 
 ---
 
@@ -15,15 +21,25 @@ Clean, maintainable Windows installer built on proven Linux/macOS patterns with 
 3. **Platform-Specific Only**: Windows code only contains Windows-specific logic
 4. **Proven Patterns**: Based on working Linux/macOS implementations
 
+### Why WSL2?
+
+The Windows code was built following clean architecture principles, but **native Windows execution is blocked** by platform dependencies:
+
+- **uvloop** (required by hivemind → Petals) does not support Windows
+- **Solution**: WSL2 provides full Linux compatibility with GPU support
+- **Benefit**: Uses the proven, tested Linux installer (zero code duplication)
+- **Auto-Start**: NSSM Windows service launches WSL2 before user login
+
 ### Code Statistics
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `__init__.py` | 33 | Package initialization, version management |
-| `config.py` | 147 | Configuration management (uses `kwaainet.common.get_public_ip`) |
-| `daemon.py` | 318 | Windows process management (uses `kwaainet.common.daemon_utils`) |
-| `runner.py` | 550 | CLI interface (imports `updater` and `calibration` from Linux) |
-| **Total** | **1,048** | **vs 64,658 in previous bloated version** |
+| File | Lines | Purpose | Platform |
+|------|-------|---------|----------|
+| `__init__.py` | 33 | Package initialization, version management | Native Windows (unused) |
+| `config.py` | 147 | Configuration management | Native Windows (unused) |
+| `daemon.py` | 318 | Windows process management | Native Windows (unused) |
+| `runner.py` | 550 | CLI interface | Native Windows (unused) |
+| **Total** | **1,048** | **Clean Windows implementation (blocked by deps)** | |
+| **Linux installer** | **~1,500** | **Actual deployment via WSL2** | WSL2 |
 
 ---
 
@@ -90,72 +106,91 @@ from kwaainet.calibration import CalibrationEngine        # Block calibration
 
 ## 📋 Installation
 
-### Manual Installation (Current)
+### ⚠️ WSL2 Deployment Only
+
+**Native Windows installation is not supported** due to platform limitations.
+
+**👉 Follow the complete guide**: [WSL2-DEPLOYMENT.md](./WSL2-DEPLOYMENT.md)
+
+### Quick Start (WSL2)
 
 ```powershell
-# Clone repository
-git clone https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git
-cd OpenAI-Petal\Installer\windows
+# 1. Enable WSL2 (as Administrator)
+wsl --install
 
-# Install package
-pip install -e .
+# 2. Restart computer, then install Ubuntu 22.04
+wsl --install -d Ubuntu-22.04
+
+# 3. In WSL2 Ubuntu terminal:
+curl -fsSL https://install.kwaai.ai/linux | bash
+
+# 4. Install NSSM for auto-start (on Windows)
+# Download from https://nssm.cc/download
+# Follow WSL2-DEPLOYMENT.md for service setup
 ```
 
-### Future: One-Line Installation
+### Future: Automated One-Line Installer
 
 ```powershell
-# Will be implemented in windowsinstaller.py
-iwr -useb https://install.kwaai.ai/windows | python -
+# Will be implemented: WSL2 + NSSM + Linux installer in one command
+iwr -useb https://install.kwaai.ai/windows | powershell -
 ```
 
 ---
 
 ## 🎮 Usage
 
-### Basic Commands
+### Windows Service Management (NSSM)
 
 ```powershell
-# Start daemon
-kwaainet start --daemon
+# Start/stop/restart KwaaiNet service
+nssm start KwaaiNet
+nssm stop KwaaiNet
+nssm restart KwaaiNet
 
-# Check status
-kwaainet status
-
-# View logs
-kwaainet logs --lines 100
-
-# Stop daemon
-kwaainet stop
-
-# Restart daemon
-kwaainet restart
+# Check service status
+sc query KwaaiNet
 ```
 
-### Advanced Features
+### KwaaiNet Commands (via WSL2)
 
-```powershell
-# Auto-calibrate optimal blocks
-kwaainet calibrate --apply recommended
+```bash
+# In WSL2 terminal:
+kwaainet start --daemon
+kwaainet status
+kwaainet logs --lines 100
+kwaainet stop
+kwaainet restart
 
-# Check for updates
-kwaainet update --check
+# Or from Windows PowerShell:
+wsl -- kwaainet status
+wsl -- kwaainet logs --lines 50
+```
 
-# Force P2P reconnection
-kwaainet reconnect
+### Advanced Features (WSL2)
+
+```bash
+# In WSL2 terminal or via wsl --
+wsl -- kwaainet calibrate --apply recommended
+wsl -- kwaainet update --check
+wsl -- kwaainet reconnect
 
 # Allow multiple instances (testing)
-kwaainet start --daemon --concurrent
+wsl -- kwaainet start --daemon --concurrent
 ```
 
-### Configuration
+### Configuration (WSL2)
 
-```powershell
+```bash
 # View configuration
-kwaainet config --view
+wsl -- kwaainet config --view
 
 # Set configuration value
-kwaainet config --set blocks 8
-kwaainet config --set model "meta-llama/Llama-3-8B"
+wsl -- kwaainet config --set blocks 8
+wsl -- kwaainet config --set model "meta-llama/Llama-3-8B"
+
+# Or edit directly in WSL2:
+wsl -- nano ~/.kwaainet/config.yaml
 ```
 
 ---
@@ -204,49 +239,76 @@ flake8 kwaainet/
 
 ## 🐛 Troubleshooting
 
+See [WSL2-DEPLOYMENT.md](./WSL2-DEPLOYMENT.md#-troubleshooting) for comprehensive troubleshooting guide.
+
 ### Common Issues
 
-**"Command not found: kwaainet"**
-- Ensure `pip install -e .` completed successfully
-- Check that Python Scripts directory is in PATH
+**WSL2 not starting**
+```powershell
+# Enable WSL features
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all
+# Restart Windows
+```
 
-**"Another instance is starting or running"**
-- Process lock prevents race conditions
-- Use `kwaainet stop` to stop existing instance
-- Or use `--concurrent` flag to allow multiple instances
+**GPU not detected in WSL2**
+```powershell
+# Update NVIDIA driver (Windows): 515.76+
+# Verify in WSL2:
+wsl -- nvidia-smi
+```
 
-**"Failed to start process"**
-- Check logs: `kwaainet logs`
-- Verify PyTorch is installed: `python -c "import torch; print(torch.__version__)"`
-- Verify Petals is installed: `python -c "import petals; print(petals.__version__)"`
+**NSSM service fails to start**
+```powershell
+# Check Event Viewer: Applications → NSSM
+# Test script manually:
+C:\KwaaiNet\start-kwaainet.bat
+```
 
-### Debugging
+**KwaaiNet daemon not starting**
+```bash
+# In WSL2, check logs:
+wsl -- cat ~/.kwaainet/logs/daemon.log
+
+# Verify dependencies:
+wsl -- python3 -c "import petals; import torch; print('OK')"
+```
+
+### Debugging (WSL2)
 
 Enable debug logging:
-```powershell
-set KWAAINET_LOG_LEVEL=DEBUG
-kwaainet start --daemon
+```bash
+wsl -- bash -c "export KWAAINET_LOG_LEVEL=DEBUG && kwaainet start --daemon"
 ```
 
 View detailed logs:
-```powershell
-kwaainet logs --follow
+```bash
+wsl -- kwaainet logs --follow
 ```
 
 ---
 
-## 🔄 Comparison: Old vs New
+## 🔄 Comparison: Native Windows vs WSL2
 
-| Aspect | Old (Bloated) | New (Clean) |
-|--------|---------------|-------------|
-| Total lines | 64,658 | 1,048 (98% reduction) |
-| runner.py | 18,170 lines | 550 lines |
-| daemon.py | 14,028 lines | 318 lines |
-| config.py | 6,119 lines | 147 lines |
-| Code duplication | High | Zero (imports shared modules) |
-| Maintainability | Poor | Excellent |
-| Bug fix propagation | Manual per platform | Automatic (shared code) |
-| Windows-specific code | Mixed with cross-platform | Clean separation |
+| Aspect | Native Windows (Attempted) | WSL2 (Actual) |
+|--------|---------------------------|---------------|
+| **Compatibility** | ❌ Blocked by uvloop | ✅ Full Linux compatibility |
+| **Code Reuse** | ✅ 1,048 lines (clean) | ✅ Uses Linux installer |
+| **GPU Support** | ❌ N/A | ✅ Native CUDA via Windows driver |
+| **Auto-Start** | ❌ N/A | ✅ NSSM + WSL2 service |
+| **Performance** | ❌ N/A | ✅ 95-98% of native Linux |
+| **Maintenance** | ❌ N/A | ✅ Bug fixes in one place |
+| **Installation** | ❌ Can't install Petals | ✅ Proven Linux installer |
+| **Testing Status** | ⚠️ Untested (can't run) | ✅ Linux installer tested |
+
+### Architecture Achievement
+
+Despite native Windows execution being blocked, the clean architecture principles were successfully implemented:
+
+- **98% code reduction**: 64,658 lines → 1,048 lines
+- **Zero duplication**: Imports from `kwaainet/common` and Linux installer
+- **Clean separation**: Platform-specific code isolated
+- **Future-proof**: If uvloop adds Windows support, code is ready
 
 ---
 
@@ -262,23 +324,34 @@ kwaainet logs --follow
 
 ## 🎯 Next Steps
 
-1. **Create `windowsinstaller.py`** - One-line installation script
-2. **Windows Service Integration** - NSSM-based auto-start
-3. **Testing** - Comprehensive tests on Windows 10/11
+### Immediate (WSL2 Path)
+
+1. **Automated WSL2 Installer** - One-command setup of WSL2 + NSSM + Linux installer
+2. **Testing** - Verify auto-start on Windows 10/11 with reboot test
+3. **GUI Tool** (Optional) - Windows native app for monitoring/configuration
+4. **System Tray Integration** (Optional) - Monitor status from Windows taskbar
+
+### Future (If Native Support Becomes Available)
+
+1. **Monitor uvloop Windows support** - Track https://github.com/MagicStack/uvloop/issues/14
+2. **Alternative event loop** - Investigate asyncio-compatible Windows event loops
+3. **Native Windows testing** - Use prepared clean architecture code
 4. **MSI Installer** (Optional) - Professional Windows installer package
-5. **Code Signing** (Optional) - Remove SmartScreen warnings
 
 ---
 
 ## 📝 Development Log
 
 ### v0.4.8 (2025-10-17)
-- ✅ Complete rebuild from scratch
+- ✅ Complete rebuild from scratch following clean architecture
 - ✅ Leverages `kwaainet/common` module (v0.4.8)
 - ✅ Imports shared `updater` and `calibration` modules
 - ✅ Windows-specific process management (DETACHED_PROCESS)
-- ✅ Full feature parity with Linux/macOS
 - ✅ Clean, maintainable codebase (1,048 lines vs 64,658)
+- ❌ Native execution blocked by uvloop platform limitation
+- ✅ Documented WSL2 + NSSM deployment strategy
+- 📝 Created comprehensive WSL2-DEPLOYMENT.md guide
+- ⏸️ Auto-start testing pending (requires WSL2 + NSSM setup)
 
 ---
 
