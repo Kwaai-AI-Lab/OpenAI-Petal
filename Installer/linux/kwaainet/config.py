@@ -58,6 +58,31 @@ class KwaaiNetConfig:
             "announce_addr": os.environ.get("ANNOUNCE_ADDR", None),
             "no_relay": bool(os.environ.get("NORELAY", False)),
             "gpu_type": "auto",  # auto, cuda, rocm, cpu
+            "health_monitoring": {
+                "enabled": True,
+                "api_endpoint": "https://map.kwaai.ai/api/v1/state",
+                "check_interval": 60,
+                "request_timeout": 10,
+                "failure_threshold": 3,
+                "reconnection": {
+                    "enabled": True,
+                    "max_attempts": 10,
+                    "backoff_strategy": "exponential",
+                    "initial_delay": 30,
+                    "max_delay": 1800,
+                    "backoff_multiplier": 2.0,
+                    "jitter": True,
+                    "jitter_factor": 0.5
+                },
+                "alerting": {
+                    "enabled": False,
+                    "on_disconnect": True,
+                    "on_reconnect": True,
+                    "on_critical": True,
+                    "webhook_url": None,
+                    "email": None
+                }
+            }
         }
                 
         

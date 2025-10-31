@@ -36,9 +36,9 @@ class KwaaiNetRunner:
         self.log_dir = os.path.join(self.home_dir, ".kwaainet/logs")
         os.makedirs(self.data_dir, exist_ok=True)
         os.makedirs(self.log_dir, exist_ok=True)
-        
-        # Initialize daemon process manager
-        self.daemon = DaemonProcess("kwaainet")
+
+        # Initialize daemon process manager with config
+        self.daemon = DaemonProcess("kwaainet", config=self.config.as_dict())
         
     def check_system(self):
         """Check if system meets requirements"""
@@ -449,12 +449,25 @@ def parse_args():
     logs_parser.add_argument("--follow", "-f", action="store_true", help="Follow log output in real-time")
     
     # Config command
-    config_parser = subparsers.add_parser("config", 
+    config_parser = subparsers.add_parser("config",
         help="⚙️  View or modify configuration",
         description="Manage KwaaiNet configuration settings")
     config_parser.add_argument("--view", action="store_true", help="View current configuration")
     config_parser.add_argument("--set", nargs=2, metavar=("KEY", "VALUE"), help="Set configuration value")
-    
+
+    # Health monitoring commands
+    subparsers.add_parser("health-status",
+        help="📊 View health monitoring status",
+        description="Display health monitoring status and metrics")
+
+    subparsers.add_parser("health-enable",
+        help="✅ Enable health monitoring",
+        description="Enable automatic health monitoring and reconnection")
+
+    subparsers.add_parser("health-disable",
+        help="❌ Disable health monitoring",
+        description="Disable automatic health monitoring")
+
     # Service command
     service_parser = subparsers.add_parser("service",
         help="🔧 Manage auto-start service",
@@ -585,6 +598,37 @@ def main():
             print(f"  💾 Memory: {status.get('memory_percent', 0):.1f}% ({status.get('memory_mb', 0):.1f} MB)")
             print(f"  🔗 Connections: {status.get('connections', 0)}")
             print(f"  🧵 Threads: {status.get('threads', 0)}")
+
+            # Show health monitoring status if available
+            health_status = status.get("health_monitoring")
+            if health_status and health_status.get('enabled'):
+                print()
+                print(f"  📊 Health Monitoring:")
+                if health_status.get('is_running'):
+                    last_check = health_status.get('last_check', {})
+                    if last_check.get('status'):
+                        status_icon = {
+                            'healthy': '🟢',
+                            'degraded': '🟡',
+                            'unhealthy': '🔴',
+                            'critical': '🔴'
+                        }.get(last_check['status'], '⚪')
+                        print(f"     Status: {status_icon} {last_check['status']}")
+
+                    metrics = health_status.get('metrics', {})
+                    total_checks = metrics.get('checks_total', 0)
+                    if total_checks > 0:
+                        healthy_pct = (metrics.get('checks_healthy', 0) / total_checks) * 100
+                        print(f"     Health: {healthy_pct:.1f}% ({metrics.get('checks_healthy', 0)}/{total_checks} checks)")
+
+                    reconnection = health_status.get('reconnection', {})
+                    if reconnection.get('reconnection_attempts', 0) > 0:
+                        print(f"     Reconnections: {reconnection.get('reconnection_attempts', 0)} attempts")
+                else:
+                    print(f"     Status: ⚪ Not running")
+            elif health_status and not health_status.get('enabled'):
+                print()
+                print(f"  📊 Health Monitoring: Disabled")
         else:
             print(f"  🔴 Status: Not running")
             if status.get("error"):
@@ -692,7 +736,65 @@ def main():
         else:
             logger.error("No action specified for config command")
             sys.exit(1)
-            
+
+    elif args.command == "health-status":
+        status = runner.daemon.get_status()
+        health_status = status.get("health_monitoring")
+
+        if health_status:
+            print("\n📊 Health Monitoring Status")
+            print("=" * 60)
+            print(f"Enabled: {health_status['enabled']}")
+            print(f"Running: {health_status['is_running']}")
+            print(f"Check interval: {health_status['check_interval']}s")
+            print(f"Failure threshold: {health_status['failure_threshold']}")
+
+            if health_status.get('last_check'):
+                print(f"\nLast Check: {health_status['last_check']['time']}")
+                print(f"Status: {health_status['last_check']['status']}")
+
+            metrics = health_status.get('metrics', {})
+            if metrics:
+                print(f"\nMetrics:")
+                print(f"  Total checks: {metrics.get('checks_total', 0)}")
+                print(f"  Healthy: {metrics.get('checks_healthy', 0)}")
+                print(f"  Degraded: {metrics.get('checks_degraded', 0)}")
+                print(f"  Unhealthy: {metrics.get('checks_unhealthy', 0)}")
+                print(f"  Critical: {metrics.get('checks_critical', 0)}")
+                print(f"  Reconnections triggered: {metrics.get('reconnections_triggered', 0)}")
+                print(f"  Reconnections successful: {metrics.get('reconnections_successful', 0)}")
+
+            reconnection = health_status.get('reconnection', {})
+            if reconnection:
+                print(f"\nReconnection:")
+                print(f"  Enabled: {reconnection.get('enabled')}")
+                print(f"  Consecutive failures: {reconnection.get('consecutive_failures', 0)}")
+                print(f"  Reconnection attempts: {reconnection.get('reconnection_attempts', 0)}/{reconnection.get('max_attempts', 0)}")
+        else:
+            print("Health monitoring is not initialized or not available")
+
+    elif args.command == "health-enable":
+        # Update config to enable health monitoring
+        config = runner.config.as_dict()
+        if "health_monitoring" not in config:
+            config["health_monitoring"] = {}
+        config["health_monitoring"]["enabled"] = True
+        runner.config.config = config
+        runner.config.save()
+        print("✅ Health monitoring enabled. Restart the node for changes to take effect:")
+        print("   kwaainet restart")
+
+    elif args.command == "health-disable":
+        # Update config to disable health monitoring
+        config = runner.config.as_dict()
+        if "health_monitoring" not in config:
+            config["health_monitoring"] = {}
+        config["health_monitoring"]["enabled"] = False
+        runner.config.config = config
+        runner.config.save()
+        print("❌ Health monitoring disabled. Restart the node for changes to take effect:")
+        print("   kwaainet restart")
+
     elif args.command == "service":
         service_manager = get_service_manager()
         

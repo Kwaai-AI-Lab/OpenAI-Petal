@@ -19,8 +19,8 @@ _monitoring_thread = None
 
 class DaemonProcess:
     """Manages daemon process lifecycle and PID management"""
-    
-    def __init__(self, name: str = "kwaainet", pid_dir: str = None):
+
+    def __init__(self, name: str = "kwaainet", pid_dir: str = None, config: Optional[Dict[str, Any]] = None):
         self.name = name
         self.pid_dir = pid_dir or os.path.expanduser("~/.kwaainet/run")
         self.pid_file = os.path.join(self.pid_dir, f"{name}.pid")
@@ -35,6 +35,13 @@ class DaemonProcess:
         self.should_stop = threading.Event()
         self.monitor_thread: Optional[threading.Thread] = None
         self.lock_fd: Optional[int] = None
+
+        # Health monitoring
+        self.health_monitor = None
+        self.config = config or {}
+        self._last_command = None
+        self._last_env = None
+        # Note: health_monitor is initialized in start_process() after forking
         
     def get_pid(self) -> Optional[int]:
         """Get PID from PID file if it exists and process is running"""
@@ -173,45 +180,58 @@ class DaemonProcess:
             import psutil
             killed_pids = []
             current_pid = os.getpid()
+            parent_pid = os.getppid()
+
+            logger.info(f"Starting process cleanup (current PID: {current_pid}, parent PID: {parent_pid})")
 
             for proc in psutil.process_iter(['pid', 'cmdline', 'name']):
                 try:
                     # Skip the current process and its parent
-                    if proc.info['pid'] == current_pid or proc.info['pid'] == os.getppid():
+                    if proc.info['pid'] == current_pid or proc.info['pid'] == parent_pid:
                         continue
 
                     cmdline = ' '.join(proc.info['cmdline'] or [])
                     name = proc.info['name'] or ''
 
                     # Look for any petals server processes or p2pd processes (hivemind DHT)
-                    if ('petals.cli.run_server' in cmdline.lower() or
+                    if ('petals.cli.run_server' in cmdline or
                         'petals-server' in name.lower() or
                         'p2pd' in name.lower() or
-                        'hivemind' in cmdline.lower()):
+                        'hivemind' in cmdline):
+                        logger.info(f"Found existing process to kill: PID={proc.info['pid']}, name={name}, cmdline={cmdline[:100]}")
                         try:
                             proc.terminate()
                             killed_pids.append(proc.info['pid'])
-                            logger.debug(f"Terminated process {proc.info['pid']}: {name}")
-                        except (psutil.AccessDenied, psutil.NoSuchProcess):
-                            pass
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                            logger.info(f"Terminated process {proc.info['pid']}")
+                        except (psutil.AccessDenied, psutil.NoSuchProcess) as e:
+                            logger.warning(f"Could not terminate PID {proc.info['pid']}: {e}")
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as e:
                     pass
 
             if killed_pids:
-                logger.info(f"Stopped {len(killed_pids)} existing process(es)")
+                logger.info(f"Stopped {len(killed_pids)} existing process(es), waiting 2s for graceful shutdown")
                 # Wait for graceful termination
                 time.sleep(2)
 
                 # Force kill any that didn't terminate
+                remaining = []
                 for pid in killed_pids:
                     try:
                         if psutil.pid_exists(pid):
                             os.kill(pid, signal.SIGKILL)
-                            logger.debug(f"Force killed remaining process {pid}")
+                            remaining.append(pid)
+                            logger.warning(f"Force killed remaining process {pid}")
                     except (OSError, psutil.NoSuchProcess):
                         pass
+
+                if remaining:
+                    logger.warning(f"Had to force kill {len(remaining)} process(es)")
+                else:
+                    logger.info("All processes terminated gracefully")
+            else:
+                logger.info("No existing kwaainet processes found to clean up")
         except Exception as e:
-            logger.warning(f"Error during process cleanup: {e}")
+            logger.error(f"Error during process cleanup: {e}", exc_info=True)
 
     def write_status(self, status: Dict[str, Any]):
         """Write daemon status to file"""
@@ -305,6 +325,10 @@ class DaemonProcess:
         """Start the main process"""
         global _monitoring_thread
 
+        # Save command and env for potential reconnection
+        self._last_command = command
+        self._last_env = env
+
         # Acquire lock to prevent race conditions during startup
         if not self.acquire_lock():
             logger.error("Could not acquire startup lock - another instance may be starting")
@@ -327,6 +351,7 @@ class DaemonProcess:
 
             # Start the actual process
             logger.info(f"Starting process: {' '.join(command)}")
+            logger.info(f"About to call subprocess.Popen (current PID: {os.getpid()})")
 
             # Setup log files for subprocess output
             log_dir = os.path.expanduser("~/.kwaainet/logs")
@@ -342,9 +367,12 @@ class DaemonProcess:
                 preexec_fn=os.setsid  # Create new process group
             )
 
+            logger.info(f"subprocess.Popen returned PID: {self.process.pid}")
+
             # Write the subprocess PID to the PID file (not the daemon PID)
             if daemon_mode:
                 self.write_pid(self.process.pid)
+                logger.info(f"Wrote PID {self.process.pid} to PID file")
 
             # Write initial status
             self.write_status({
@@ -365,13 +393,54 @@ class DaemonProcess:
                 _monitoring_thread.start()
                 logger.debug("Connection monitoring started")
 
+            # Initialize and start health monitoring if enabled (after fork to ensure it runs in daemon process)
+            debug_log = os.path.expanduser("~/.kwaainet/logs/health_debug.log")
+            with open(debug_log, "a") as f:
+                f.write(f"[{time.time()}] Checking health monitoring: daemon_mode={daemon_mode}, config={self.config.get('health_monitoring', {})}\n")
+
+            if daemon_mode and self.config.get("health_monitoring", {}).get("enabled", False):
+                try:
+                    with open(debug_log, "a") as f:
+                        f.write(f"[{time.time()}] Attempting to import HealthMonitorService\n")
+                    from kwaainet.common.health_monitor import HealthMonitorService
+                    with open(debug_log, "a") as f:
+                        f.write(f"[{time.time()}] Import successful, creating instance\n")
+                    self.health_monitor = HealthMonitorService(
+                        config=self.config,
+                        reconnect_callback=self._handle_reconnection
+                    )
+                    with open(debug_log, "a") as f:
+                        f.write(f"[{time.time()}] Instance created, starting service\n")
+                    logger.info("Health monitoring initialized in daemon process")
+                    self.health_monitor.start()
+                    with open(debug_log, "a") as f:
+                        f.write(f"[{time.time()}] Health monitoring service started successfully\n")
+                    logger.info("Health monitoring service started")
+                except ImportError as e:
+                    with open(debug_log, "a") as f:
+                        f.write(f"[{time.time()}] ImportError: {e}\n")
+                    logger.warning(f"Health monitoring not available: {e}")
+                except Exception as e:
+                    with open(debug_log, "a") as f:
+                        f.write(f"[{time.time()}] Exception: {e}\n")
+                        import traceback
+                        f.write(traceback.format_exc())
+                    logger.error(f"Failed to initialize/start health monitor: {e}", exc_info=True)
+
             # Wait for process if not in daemon mode
             if not daemon_mode:
                 return_code = self.process.wait()
                 return return_code == 0
             else:
-                # In daemon mode, the monitoring thread handles process supervision
-                # The main daemon thread should stay alive or return success immediately
+                # In daemon mode, keep the daemon alive to monitor the subprocess
+                while not self.should_stop.is_set() and self.process and self.process.poll() is None:
+                    time.sleep(1)
+
+                # If we get here, the process has ended
+                if self.process:
+                    return_code = self.process.returncode
+                    logger.info(f"Process ended with return code {return_code}")
+                    return return_code == 0
                 return True
 
         except Exception as e:
@@ -417,6 +486,11 @@ class DaemonProcess:
                             "uptime": time.time() - proc.create_time(),
                             "last_updated": time.time()
                         })
+
+                        # Add health monitoring status if available
+                        if self.health_monitor:
+                            existing_status["health_monitoring"] = self.health_monitor.get_status()
+
                         self.write_status(existing_status)
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         pass
@@ -430,6 +504,11 @@ class DaemonProcess:
     
     def stop_process(self, timeout: int = 30) -> bool:
         """Stop the daemon process gracefully"""
+        # Stop health monitoring first
+        if self.health_monitor:
+            logger.info("Stopping health monitoring service")
+            self.health_monitor.stop()
+
         pid = self.get_pid()
 
         # If no PID file, check if running via launchd service
@@ -501,11 +580,75 @@ class DaemonProcess:
         logger.info("Restarting daemon")
         if not self.stop_process():
             return False
-        
+
         # Wait a moment before starting
         time.sleep(2)
         return self.start_process(command, env)
-    
+
+    def _handle_reconnection(self) -> bool:
+        """
+        Handle reconnection triggered by health monitor
+
+        Returns:
+            True if reconnection successful, False otherwise
+        """
+        logger.warning("Health monitor triggered reconnection")
+
+        # Check if we have saved command/env
+        if not self._last_command:
+            logger.error("No saved command for reconnection, trying to read from status")
+            status = self.read_status()
+            if status and "command" in status:
+                self._last_command = status["command"]
+            else:
+                logger.error("Cannot reconnect: no command available")
+                return False
+
+        # Check if launchd-managed
+        pid = self.get_pid()
+        if not pid:
+            pid = self._find_service_process()
+            if pid:
+                logger.info("Reconnecting via launchd service restart")
+                return self._restart_via_launchd()
+
+        # Fallback to daemon restart
+        logger.info("Reconnecting via daemon restart")
+        return self.restart_process(self._last_command, self._last_env)
+
+    def _restart_via_launchd(self) -> bool:
+        """Restart via launchd service"""
+        try:
+            # Unload and reload the service
+            result = subprocess.run(
+                ["launchctl", "bootout", f"gui/{os.getuid()}",
+                 os.path.expanduser("~/Library/LaunchAgents/ai.kwaai.kwaainet.plist")],
+                capture_output=True,
+                timeout=10
+            )
+
+            time.sleep(2)
+
+            result = subprocess.run(
+                ["launchctl", "bootstrap", f"gui/{os.getuid()}",
+                 os.path.expanduser("~/Library/LaunchAgents/ai.kwaai.kwaainet.plist")],
+                capture_output=True,
+                timeout=10
+            )
+
+            if result.returncode == 0:
+                logger.info("Launchd service restart successful")
+                return True
+            else:
+                logger.error(f"Launchd restart failed: {result.stderr.decode()}")
+                return False
+        except subprocess.TimeoutExpired:
+            logger.error("Launchd restart timed out")
+            return False
+        except Exception as e:
+            logger.error(f"Launchd restart error: {e}")
+            return False
+
     def get_status(self) -> Dict[str, Any]:
         """Get comprehensive daemon status"""
         pid = self.get_pid()
@@ -556,6 +699,10 @@ class DaemonProcess:
                 status.update({
                     "running": False
                 })
+
+        # Add health monitoring status if available
+        if self.health_monitor:
+            status["health_monitoring"] = self.health_monitor.get_status()
 
         return status
 

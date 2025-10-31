@@ -46,7 +46,7 @@ class KwaaiNetConfig:
             "model": os.environ.get("KWAAINET_MODEL", "unsloth/Llama-3.1-8B-Instruct"),
             "blocks": int(os.environ.get("KWAAINET_BLOCKS", "1")),
             "initial_peers": os.environ.get(
-                "INITIAL_PEERS", 
+                "INITIAL_PEERS",
                 "/dns/bootstrap-1.kwaai.ai/tcp/8000/p2p/QmQhRuheeCLEsVD3RsnknM75gPDDqxAb8DhnWgro7KhaJc "
                 "/dns/bootstrap-2.kwaai.ai/tcp/8000/p2p/Qmd3A8N5aQBATe2SYvNikaeCS9CAKN4E86jdCPacZ6RZJY"
             ).split(),
@@ -58,6 +58,31 @@ class KwaaiNetConfig:
             "public_ip": os.environ.get("PUBLIC_IP") or get_public_ip(),
             "announce_addr": os.environ.get("ANNOUNCE_ADDR", None),  # Add this line
             "no_relay": bool(os.environ.get("NORELAY", False)),  # Add this line
+            "health_monitoring": {
+                "enabled": True,
+                "api_endpoint": "https://map.kwaai.ai/api/v1/state",
+                "check_interval": 60,
+                "request_timeout": 10,
+                "failure_threshold": 3,
+                "reconnection": {
+                    "enabled": True,
+                    "max_attempts": 10,
+                    "backoff_strategy": "exponential",
+                    "initial_delay": 30,
+                    "max_delay": 1800,
+                    "backoff_multiplier": 2.0,
+                    "jitter": True,
+                    "jitter_factor": 0.5
+                },
+                "alerting": {
+                    "enabled": False,
+                    "on_disconnect": True,
+                    "on_reconnect": True,
+                    "on_critical": True,
+                    "webhook_url": None,
+                    "email": None
+                }
+            }
         }
                 
         

@@ -15,20 +15,27 @@ logger = logging.getLogger(__name__)
 
 class DaemonProcess:
     """Manages daemon process lifecycle and PID management"""
-    
-    def __init__(self, name: str = "kwaainet", pid_dir: str = None):
+
+    def __init__(self, name: str = "kwaainet", pid_dir: str = None, config: Optional[Dict[str, Any]] = None):
         self.name = name
         self.pid_dir = pid_dir or os.path.expanduser("~/.kwaainet/run")
         self.pid_file = os.path.join(self.pid_dir, f"{name}.pid")
         self.status_file = os.path.join(self.pid_dir, f"{name}.status")
-        
+
         # Ensure PID directory exists
         os.makedirs(self.pid_dir, exist_ok=True)
-        
+
         # Process management
         self.process: Optional[subprocess.Popen] = None
         self.should_stop = threading.Event()
         self.monitor_thread: Optional[threading.Thread] = None
+
+        # Health monitoring
+        self.health_monitor = None
+        self.config = config or {}
+        self._last_command = None
+        self._last_env = None
+        # Note: health_monitor is initialized in start_process() after forking
         
     def get_pid(self) -> Optional[int]:
         """Get PID from PID file if it exists and process is running"""
@@ -230,6 +237,10 @@ class DaemonProcess:
     
     def start_process(self, command: list, env: dict = None, daemon_mode: bool = True, concurrent: bool = False):
         """Start the main process"""
+        # Save command and env for potential reconnection
+        self._last_command = command
+        self._last_env = env
+
         # By default, stop any existing kwaainet/petals processes unless --concurrent is specified
         if not concurrent:
             logger.info("Stopping any existing KwaaiNet processes...")
@@ -253,11 +264,11 @@ class DaemonProcess:
                 stderr=subprocess.PIPE,
                 preexec_fn=os.setsid  # Create new process group
             )
-            
+
             # Write the subprocess PID to the PID file (not the daemon PID)
             if daemon_mode:
                 self.write_pid(self.process.pid)
-            
+
             # Write initial status
             self.write_status({
                 "pid": self.process.pid,
@@ -265,10 +276,26 @@ class DaemonProcess:
                 "started_at": time.time(),
                 "status": "running"
             })
-            
+
             # Start monitoring thread
             self.monitor_thread = threading.Thread(target=self._monitor_process, daemon=True)
             self.monitor_thread.start()
+
+            # Initialize and start health monitoring if enabled (after fork to ensure it runs in daemon process)
+            if daemon_mode and self.config.get("health_monitoring", {}).get("enabled", False):
+                try:
+                    from kwaainet.common.health_monitor import HealthMonitorService
+                    self.health_monitor = HealthMonitorService(
+                        config=self.config,
+                        reconnect_callback=self._handle_reconnection
+                    )
+                    logger.info("Health monitoring initialized in daemon process")
+                    self.health_monitor.start()
+                    logger.info("Health monitoring service started")
+                except ImportError as e:
+                    logger.warning(f"Health monitoring not available: {e}")
+                except Exception as e:
+                    logger.error(f"Failed to initialize/start health monitor: {e}", exc_info=True)
             
             # Wait for process if not in daemon mode
             if not daemon_mode:
@@ -345,7 +372,7 @@ class DaemonProcess:
                         proc = psutil.Process(self.process.pid)
                         # Read existing status to preserve command field
                         existing_status = self.read_status() or {}
-                        self.write_status({
+                        status_update = {
                             "pid": self.process.pid,
                             "status": "running",
                             "cpu_percent": proc.cpu_percent(),
@@ -354,7 +381,13 @@ class DaemonProcess:
                             "last_updated": time.time(),
                             "command": existing_status.get("command"),  # Preserve command
                             "started_at": existing_status.get("started_at")  # Preserve start time
-                        })
+                        }
+
+                        # Add health monitoring status if available
+                        if self.health_monitor:
+                            status_update["health_monitoring"] = self.health_monitor.get_status()
+
+                        self.write_status(status_update)
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         pass
                 
@@ -367,6 +400,11 @@ class DaemonProcess:
     
     def stop_process(self, timeout: int = 30) -> bool:
         """Stop the daemon process gracefully"""
+        # Stop health monitoring first
+        if self.health_monitor:
+            logger.info("Stopping health monitoring service")
+            self.health_monitor.stop()
+
         pid = self.get_pid()
 
         # If no PID file, check if running via systemd service
@@ -438,10 +476,62 @@ class DaemonProcess:
         logger.info("Restarting daemon")
         if not self.stop_process():
             return False
-        
+
         # Wait a moment before starting
         time.sleep(2)
         return self.start_process(command, env)
+
+    def _handle_reconnection(self) -> bool:
+        """
+        Handle reconnection triggered by health monitor
+
+        Returns:
+            True if reconnection successful, False otherwise
+        """
+        logger.warning("Health monitor triggered reconnection")
+
+        # Check if we have saved command/env
+        if not self._last_command:
+            logger.error("No saved command for reconnection, trying to read from status")
+            status = self.read_status()
+            if status and "command" in status:
+                self._last_command = status["command"]
+            else:
+                logger.error("Cannot reconnect: no command available")
+                return False
+
+        # Check if systemd-managed
+        pid = self.get_pid()
+        if not pid:
+            pid = self._find_service_process()
+            if pid:
+                logger.info("Reconnecting via systemd service restart")
+                return self._restart_via_systemd()
+
+        # Fallback to daemon restart
+        logger.info("Reconnecting via daemon restart")
+        return self.restart_process(self._last_command, self._last_env)
+
+    def _restart_via_systemd(self) -> bool:
+        """Restart via systemd service"""
+        try:
+            result = subprocess.run(
+                ["systemctl", "--user", "restart", "kwaainet.service"],
+                capture_output=True,
+                timeout=30
+            )
+            if result.returncode == 0:
+                logger.info("Systemd service restart successful")
+                return True
+            else:
+                logger.error(f"Systemd restart failed: {result.stderr.decode()}")
+                return False
+        except subprocess.TimeoutExpired:
+            logger.error("Systemd restart timed out")
+            return False
+        except Exception as e:
+            logger.error(f"Systemd restart error: {e}")
+            return False
 
     def _find_service_process(self) -> Optional[int]:
         """Find Petals process running via systemd service (without daemon PID file)"""
@@ -464,7 +554,7 @@ class DaemonProcess:
         """Get comprehensive daemon status"""
         pid = self.get_pid()
         status = self.read_status() or {}
-        
+
         if pid:
             try:
                 proc = psutil.Process(pid)
@@ -488,7 +578,11 @@ class DaemonProcess:
             status.update({
                 "running": False
             })
-        
+
+        # Add health monitoring status if available
+        if self.health_monitor:
+            status["health_monitoring"] = self.health_monitor.get_status()
+
         return status
 
 
