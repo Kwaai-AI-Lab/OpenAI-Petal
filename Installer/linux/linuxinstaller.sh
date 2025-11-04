@@ -1553,7 +1553,7 @@ INSTALL_CMD="$PIP_EXEC install $BINARY_FLAG"
 
 # Build package list excluding problematic git packages
 PYTORCH_PACKAGES="torch==${PYTORCH_VERSION}${PYTORCH_VARIANT} torchvision==0.18.1${PYTORCH_VARIANT} torchaudio==${PYTORCH_VERSION}${PYTORCH_VARIANT}"
-CORE_PACKAGES="transformers==4.43.1 huggingface_hub>=0.34.0 tokenizers>=0.15.0 pyyaml"
+CORE_PACKAGES="'transformers>=4.32.0,<4.35.0' 'huggingface_hub>=0.16.4' 'tokenizers>=0.14.0,<0.15.0' pyyaml"
 
 # Install core packages with proper dependency resolution
 echo "📦 Installing PyTorch ${PYTORCH_VERSION}${PYTORCH_VARIANT}..."
@@ -1570,6 +1570,14 @@ if $INSTALL_CMD $CORE_PACKAGES; then
 else
     echo "❌ Failed to install core ML packages"
     exit 1
+fi
+
+# Pin py-multihash to compatible version (before hivemind)
+echo "📦 Pinning py-multihash to compatible version..."
+if $PIP_EXEC install 'py-multihash<2.0' $BINARY_FLAG; then
+    echo "✅ py-multihash pinned successfully"
+else
+    echo "⚠️  Warning: Failed to pin py-multihash (continuing anyway)"
 fi
 
 # Install hivemind - check if compatible version exists

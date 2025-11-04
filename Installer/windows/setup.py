@@ -50,14 +50,15 @@ setup(
         "PyYAML>=6.0.2",  # Security fixes
         # NOTE: petals is installed separately by the installer from source (2.3.0.dev2)
         # "petals>=2.3.0" would fail since PyPI only has up to 2.2.0
-        "torch>=1.12.0",  # Compatible with Petals and hivemind
-        "transformers==4.43.1",  # Petals 2.3.0+ requirement (CDN compatibility)
+        "torch>=1.12.0,<2.4.0",  # Compatible with Petals and hivemind - tested range
+        "transformers>=4.32.0,<4.35.0",  # Petals 2.2.0 compatibility (required by current petals)
         "accelerate>=0.20.0",  # Broader compatibility
         "requests>=2.28.0",  # Security fixes
         "tqdm>=4.64.0",  # Stable version
         "psutil>=5.9.0",  # Process and system monitoring for daemon functionality
-        "huggingface_hub>=0.34.0",  # CDN compatibility
-        "tokenizers>=0.15.0",  # Compatible with huggingface_hub>=0.34.0
+        "huggingface_hub>=0.16.4",  # Compatible with transformers (relaxed from >=0.34.0)
+        "tokenizers>=0.14.0,<0.15.0",  # Match transformers requirements
+        "py-multihash<2.0",  # Hivemind 1.1.11 requires FuncReg API (not in 2.0+)
     ],
     extras_require={
         "cuda": [
