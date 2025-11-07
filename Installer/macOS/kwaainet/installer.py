@@ -342,23 +342,23 @@ class MacInstaller:
                     # It's okay if the package wasn't installed
                     pass
             
-            # Install bitsandbytes fork for Mac
+            # Install bitsandbytes fork for Mac (pin to 0.41.1 for Petals 2.3.0.dev2 compatibility)
             subprocess.check_call([
                 sys.executable, "-m", "pip", "uninstall", "-y", "bitsandbytes"
             ])
-            
-            # Try to install Mac-compatible bitsandbytes
+
+            # Try to install Mac-compatible bitsandbytes (version 0.41.1)
             if self.is_arm:
                 # For M1/M2/M3 Macs
                 subprocess.check_call([
-                    sys.executable, "-m", "pip", "install", 
-                    "bitsandbytes", "--no-cache-dir"
+                    sys.executable, "-m", "pip", "install",
+                    "bitsandbytes==0.41.1", "--no-cache-dir"
                 ])
             else:
                 # For Intel Macs
                 subprocess.check_call([
-                    sys.executable, "-m", "pip", "install", 
-                    "bitsandbytes", "--no-cache-dir"
+                    sys.executable, "-m", "pip", "install",
+                    "bitsandbytes==0.41.1", "--no-cache-dir"
                 ])
                 
             return True

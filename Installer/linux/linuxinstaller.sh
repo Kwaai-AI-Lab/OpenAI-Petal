@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.5.0
+# KwaaiNet for Linux - One-Step Installer v0.5.1
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.5.0"
+INSTALLER_VERSION="0.5.1"
 
 # Set up logging
 LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
@@ -1708,27 +1708,27 @@ fi
 # Install additional dependencies if needed
 echo "📦 Phase 3: Installing additional support packages..."
 
-# Install bitsandbytes for quantization support
+# Install bitsandbytes for quantization support (pin to 0.41.1 for Petals 2.3.0.dev2 compatibility)
 if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
     echo "📦 Installing CUDA-compatible bitsandbytes..."
     if [ "$NO_BUILD_TOOLS" = true ]; then
-        $PIP_EXEC install $BINARY_FLAG bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CUDA install failed (pre-built)"
+        $PIP_EXEC install $BINARY_FLAG bitsandbytes==0.41.1 &>/dev/null || echo "⚠️ bitsandbytes CUDA install failed (pre-built)"
     else
-        $PIP_EXEC install bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CUDA install failed"
+        $PIP_EXEC install bitsandbytes==0.41.1 &>/dev/null || echo "⚠️ bitsandbytes CUDA install failed"
     fi
 else
     echo "📦 Installing CPU-only bitsandbytes..."
     if command -v conda >/dev/null 2>&1; then
-        conda install -c conda-forge bitsandbytes-cpu -y &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
+        conda install -c conda-forge bitsandbytes-cpu==0.41.1 -y &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
     else
         if [ "$NO_BUILD_TOOLS" = true ]; then
             # Try pre-built first for CPU bitsandbytes
-            if ! $PIP_EXEC install $BINARY_FLAG bitsandbytes &>/dev/null; then
+            if ! $PIP_EXEC install $BINARY_FLAG bitsandbytes==0.41.1 &>/dev/null; then
                 echo "⚠️ Pre-built CPU bitsandbytes not available, trying fallback"
-                $PIP_EXEC install bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
+                $PIP_EXEC install bitsandbytes==0.41.1 &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
             fi
         else
-            $PIP_EXEC install --no-binary bitsandbytes bitsandbytes &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
+            $PIP_EXEC install --no-binary bitsandbytes bitsandbytes==0.41.1 &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
         fi
     fi
 fi

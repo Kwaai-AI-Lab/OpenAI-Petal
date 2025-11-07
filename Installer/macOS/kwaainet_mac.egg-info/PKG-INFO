@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: kwaainet-mac
-Version: 0.4.7
+Version: 0.5.1
 Summary: KwaaiNet Node for Mac systems to share compute/GPU resources
 Home-page: https://github.com/yourusername/kwaainet-mac
 Author: Kwaai Labs
@@ -21,7 +21,7 @@ Requires-Dist: tqdm>=4.66.0
 Requires-Dist: pyyaml>=6.0.0
 Requires-Dist: psutil>=5.9.0
 Requires-Dist: accelerate>=0.20.0
-Requires-Dist: bitsandbytes
+Requires-Dist: bitsandbytes==0.41.1
 Dynamic: author
 Dynamic: author-email
 Dynamic: classifier

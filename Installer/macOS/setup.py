@@ -33,13 +33,8 @@ dependencies = [
 
 # Add any Mac-specific dependencies
 if platform.system() == "Darwin":
-    # Check if M1/M2 Mac for specific optimizations
-    if platform.processor() == 'arm':
-        # For Apple Silicon Macs - use specific bitsandbytes version
-        dependencies.append("bitsandbytes")
-    else:
-        # For Intel Macs
-        dependencies.append("bitsandbytes")
+    # Pin bitsandbytes to match Petals 2.3.0.dev2 requirement
+    dependencies.append("bitsandbytes==0.41.1")
 
 setup(
     name="kwaainet-mac",
