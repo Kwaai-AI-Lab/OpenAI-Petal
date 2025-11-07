@@ -18,10 +18,10 @@ VERSION = read_version()
 
 # Define dependencies - no CUDA packages as they're not needed on macOS
 dependencies = [
-    "torch>=2.0.0,<2.4.0",  # Tested range for Petals and hivemind
+    "torch>=2.0.0",  # Petals 2.3.0.dev2 compatible
     "peft>=0.6.0",  # Match the Docker version (--no-deps)
     "petals @ git+https://github.com/bigscience-workshop/petals",
-    "transformers>=4.32.0,<4.35.0",  # Petals 2.2.0 compatibility (required by current petals)
+    "transformers==4.43.1",  # Petals 2.3.0.dev2 exact requirement
     "pyarrow>=10.0.0",  # Security updates
     "requests>=2.32.0",  # Security fixes
     "tqdm>=4.66.0",  # Latest stable
