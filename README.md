@@ -50,7 +50,21 @@
 
 ## 🚀 Recent Updates
 
-### 🎯 **v0.4.7 - Auto-Calibration & Smart Block Allocation** (Latest)
+### 🎯 **v0.5.1 - Critical Dependency Fix** (Latest)
+- ✅ **bitsandbytes Version Conflict Resolved**: Fixed fresh installation failures caused by version mismatch
+- ✅ **Cross-Platform Fix**: Applied to macOS setup.py, macOS installer.py, and Linux installer.sh
+- ✅ **Petals Compatibility**: Pinned bitsandbytes to 0.41.1 (required by Petals 2.3.0.dev2)
+- ✅ **Verified Installation**: Complete uninstall/reinstall testing confirms no dependency conflicts
+- ✅ **Production Ready**: All kwaainet commands working, daemon running successfully
+
+### 🎯 **v0.5.0 - Health Monitoring & Auto-Reconnection**
+- ✅ **Automatic Health Monitoring**: Detects zombie states and network disconnections
+- ✅ **Smart Reconnection**: Exponential backoff with jitter (AWS best practice)
+- ✅ **Network-Aware Detection**: Monitors map.kwaai.ai API for authoritative node state
+- ✅ **4-State Health Model**: healthy/degraded/unhealthy/critical states
+- ✅ **CLI Commands**: `kwaainet health-status`, `health-enable`, `health-disable`
+
+### 🎯 **v0.4.7 - Auto-Calibration & Smart Block Allocation**
 - ✅ **Auto-Calibration on Startup**: Automatically determines optimal block count based on available hardware
 - ✅ **Smart Default Behavior**: New nodes automatically calibrate on first start (no manual tuning needed)
 - ✅ **Hardware-Aware**: Detects GPU type (CUDA/ROCm/CPU), memory, and CPU cores
