@@ -5,29 +5,30 @@ OpenAI API-compatible server for Petals distributed inference by Kwaai-AI-Lab. P
 
 ---
 
-## 📋 CURRENT SESSION STATUS (2025-11-04)
+## 📋 CURRENT SESSION STATUS (2025-11-07)
 
-**Status:** ✅ Dependency hell resolved, v0.5.1 committed
-**Version:** 0.5.1 (commit d32d2e3)
+**Status:** ✅ Triton compatibility fixed, v0.5.2 ready for commit
+**Version:** 0.5.2 (pending commit)
 **Branch:** main
 
-### Completed: Critical Dependency Fixes
-- ✅ Fixed transformers version conflict (4.43.1 → >=4.32.0,<4.35.0)
-- ✅ Added py-multihash<2.0 constraint (hivemind compatibility)
-- ✅ Relaxed huggingface_hub/tokenizers constraints
-- ✅ Bumped Linux version to 0.5.0
-- ✅ Tested on Linux - node running successfully
+### Completed: Triton/Bitsandbytes Compatibility Fix
+- ✅ Fixed runtime crash: bitsandbytes 0.41.1 incompatible with triton 3.5.0
+- ✅ Added triton<3.0 constraint to setup.py
+- ✅ Updated transformers to <4.45.0 (petals 2.3.0.dev2 requires 4.43.1)
+- ✅ Updated tokenizers to <0.20.0 (petals 2.3.0.dev2 requires 0.19.1)
+- ✅ Bumped version to 0.5.2
+- ✅ Tested on Linux - node running stable for 3.7+ hours
 
 **Testing Results:**
-- pip check: No broken requirements ✅
-- Node startup: Successful (PID 22608) ✅
+- Node uptime: 3.7 hours (previously crashed at 26 seconds) ✅
+- Health monitoring: 99.1% (221/223 checks) ✅
+- Process state: 78 threads, stable at ~1GB memory ✅
 - Network visibility: Confirmed on map.kwaai.ai ✅
 
-**Key Files Fixed:**
-- `Installer/linux/setup.py` (version + 4 dependencies)
-- `Installer/linux/linuxinstaller.sh` (CORE_PACKAGES + py-multihash pinning)
-- `Installer/macOS/setup.py` (3 dependencies)
-- `Installer/windows/setup.py` (4 dependencies)
+**Key Files Modified:**
+- `Installer/linux/setup.py` (version 0.5.2 + triton constraint)
+- `VERSION` (0.5.1 → 0.5.2)
+- `Installer/linux/kwaainet_linux.egg-info/*` (auto-generated)
 
 ---
 
@@ -56,6 +57,73 @@ Use `.claude/environments/{macos-rezarassool,linux-metro}.md` for platform-speci
 ---
 
 ## Recent Sessions Summary
+
+### v0.5.2 (2025-11-07): Triton/Bitsandbytes Compatibility Fix
+**Problem:** Node crashed at 26 seconds with `ModuleNotFoundError: No module named 'triton.ops'` when bitsandbytes attempted to import from triton during model block loading.
+
+**Root Cause Analysis:**
+1. **triton 3.5.0 breaking change**: The latest triton (3.5.0) removed the `triton.ops` module (removed in triton 3.0+)
+2. **bitsandbytes dependency**: bitsandbytes 0.41.1 still imports from `triton.ops.matmul_perf_model` (line 12 in dequantize_rowwise.py)
+3. **No version constraint**: setup.py had no triton version constraint, allowing pip to install latest (3.5.0)
+4. **Petals 2.3.0.dev2 requirements**: Also requires transformers 4.43.1 and tokenizers 0.19.1 (wider ranges than v0.5.1)
+
+**Error Details:**
+```python
+File "/home/metro/.local/lib/python3.12/site-packages/bitsandbytes/triton/dequantize_rowwise.py", line 12
+    from triton.ops.matmul_perf_model import early_config_prune, estimate_matmul_time
+ModuleNotFoundError: No module named 'triton.ops'
+```
+
+**Solution:** Add triton version constraint and update transformers/tokenizers ranges:
+- **triton**: Added `<3.0` constraint (forces triton 2.3.1)
+- **transformers**: Updated to `>=4.32.0,<4.45.0` (from `<4.35.0`) to allow 4.43.1
+- **tokenizers**: Updated to `>=0.14.0,<0.20.0` (from `<0.15.0`) to allow 0.19.1
+
+**Files Modified:**
+- `Installer/linux/setup.py` (line 15: version 0.5.2, line 43/49: wider ranges, line 51: triton constraint)
+- `VERSION` (0.5.1 → 0.5.2)
+- `Installer/linux/kwaainet_linux.egg-info/*` (auto-generated from setup.py)
+
+**Dependency Stack After Fix:**
+```
+petals 2.3.0.dev2 (from git source)
+transformers 4.43.1
+tokenizers 0.19.1
+bitsandbytes 0.41.1
+triton 2.3.1 ✅ (downgraded from 3.5.0)
+torch 2.3.1+cu121
+hivemind 1.1.11
+```
+
+**Testing Results (Linux metro):**
+```bash
+# Before fix: Crashed at 26 seconds
+ModuleNotFoundError: No module named 'triton.ops'
+
+# After fix: Stable for 3.7+ hours
+✅ Uptime: 3.7 hours (221 health checks)
+✅ Health: 99.1% (221/223 checks)
+✅ Process: 78 threads, ~1GB memory
+✅ Network: Visible on map.kwaai.ai
+```
+
+**Installation Verification:**
+```bash
+python3 -m pip install -e Installer/linux/ --force-reinstall --no-deps
+python3 -m pip show kwaainet-linux  # Version: 0.5.2
+python3 -m pip list | grep triton    # triton 2.3.1
+```
+
+**Key Learnings:**
+1. **Pin critical dependencies**: triton should have been constrained from the start
+2. **API breakage in minor versions**: triton 3.0 removed entire modules without major version bump
+3. **Transitive dependencies matter**: bitsandbytes → triton.ops (not obvious from setup.py)
+4. **Test runtime behavior**: Fresh installations pass `pip check` but crash at runtime
+5. **Wider version ranges work**: transformers <4.45.0 and tokenizers <0.20.0 maintain compatibility
+
+**Commit:** (pending)
+
+---
 
 ### v0.5.1 (2025-11-04): Critical Dependency Hell Resolution
 **Problem:** Fresh installations completely broken across all platforms due to dependency conflicts from premature petals 2.3.0 optimization.
