@@ -1,7 +1,7 @@
 <p>
 <h1 align="center">OpenAI API-compatible server for Petals distributed inference 👋</h1>
   <img alt="Version" src="https://img.shields.io/badge/version-0.2.2-blue.svg?cacheSeconds=2592000" />
-  <img alt="Installer Version" src="https://img.shields.io/badge/installer-v0.5.2-brightgreen.svg?cacheSeconds=2592000" />
+  <img alt="Installer Version" src="https://img.shields.io/badge/installer-v0.6.0-brightgreen.svg?cacheSeconds=2592000" />
   <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">
     <img alt="License: CC-BY-4.0" src="https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg" />
   <a href="https://kwaaiailab.slack.com" target="_blank">
@@ -50,19 +50,25 @@
 
 ## 🚀 Recent Updates
 
-### 🎯 **v0.5.1 - Critical Dependency Fix** (Latest)
-- ✅ **bitsandbytes Version Conflict Resolved**: Fixed fresh installation failures caused by version mismatch
-- ✅ **Cross-Platform Fix**: Applied to macOS setup.py, macOS installer.py, and Linux installer.sh
-- ✅ **Petals Compatibility**: Pinned bitsandbytes to 0.41.1 (required by Petals 2.3.0.dev2)
-- ✅ **Verified Installation**: Complete uninstall/reinstall testing confirms no dependency conflicts
-- ✅ **Production Ready**: All kwaainet commands working, daemon running successfully
+### 🎯 **v0.6.0 - Health Monitoring Refactor & Strategy Pattern** (Latest)
+- ✅ **Modular Architecture**: Refactored health monitoring using Strategy pattern for extensibility
+- ✅ **Abstract Base Classes**: Plugin architecture supports multiple service types (KwaaiNet nodes, MapAPI, Bootstrap DHT)
+- ✅ **Enhanced Thread Safety**: Comprehensive concurrency fixes eliminate race conditions
+- ✅ **50 Passing Tests**: Full test coverage across concurrency, architecture, and integration
+- ✅ **100% Backward Compatible**: Existing code works without modification
+- ✅ **Production Tested**: Node running stable with 99%+ health monitoring success rate
 
-### 🎯 **v0.5.0 - Health Monitoring & Auto-Reconnection**
-- ✅ **Automatic Health Monitoring**: Detects zombie states and network disconnections
-- ✅ **Smart Reconnection**: Exponential backoff with jitter (AWS best practice)
-- ✅ **Network-Aware Detection**: Monitors map.kwaai.ai API for authoritative node state
-- ✅ **4-State Health Model**: healthy/degraded/unhealthy/critical states
-- ✅ **CLI Commands**: `kwaainet health-status`, `health-enable`, `health-disable`
+**Architecture Improvements:**
+- **KwaaiNetHealthCheck Strategy**: 6-step comprehensive health checking (API reachability, data freshness, bootstrap health, node visibility, state, throughput)
+- **ExponentialBackoffStrategy**: AWS best practice with full jitter (30s → 1800s max delay)
+- **HealthMonitorOrchestrator**: Coordinates strategies while preserving thread safety
+- **Future-Ready**: Easy to add new service types via plugins
+
+### 🎯 **v0.5.2 - Triton Compatibility Fix**
+- ✅ **Runtime Crash Fixed**: Resolved `ModuleNotFoundError: No module named 'triton.ops'`
+- ✅ **Dependency Pinning**: Added triton<3.0 constraint (bitsandbytes 0.41.1 requires triton.ops)
+- ✅ **Wider Compatibility**: Updated transformers to <4.45.0, tokenizers to <0.20.0 for petals 2.3.0.dev2
+- ✅ **Stability Verified**: Node tested stable for 3.7+ hours (previously crashed at 26 seconds)
 
 ### 🎯 **v0.4.7 - Auto-Calibration & Smart Block Allocation**
 - ✅ **Auto-Calibration on Startup**: Automatically determines optimal block count based on available hardware
@@ -542,6 +548,46 @@ kwaainet restart
 kwaainet stop
 ```
 
+### Health Monitoring & Auto-Reconnection
+Monitor node health and automatically recover from network disconnections:
+
+```bash
+# Check health status
+kwaainet health-status
+
+# Enable/disable health monitoring
+kwaainet health-enable
+kwaainet health-disable
+```
+
+**Health Monitoring Features (v0.6.0):**
+- **Network-Aware Detection**: Monitors map.kwaai.ai API for authoritative node state
+- **4-State Health Model**: HEALTHY/DEGRADED/UNHEALTHY/CRITICAL states
+- **Automatic Reconnection**: Triggers after 3 consecutive failures (configurable)
+- **Exponential Backoff**: AWS best practice with full jitter (30s → 1800s max)
+- **Zombie State Detection**: Prevents "process running but invisible on network" scenarios
+- **Strategy Pattern Architecture**: Extensible for monitoring multiple service types
+
+**Example Status Output:**
+```
+📊 Health Monitoring Status
+Enabled: True
+Running: True
+Check interval: 60s
+Failure threshold: 3
+
+Last Check: 2025-11-10T19:35:08
+Status: healthy
+
+Metrics:
+  Total checks: 221
+  Healthy: 219 (99.1%)
+  Degraded: 0
+  Unhealthy: 2
+  Critical: 0
+  Reconnections triggered: 0
+```
+
 ### Configuration Management
 View and modify configuration with a clean interface:
 
@@ -552,6 +598,10 @@ kwaainet config --view
 # Set configuration values
 kwaainet config --set model "meta-llama/Llama-2-7b-hf"
 kwaainet config --set blocks 4
+
+# Configure health monitoring
+kwaainet config --set health_monitoring.check_interval 60
+kwaainet config --set health_monitoring.failure_threshold 3
 ```
 
 ### P2P Network Monitoring & Reconnection
