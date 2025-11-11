@@ -467,6 +467,13 @@ class HealthMonitorService:
         self.should_stop = threading.Event()
         self.is_running = False
 
+        # Thread synchronization (Phase 1.2: Fix race conditions)
+        self.state_lock = threading.Lock()  # Protects shared state
+
+        # Pause/resume mechanism (Phase 1.3: Safe restart without stopping monitor)
+        self.is_paused = threading.Event()
+        self.is_paused.set()  # Start unpaused
+
         # Metrics tracking
         self.metrics = {
             "checks_total": 0,
@@ -514,6 +521,51 @@ class HealthMonitorService:
 
         logger.info("Health monitoring service started")
 
+    def update_config(self, config: Dict[str, Any]):
+        """
+        Update health monitor configuration (e.g., after process restart)
+
+        This allows the monitor to continue running across process restarts
+        without stopping/restarting the monitoring thread.
+
+        Args:
+            config: Updated configuration dict with new public_name, etc.
+        """
+        logger.info("Updating health monitor configuration")
+
+        with self.state_lock:
+            # Update public_name in health client
+            old_public_name = self.health_client.public_name
+            new_public_name = config.get("public_name", "unknown@kwaai")
+
+            if old_public_name != new_public_name:
+                logger.info(f"Updating monitored node: {old_public_name} -> {new_public_name}")
+                self.health_client.public_name = new_public_name
+
+            # Reset failure tracking since we're monitoring a new process
+            self.reconnection_manager.reset()
+
+        logger.info("Health monitor configuration updated")
+
+    def pause(self):
+        """
+        Pause health checks (e.g., during process restart)
+
+        The monitoring thread remains alive but blocks until resumed.
+        This prevents false failures during expected downtime.
+        """
+        logger.info("Pausing health monitoring")
+        self.is_paused.clear()
+
+    def resume(self):
+        """
+        Resume health checks after pause
+
+        Call this after the monitored process has restarted.
+        """
+        logger.info("Resuming health monitoring")
+        self.is_paused.set()
+
     def stop(self):
         """Stop the health monitoring service"""
         if not self.is_running:
@@ -522,8 +574,12 @@ class HealthMonitorService:
         logger.info("Stopping health monitoring service")
         self.should_stop.set()
 
+        # Only join thread if we're not being called from within the monitoring thread
         if self.monitor_thread and self.monitor_thread.is_alive():
-            self.monitor_thread.join(timeout=5)
+            if threading.current_thread() != self.monitor_thread:
+                self.monitor_thread.join(timeout=5)
+            else:
+                logger.debug("Stop called from monitoring thread, skipping join()")
 
         self.is_running = False
         logger.info("Health monitoring service stopped")
@@ -534,6 +590,13 @@ class HealthMonitorService:
 
         while not self.should_stop.is_set():
             try:
+                # Wait if paused (Phase 1.3: Pause during restarts)
+                self.is_paused.wait()
+
+                # Check again if we should stop (might have been set during pause)
+                if self.should_stop.is_set():
+                    break
+
                 # Perform health check
                 status, details = self._perform_health_check()
 
@@ -561,19 +624,20 @@ class HealthMonitorService:
 
         status, details = self.health_client.check_health()
 
-        # Update metrics
-        self.metrics["checks_total"] += 1
-        self.metrics[f"checks_{status}"] += 1
-        self.metrics["last_check_time"] = time.time()
-        self.metrics["last_health_status"] = status
+        # Update metrics (thread-safe)
+        with self.state_lock:
+            self.metrics["checks_total"] += 1
+            self.metrics[f"checks_{status}"] += 1
+            self.metrics["last_check_time"] = time.time()
+            self.metrics["last_health_status"] = status
 
-        # Record in history
-        self.health_history.append({
-            "timestamp": time.time(),
-            "status": status,
-            "reason": details.get("reason"),
-            "action": details.get("action")
-        })
+            # Record in history
+            self.health_history.append({
+                "timestamp": time.time(),
+                "status": status,
+                "reason": details.get("reason"),
+                "action": details.get("action")
+            })
 
         logger.debug(f"Health check result: {status} (reason: {details.get('reason')})")
 
@@ -637,7 +701,9 @@ class HealthMonitorService:
 
         # Record the attempt
         self.reconnection_manager.record_attempt()
-        self.metrics["reconnections_triggered"] += 1
+
+        with self.state_lock:
+            self.metrics["reconnections_triggered"] += 1
 
         # Trigger reconnection
         try:
@@ -646,15 +712,18 @@ class HealthMonitorService:
 
             if success:
                 logger.info("Reconnection successful")
-                self.metrics["reconnections_successful"] += 1
+                with self.state_lock:
+                    self.metrics["reconnections_successful"] += 1
                 self.reconnection_manager.reset()
             else:
                 logger.error("Reconnection failed")
-                self.metrics["reconnections_failed"] += 1
+                with self.state_lock:
+                    self.metrics["reconnections_failed"] += 1
 
         except Exception as e:
             logger.error(f"Reconnection error: {e}", exc_info=True)
-            self.metrics["reconnections_failed"] += 1
+            with self.state_lock:
+                self.metrics["reconnections_failed"] += 1
 
     def get_status(self) -> Dict[str, Any]:
         """Get current health monitor status"""

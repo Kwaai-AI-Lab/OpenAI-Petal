@@ -30,6 +30,10 @@ class DaemonProcess:
         self.should_stop = threading.Event()
         self.monitor_thread: Optional[threading.Thread] = None
 
+        # Thread synchronization (Phase 1.1: Fix race conditions)
+        self.process_lock = threading.RLock()  # Reentrant lock for nested calls
+        self.monitor_lock = threading.Lock()   # Lock for monitor thread lifecycle
+
         # Health monitoring
         self.health_monitor = None
         self.config = config or {}
@@ -235,8 +239,20 @@ class DaemonProcess:
         logger.info(f"Daemon started with PID {pid}")
         return pid
     
-    def start_process(self, command: list, env: dict = None, daemon_mode: bool = True, concurrent: bool = False):
-        """Start the main process"""
+    def start_process(self, command: list, env: dict = None, daemon_mode: bool = True, concurrent: bool = False, reuse_health_monitor: bool = False):
+        """
+        Start the main process
+
+        Args:
+            command: Command to execute
+            env: Environment variables
+            daemon_mode: If True, fork into daemon mode
+            concurrent: If True, allow multiple instances
+            reuse_health_monitor: If True, reuse existing health monitor instead of creating new one
+
+        Returns:
+            True if started successfully, False otherwise
+        """
         # Save command and env for potential reconnection
         self._last_command = command
         self._last_env = env
@@ -257,13 +273,14 @@ class DaemonProcess:
 
             # Start the actual process
             logger.info(f"Starting process: {' '.join(command)}")
-            self.process = subprocess.Popen(
-                command,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                preexec_fn=os.setsid  # Create new process group
-            )
+            with self.process_lock:
+                self.process = subprocess.Popen(
+                    command,
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    preexec_fn=os.setsid  # Create new process group
+                )
 
             # Write the subprocess PID to the PID file (not the daemon PID)
             if daemon_mode:
@@ -282,20 +299,24 @@ class DaemonProcess:
             self.monitor_thread.start()
 
             # Initialize and start health monitoring if enabled (after fork to ensure it runs in daemon process)
+            # Skip if we're reusing an existing health monitor
             if daemon_mode and self.config.get("health_monitoring", {}).get("enabled", False):
-                try:
-                    from kwaainet.common.health_monitor import HealthMonitorService
-                    self.health_monitor = HealthMonitorService(
-                        config=self.config,
-                        reconnect_callback=self._handle_reconnection
-                    )
-                    logger.info("Health monitoring initialized in daemon process")
-                    self.health_monitor.start()
-                    logger.info("Health monitoring service started")
-                except ImportError as e:
-                    logger.warning(f"Health monitoring not available: {e}")
-                except Exception as e:
-                    logger.error(f"Failed to initialize/start health monitor: {e}", exc_info=True)
+                if reuse_health_monitor and self.health_monitor and self.health_monitor.is_running:
+                    logger.info("Reusing existing health monitor")
+                else:
+                    try:
+                        from kwaainet.common.health_monitor import HealthMonitorService
+                        self.health_monitor = HealthMonitorService(
+                            config=self.config,
+                            reconnect_callback=self._handle_reconnection
+                        )
+                        logger.info("Health monitoring initialized in daemon process")
+                        self.health_monitor.start()
+                        logger.info("Health monitoring service started")
+                    except ImportError as e:
+                        logger.warning(f"Health monitoring not available: {e}")
+                    except Exception as e:
+                        logger.error(f"Failed to initialize/start health monitor: {e}", exc_info=True)
             
             # Wait for process if not in daemon mode
             if not daemon_mode:
@@ -303,25 +324,29 @@ class DaemonProcess:
                 return return_code == 0
             else:
                 # In daemon mode, keep the daemon alive to monitor the subprocess
-                while not self.should_stop.is_set() and self.process and self.process.poll() is None:
+                while not self.should_stop.is_set():
+                    with self.process_lock:
+                        if not self.process or self.process.poll() is not None:
+                            break
                     time.sleep(1)
-                
+
                 # If we get here, the process has ended
-                if self.process:
-                    return_code = self.process.returncode
-                    logger.warning(f"Process ended with return code: {return_code}")
-                    
-                    # Capture and log any error output for debugging
-                    if return_code != 0:
-                        try:
-                            stdout, stderr = self.process.communicate(timeout=5)
-                            if stderr:
-                                logger.error(f"Process stderr: {stderr.decode('utf-8', errors='replace')}")
-                            if stdout:
-                                logger.info(f"Process stdout: {stdout.decode('utf-8', errors='replace')}")
-                        except (subprocess.TimeoutExpired, Exception) as e:
-                            logger.warning(f"Could not capture process output: {e}")
-                            
+                with self.process_lock:
+                    if self.process:
+                        return_code = self.process.returncode
+                        logger.warning(f"Process ended with return code: {return_code}")
+
+                        # Capture and log any error output for debugging
+                        if return_code != 0:
+                            try:
+                                stdout, stderr = self.process.communicate(timeout=5)
+                                if stderr:
+                                    logger.error(f"Process stderr: {stderr.decode('utf-8', errors='replace')}")
+                                if stdout:
+                                    logger.info(f"Process stdout: {stdout.decode('utf-8', errors='replace')}")
+                            except (subprocess.TimeoutExpired, Exception) as e:
+                                logger.warning(f"Could not capture process output: {e}")
+
                 self._cleanup_pid_file()
             
             return True
@@ -333,75 +358,87 @@ class DaemonProcess:
     
     def _monitor_process(self):
         """Monitor the main process"""
-        while not self.should_stop.is_set() and self.process:
-            try:
-                # Check if process is still running
-                if self.process.poll() is not None:
-                    # Process has terminated
-                    return_code = self.process.returncode
-                    logger.warning(f"Process terminated with code {return_code}")
-                    
-                    # Capture error output if process failed
-                    if return_code != 0:
-                        try:
-                            stdout, stderr = self.process.communicate(timeout=2)
-                            if stderr:
-                                stderr_text = stderr.decode('utf-8', errors='replace').strip()
-                                logger.error(f"Process error output: {stderr_text}")
-                            if stdout:
-                                stdout_text = stdout.decode('utf-8', errors='replace').strip()
-                                if stdout_text:
-                                    logger.info(f"Process output: {stdout_text}")
-                        except Exception as comm_error:
-                            logger.warning(f"Could not capture process output: {comm_error}")
-                    
-                    # Update status
-                    self.write_status({
-                        "pid": self.process.pid,
-                        "status": "stopped",
-                        "exit_code": return_code,
-                        "stopped_at": time.time()
-                    })
-                    
-                    self._cleanup_pid_file()
+        while not self.should_stop.is_set():
+            with self.process_lock:
+                if not self.process:
                     break
-                
-                # Update status periodically
-                if self.process:
-                    try:
-                        proc = psutil.Process(self.process.pid)
-                        # Read existing status to preserve command field
-                        existing_status = self.read_status() or {}
-                        status_update = {
+
+                try:
+                    # Check if process is still running
+                    if self.process.poll() is not None:
+                        # Process has terminated
+                        return_code = self.process.returncode
+                        logger.warning(f"Process terminated with code {return_code}")
+
+                        # Capture error output if process failed
+                        if return_code != 0:
+                            try:
+                                stdout, stderr = self.process.communicate(timeout=2)
+                                if stderr:
+                                    stderr_text = stderr.decode('utf-8', errors='replace').strip()
+                                    logger.error(f"Process error output: {stderr_text}")
+                                if stdout:
+                                    stdout_text = stdout.decode('utf-8', errors='replace').strip()
+                                    if stdout_text:
+                                        logger.info(f"Process output: {stdout_text}")
+                            except Exception as comm_error:
+                                logger.warning(f"Could not capture process output: {comm_error}")
+
+                        # Update status
+                        self.write_status({
                             "pid": self.process.pid,
-                            "status": "running",
-                            "cpu_percent": proc.cpu_percent(),
-                            "memory_percent": proc.memory_percent(),
-                            "uptime": time.time() - proc.create_time(),
-                            "last_updated": time.time(),
-                            "command": existing_status.get("command"),  # Preserve command
-                            "started_at": existing_status.get("started_at")  # Preserve start time
-                        }
+                            "status": "stopped",
+                            "exit_code": return_code,
+                            "stopped_at": time.time()
+                        })
 
-                        # Add health monitoring status if available
-                        if self.health_monitor:
-                            status_update["health_monitoring"] = self.health_monitor.get_status()
+                        self._cleanup_pid_file()
+                        break
 
-                        self.write_status(status_update)
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        pass
-                
-                # Sleep before next check
-                time.sleep(10)
-                
-            except Exception as e:
-                logger.error(f"Error in process monitor: {e}")
-                time.sleep(5)
+                    # Update status periodically
+                    if self.process:
+                        try:
+                            proc = psutil.Process(self.process.pid)
+                            # Read existing status to preserve command field
+                            existing_status = self.read_status() or {}
+                            status_update = {
+                                "pid": self.process.pid,
+                                "status": "running",
+                                "cpu_percent": proc.cpu_percent(),
+                                "memory_percent": proc.memory_percent(),
+                                "uptime": time.time() - proc.create_time(),
+                                "last_updated": time.time(),
+                                "command": existing_status.get("command"),  # Preserve command
+                                "started_at": existing_status.get("started_at")  # Preserve start time
+                            }
+
+                            # Add health monitoring status if available
+                            if self.health_monitor:
+                                status_update["health_monitoring"] = self.health_monitor.get_status()
+
+                            self.write_status(status_update)
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            pass
+
+                except Exception as e:
+                    logger.error(f"Error in process monitor: {e}")
+
+            # Sleep before next check (outside lock to reduce contention)
+            time.sleep(10)
     
-    def stop_process(self, timeout: int = 30) -> bool:
-        """Stop the daemon process gracefully"""
-        # Stop health monitoring first
-        if self.health_monitor:
+    def stop_process(self, timeout: int = 30, stop_health_monitor: bool = True) -> bool:
+        """
+        Stop the daemon process gracefully
+
+        Args:
+            timeout: Seconds to wait for graceful shutdown
+            stop_health_monitor: If True, stop health monitor; if False, keep it running
+
+        Returns:
+            True if stopped successfully, False otherwise
+        """
+        # Stop health monitoring only if requested (not during reconnection)
+        if stop_health_monitor and self.health_monitor:
             logger.info("Stopping health monitoring service")
             self.health_monitor.stop()
 
@@ -471,15 +508,55 @@ class DaemonProcess:
             # Signal monitor thread to stop
             self.should_stop.set()
     
-    def restart_process(self, command: list, env: dict = None) -> bool:
-        """Restart the daemon process"""
+    def restart_process(self, command: list, env: dict = None, keep_health_monitor: bool = False) -> bool:
+        """
+        Restart the daemon process
+
+        Args:
+            command: Command to restart with
+            env: Environment variables
+            keep_health_monitor: If True, keep health monitor running across restart
+
+        Returns:
+            True if restart successful, False otherwise
+        """
         logger.info("Restarting daemon")
-        if not self.stop_process():
+
+        # Pause health monitor before restart (Phase 1.3)
+        if keep_health_monitor and self.health_monitor and self.health_monitor.is_running:
+            logger.info("Pausing health monitoring during restart")
+            self.health_monitor.pause()
+
+        # Stop old monitor thread before restarting process (Phase 1.4)
+        with self.monitor_lock:
+            if self.monitor_thread and self.monitor_thread.is_alive():
+                logger.info("Waiting for old monitor thread to finish")
+                self.should_stop.set()
+                self.monitor_thread.join(timeout=5)
+                self.should_stop.clear()
+                logger.info("Old monitor thread stopped")
+
+        if not self.stop_process(stop_health_monitor=not keep_health_monitor):
             return False
 
         # Wait a moment before starting
         time.sleep(2)
-        return self.start_process(command, env)
+        # Already in daemon mode, so don't fork again
+        result = self.start_process(command, env, daemon_mode=False, reuse_health_monitor=keep_health_monitor)
+
+        # If reusing health monitor, update its configuration and resume
+        if keep_health_monitor and self.health_monitor and self.health_monitor.is_running:
+            try:
+                self.health_monitor.update_config(self.config)
+                logger.info("Health monitor configuration updated after restart")
+                self.health_monitor.resume()
+                logger.info("Health monitoring resumed")
+            except Exception as e:
+                logger.error(f"Failed to update health monitor config: {e}", exc_info=True)
+                # Resume anyway to avoid permanent pause
+                self.health_monitor.resume()
+
+        return result
 
     def _handle_reconnection(self) -> bool:
         """
@@ -508,9 +585,9 @@ class DaemonProcess:
                 logger.info("Reconnecting via systemd service restart")
                 return self._restart_via_systemd()
 
-        # Fallback to daemon restart
-        logger.info("Reconnecting via daemon restart")
-        return self.restart_process(self._last_command, self._last_env)
+        # Fallback to daemon restart (keep health monitor alive)
+        logger.info("Reconnecting via daemon restart (keeping health monitor alive)")
+        return self.restart_process(self._last_command, self._last_env, keep_health_monitor=True)
 
     def _restart_via_systemd(self) -> bool:
         """Restart via systemd service"""
