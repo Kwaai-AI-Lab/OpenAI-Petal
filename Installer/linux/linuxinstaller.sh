@@ -1,12 +1,24 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.5.2
+# KwaaiNet for Linux - One-Step Installer v0.6.0
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.5.2"
+INSTALLER_VERSION="0.6.0"
+
+# Source common installer functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMMON_DIR="$(cd "$SCRIPT_DIR/../common" && pwd)"
+
+if [ -f "$COMMON_DIR/installer_common.sh" ]; then
+    # shellcheck disable=SC1091
+    source "$COMMON_DIR/installer_common.sh"
+else
+    log_error "Error: Cannot find installer_common.sh at $COMMON_DIR"
+    exit 1
+fi
 
 # Set up logging
 LOG_FILE="$HOME/kwaainet_install_$(date +%Y%m%d_%H%M%S).log"
@@ -72,7 +84,7 @@ echo "=========================================================="
 echo "This installer will set up KwaaiNet for sharing compute on Linux"
 echo "It includes Python setup, dependencies, and environment configuration"
 if [ "$SKIP_SYSTEM_PACKAGES" = true ]; then
-    echo "⚠️ Skipping system package installation (--no-system-packages)"
+    log_warning "Skipping system package installation (--no-system-packages)"
 fi
 if [ "$NO_BUILD_TOOLS" = true ]; then
     echo "🔧 Installation mode: Pre-built wheels only (--no-build-tools) - DEFAULT"
@@ -83,12 +95,8 @@ else
 fi
 echo ""
 
-# Function to check if a command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
-
 # Function to get the appropriate pip command for the current environment
+# Note: command_exists() is now provided by installer_common.sh
 get_pip_command() {
     # If we're in a conda environment, use pip directly
     if [ "${CONDA_DEFAULT_ENV:-}" = "kwaainet" ] || [ "${PYTHON_METHOD:-}" = "conda" ]; then
@@ -106,21 +114,7 @@ get_pip_command() {
     fi
 }
 
-# Function to show a spinner while a command runs
-show_spinner() {
-    local pid=$1
-    local delay=0.1
-    local spinstr='|/-\\'
-    echo -n " "
-    while ps a | awk '{print $1}' | grep -q "$pid"; do
-        local temp=${spinstr#?}
-        printf " [%c]  " "$spinstr"
-        local spinstr=$temp${spinstr%"$temp"}
-        sleep $delay
-        printf "\b\b\b\b\b\b"
-    done
-    printf "    \b\b\b\b"
-}
+# Note: show_spinner() is now provided by installer_common.sh
 
 # Function to detect Linux distribution
 detect_distro() {
@@ -163,23 +157,22 @@ detect_distro() {
                 ;;
             *)
                 DISTRO_FAMILY="unknown"
-                echo "⚠️ Unknown distribution: $DISTRO"
+                log_warning "Unknown distribution: $DISTRO"
                 echo "Attempting to use generic commands..."
                 ;;
         esac
-        
-        echo "✅ Detected: $DISTRO $DISTRO_VERSION ($DISTRO_FAMILY family)"
-        echo "📦 Package manager: $PKG_MANAGER"
+
+        log_success "Detected: $DISTRO $DISTRO_VERSION ($DISTRO_FAMILY family)"
+        log_info "Package manager: $PKG_MANAGER"
     else
-        echo "❌ Error: Cannot detect Linux distribution"
-        exit 1
+        die "Cannot detect Linux distribution (missing /etc/os-release)"
     fi
 }
 
 # Function to check if running as root
 check_root() {
     if [ "$EUID" -eq 0 ]; then
-        echo "⚠️ Warning: Running as root. This installer should be run as a regular user."
+        log_warning "Warning: Running as root. This installer should be run as a regular user."
         echo "Some operations will use sudo when needed."
         USE_SUDO=""
     else
@@ -226,13 +219,13 @@ except Exception as e:
     done
     
     if [[ "$hivemind_path" == "NOT_FOUND" || -z "$hivemind_path" ]]; then
-        echo "⚠️ Could not locate hivemind installation for patching"
+        log_warning "Could not locate hivemind installation for patching"
         return 1
     fi
     
     local grad_scaler_file="$hivemind_path/optim/grad_scaler.py"
     if [[ ! -f "$grad_scaler_file" ]]; then
-        echo "⚠️ Could not locate hivemind grad_scaler.py file"
+        log_warning "Could not locate hivemind grad_scaler.py file"
         return 1
     fi
     
@@ -254,7 +247,7 @@ except ImportError:
     done
     
     if [[ "$pytorch_version" == "NOT_FOUND" ]]; then
-        echo "⚠️ PyTorch not found for compatibility check"
+        log_warning "PyTorch not found for compatibility check"
         return 1
     fi
     
@@ -323,7 +316,7 @@ except:
 
 # Function to verify package versions are correct
 verify_package_versions() {
-    echo "🔍 Verifying package versions..."
+    log_search "Verifying package versions..."
     
     local expected_versions=(
         "torch:2.3.1"
@@ -372,7 +365,7 @@ except AttributeError:
 
 # Function to verify import compatibility
 verify_import_compatibility() {
-    echo "🔍 Testing import compatibility..."
+    log_search "Testing import compatibility..."
     
     # Test critical imports that were failing
     local imports=(
@@ -406,7 +399,7 @@ verify_import_compatibility() {
 
 # Function to verify KwaaiNet functionality
 verify_kwaainet_functionality() {
-    echo "🔍 Testing KwaaiNet functionality..."
+    log_search "Testing KwaaiNet functionality..."
     
     # Test basic command availability
     if ! command_exists kwaainet; then
@@ -461,7 +454,7 @@ run_comprehensive_verification() {
     done
     
     if [[ "$all_tests_passed" == "true" ]]; then
-        echo "✅ All verification tests passed!"
+        log_success "All verification tests passed!"
         echo "🎉 Installation completed successfully and is ready for daemon startup"
         return 0
     else
@@ -472,7 +465,7 @@ run_comprehensive_verification() {
 
 # Function to check if system dependencies are available
 check_system_deps() {
-    echo "🔍 Checking system dependencies..."
+    log_search "Checking system dependencies..."
     
     local missing_essential=()
     local missing_optional=()
@@ -500,7 +493,7 @@ check_system_deps() {
         if command_exists "python$ver"; then
             PYTHON_CMD="python$ver"
             PYTHON_VERSION=$($PYTHON_CMD -c "import sys; print('.'.join(map(str, sys.version_info[:2])))" 2>/dev/null || echo "0.0")
-            echo "✅ Found Python $PYTHON_VERSION at $PYTHON_CMD"
+            log_success "Found Python $PYTHON_VERSION at $PYTHON_CMD"
             break
         fi
     done
@@ -509,7 +502,7 @@ check_system_deps() {
     if [ -z "$PYTHON_CMD" ] && command_exists python3; then
         PYTHON_CMD="python3"
         PYTHON_VERSION=$(python3 -c "import sys; print('.'.join(map(str, sys.version_info[:2])))" 2>/dev/null || echo "0.0")
-        echo "✅ Found Python $PYTHON_VERSION at python3"
+        log_success "Found Python $PYTHON_VERSION at python3"
     fi
     
     if [ -z "$PYTHON_CMD" ]; then
@@ -520,10 +513,10 @@ check_system_deps() {
         PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
 
         if [ "$PYTHON_MAJOR" -lt 3 ] || { [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 7 ]; }; then
-            echo "⚠️ Python $PYTHON_VERSION found, but Python 3.7+ is required"
+            log_warning "Python $PYTHON_VERSION found, but Python 3.7+ is required"
             missing_essential+=("python3 (3.7+)")
         elif [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -eq 7 ]; then
-            echo "⚠️ Python 3.7 detected. This may not be compatible with all dependencies."
+            log_warning "Python 3.7 detected. This may not be compatible with all dependencies."
             echo "   Modern ML libraries (transformers, pytorch) typically require Python 3.8+."
             echo "   The installer will try to continue but may fail during package installation."
             echo ""
@@ -562,7 +555,7 @@ check_system_deps() {
         echo "ℹ️ Skipping build tools check (default behavior)"
         echo "   Will attempt to use pre-built wheels only (saves ~5GB disk space)"
     else
-        echo "🔍 Checking build tools for compiling Python packages..."
+        log_search "Checking build tools for compiling Python packages..."
         
         # Check C/C++ compiler
         if ! command_exists gcc && ! command_exists clang; then
@@ -578,7 +571,7 @@ check_system_deps() {
         # Give specific guidance if build tools are missing
         if [ ${#missing_build[@]} -gt 0 ]; then
             echo ""
-            echo "⚠️ BUILD TOOLS MISSING - This will cause compilation failures!"
+            log_warning "BUILD TOOLS MISSING - This will cause compilation failures!"
             echo "   Missing: ${missing_build[*]}"
             echo ""
             echo "   🔧 IMMEDIATE OPTIONS:"
@@ -623,21 +616,21 @@ check_system_deps() {
     # Summary report
     if [ ${#missing_essential[@]} -eq 0 ]; then
         if [ ${#missing_build[@]} -gt 0 ] || [ ${#missing_optional[@]} -gt 0 ]; then
-            echo "✅ Essential dependencies satisfied"
+            log_success "Essential dependencies satisfied"
             if [ ${#missing_build[@]} -gt 0 ]; then
-                echo "⚠️ Missing build tools: ${missing_build[*]}"
+                log_warning "Missing build tools: ${missing_build[*]}"
                 echo "   💡 These can be provided by conda or you can use --no-build-tools"
             fi
             [ ${#missing_optional[@]} -gt 0 ] && echo "ℹ️ Missing optional: ${missing_optional[*]}"
             return 2  # Partial success - essential OK, build tools missing
         else
-            echo "✅ All dependencies available - ready for full installation"
+            log_success "All dependencies available - ready for full installation"
             return 0  # Full success
         fi
     else
-        echo "❌ CRITICAL: Missing essential dependencies: ${missing_essential[*]}"
-        [ ${#missing_build[@]} -gt 0 ] && echo "❌ Missing build tools: ${missing_build[*]}"
-        [ ${#missing_optional[@]} -gt 0 ] && echo "⚠️ Missing optional: ${missing_optional[*]}"
+        log_error "CRITICAL: Missing essential dependencies: ${missing_essential[*]}"
+        [ ${#missing_build[@]} -gt 0 ] && log_error "Missing build tools: ${missing_build[*]}"
+        [ ${#missing_optional[@]} -gt 0 ] && log_warning "Missing optional: ${missing_optional[*]}"
         echo ""
         echo "   Cannot continue without essential dependencies."
         case $DISTRO_FAMILY in
@@ -652,8 +645,8 @@ check_system_deps() {
 
 # Function to install system dependencies
 install_system_deps() {
-    echo "📦 Installing system dependencies..."
-    echo "🔍 Debug: Starting install_system_deps function"
+    log_info "Installing system dependencies..."
+    log_search "Debug: Starting install_system_deps function"
     
     # Check what we need to install
     set +e  # Temporarily disable exit on error
@@ -661,10 +654,10 @@ install_system_deps() {
     local dep_status=$?
     set -e  # Re-enable exit on error
     
-    echo "🔍 Debug: Dependency check status: $dep_status"
+    log_search "Debug: Dependency check status: $dep_status"
     
     if [ $dep_status -eq 0 ]; then
-        echo "✅ System dependencies already satisfied"
+        log_success "System dependencies already satisfied"
         return 0
     elif [ $dep_status -eq 2 ]; then
         echo "ℹ️ Essential dependencies satisfied, build tools missing"
@@ -674,13 +667,13 @@ install_system_deps() {
     fi
     
     # Debug: Show what dependencies are detected as missing
-    echo "🔍 Debug: Missing essential dependencies: ${MISSING_ESSENTIAL[*]:-none}"
-    echo "🔍 Debug: Number of missing essential: ${#MISSING_ESSENTIAL[@]}"
+    log_search "Debug: Missing essential dependencies: ${MISSING_ESSENTIAL[*]:-none}"
+    log_search "Debug: Number of missing essential: ${#MISSING_ESSENTIAL[@]}"
     
     # Only need sudo if essential packages are missing
     if [ ${#MISSING_ESSENTIAL[@]} -gt 0 ]; then
         if ! command_exists sudo && [ "$EUID" -ne 0 ]; then
-            echo "❌ Error: Essential system packages need to be installed but sudo is not available."
+            log_error "Error: Essential system packages need to be installed but sudo is not available."
             echo "Please install the missing essential dependencies manually or run as root."
             echo "Required: ${MISSING_ESSENTIAL[*]}"
             echo ""
@@ -703,9 +696,9 @@ install_system_deps() {
         debian)
             echo "🔄 Updating package list..."
             if ! $USE_SUDO "$PKG_UPDATE" 2>/dev/null; then
-                echo "⚠️ Failed to update package list. Continuing..."
+                log_warning "Failed to update package list. Continuing..."
             fi
-            echo "📦 Installing packages..."
+            log_info "Installing packages..."
             $USE_SUDO "$PKG_INSTALL" curl wget git build-essential python3 python3-venv python3-dev pciutils
             
             # Handle pip installation for Ubuntu 24.04+
@@ -729,13 +722,13 @@ install_system_deps() {
             
             # Final verification
             if ${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1; then
-                echo "✅ pip is available via '${PYTHON_CMD:-python3} -m pip'"
+                log_success "pip is available via '${PYTHON_CMD:-python3} -m pip'"
             elif command_exists pip3; then
-                echo "✅ pip3 command is available"
+                log_success "pip3 command is available"
             elif command_exists pip; then
-                echo "✅ pip command is available"
+                log_success "pip command is available"
             else
-                echo "⚠️ pip installation may have failed, but continuing..."
+                log_warning "pip installation may have failed, but continuing..."
             fi
             # GPU support packages (optional)
             $USE_SUDO "$PKG_INSTALL" mesa-utils || true
@@ -744,7 +737,7 @@ install_system_deps() {
             if ! command_exists rustc; then
                 echo "🦀 Installing Rust compiler for tokenizers..."
                 if command_exists snap && $USE_SUDO snap install rustup --classic 2>/dev/null; then
-                    echo "✅ Rust installed via snap"
+                    log_success "Rust installed via snap"
                     export PATH="$PATH:/snap/bin"
                     /snap/bin/rustup default stable 2>/dev/null || true
                     # Verify snap installation worked
@@ -756,30 +749,30 @@ install_system_deps() {
                     if curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable; then
                         if [ -f "$HOME/.cargo/env" ]; then
                             source "$HOME/.cargo/env"
-                            echo "✅ Rust compiler installed successfully"
+                            log_success "Rust compiler installed successfully"
                             # Verify Rust is now available
                             if command_exists rustc; then
                                 echo "   Rust version: $(rustc --version 2>/dev/null || echo 'unknown')"
                             fi
                         else
-                            echo "⚠️ Rust installation may have failed. tokenizers might need pre-built wheels."
+                            log_warning "Rust installation may have failed. tokenizers might need pre-built wheels."
                             export RUST_INSTALL_FAILED=true
                         fi
                     else
-                        echo "⚠️ Rust installation failed. Will use pre-built tokenizers wheels only."
+                        log_warning "Rust installation failed. Will use pre-built tokenizers wheels only."
                         export RUST_INSTALL_FAILED=true
                     fi
                 fi
             else
-                echo "✅ Rust compiler already available: $(rustc --version 2>/dev/null || echo 'unknown version')"
+                log_success "Rust compiler already available: $(rustc --version 2>/dev/null || echo 'unknown version')"
             fi
             ;;
         redhat)
             echo "🔄 Updating package list..."
             if ! $USE_SUDO "$PKG_UPDATE" 2>/dev/null; then
-                echo "⚠️ Failed to update package list. Continuing..."
+                log_warning "Failed to update package list. Continuing..."
             fi
-            echo "📦 Installing packages..."
+            log_info "Installing packages..."
             $USE_SUDO "$PKG_INSTALL" curl wget git gcc gcc-c++ make python3 python3-pip python3-devel pciutils
             # GPU support packages (optional)
             $USE_SUDO "$PKG_INSTALL" mesa-dri-drivers || true
@@ -789,15 +782,15 @@ install_system_deps() {
                 echo "🦀 Installing Rust compiler for tokenizers..."
                 # Try to install rust via package manager first
                 if $USE_SUDO $PKG_INSTALL rust cargo 2>/dev/null; then
-                    echo "✅ Rust installed via package manager"
+                    log_success "Rust installed via package manager"
                 else
                     echo "📥 Installing Rust via rustup..."
                     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
                     if [ -f "$HOME/.cargo/env" ]; then
                         source "$HOME/.cargo/env"
-                        echo "✅ Rust compiler installed successfully"
+                        log_success "Rust compiler installed successfully"
                     else
-                        echo "⚠️ Rust installation may have failed. tokenizers might need pre-built wheels."
+                        log_warning "Rust installation may have failed. tokenizers might need pre-built wheels."
                     fi
                 fi
             fi
@@ -805,9 +798,9 @@ install_system_deps() {
         arch)
             echo "🔄 Updating package list..."
             if ! $USE_SUDO "$PKG_UPDATE" 2>/dev/null; then
-                echo "⚠️ Failed to update package list. Continuing..."
+                log_warning "Failed to update package list. Continuing..."
             fi
-            echo "📦 Installing packages..."
+            log_info "Installing packages..."
             $USE_SUDO "$PKG_INSTALL" curl wget git base-devel python python-pip pciutils
             # GPU support packages (optional)
             $USE_SUDO "$PKG_INSTALL" mesa || true
@@ -816,15 +809,15 @@ install_system_deps() {
             if ! command_exists rustc; then
                 echo "🦀 Installing Rust compiler for tokenizers..."
                 if $USE_SUDO $PKG_INSTALL rust 2>/dev/null; then
-                    echo "✅ Rust installed via pacman"
+                    log_success "Rust installed via pacman"
                 else
                     echo "📥 Installing Rust via rustup..."
                     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
                     if [ -f "$HOME/.cargo/env" ]; then
                         source "$HOME/.cargo/env"
-                        echo "✅ Rust compiler installed successfully"
+                        log_success "Rust compiler installed successfully"
                     else
-                        echo "⚠️ Rust installation may have failed. tokenizers might need pre-built wheels."
+                        log_warning "Rust installation may have failed. tokenizers might need pre-built wheels."
                     fi
                 fi
             fi
@@ -832,9 +825,9 @@ install_system_deps() {
         suse)
             echo "🔄 Updating package list..."
             if ! $USE_SUDO "$PKG_UPDATE" 2>/dev/null; then
-                echo "⚠️ Failed to update package list. Continuing..."
+                log_warning "Failed to update package list. Continuing..."
             fi
-            echo "📦 Installing packages..."
+            log_info "Installing packages..."
             $USE_SUDO "$PKG_INSTALL" curl wget git gcc gcc-c++ make python3 python3-pip python3-devel pciutils
             # GPU support packages (optional)
             $USE_SUDO "$PKG_INSTALL" Mesa || true
@@ -843,21 +836,21 @@ install_system_deps() {
             if ! command_exists rustc; then
                 echo "🦀 Installing Rust compiler for tokenizers..."
                 if $USE_SUDO $PKG_INSTALL rust cargo 2>/dev/null; then
-                    echo "✅ Rust installed via zypper"
+                    log_success "Rust installed via zypper"
                 else
                     echo "📥 Installing Rust via rustup..."
                     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
                     if [ -f "$HOME/.cargo/env" ]; then
                         source "$HOME/.cargo/env"
-                        echo "✅ Rust compiler installed successfully"
+                        log_success "Rust compiler installed successfully"
                     else
-                        echo "⚠️ Rust installation may have failed. tokenizers might need pre-built wheels."
+                        log_warning "Rust installation may have failed. tokenizers might need pre-built wheels."
                     fi
                 fi
             fi
             ;;
         *)
-            echo "❌ Unknown distribution family. Please install the following manually:"
+            log_error "Unknown distribution family. Please install the following manually:"
             echo "  - curl, wget, git"
             echo "  - Python 3.8+ with pip and development headers"
             echo "  - Build tools (gcc, make)"
@@ -866,7 +859,7 @@ install_system_deps() {
     esac
     
     # Verify installation was successful and fix common pip issues
-    echo "🔍 Verifying system dependencies installation..."
+    log_search "Verifying system dependencies installation..."
     
     # Special handling for pip3 symlink issues
     if ! command_exists pip3 && command_exists pip && ${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1; then
@@ -883,12 +876,12 @@ install_system_deps() {
     
     if [ $final_status -eq 1 ]; then
         # Still failing - try to provide more helpful error information
-        echo "❌ System dependency installation verification failed."
+        log_error "System dependency installation verification failed."
         echo ""
-        echo "🔍 Debugging information:"
-        echo "   - pip3 command: $(command_exists pip3 && echo "✅ Available" || echo "❌ Missing")"
-        echo "   - pip command: $(command_exists pip && echo "✅ Available" || echo "❌ Missing")"
-        echo "   - ${PYTHON_CMD:-python3} -m pip: $(${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1 && echo "✅ Available" || echo "❌ Missing")"
+        log_search "Debugging information:"
+        echo "   - pip3 command: $(command_exists pip3 && log_success "Available" || log_error "Missing")"
+        echo "   - pip command: $(command_exists pip && log_success "Available" || log_error "Missing")"
+        echo "   - ${PYTHON_CMD:-python3} -m pip: $(${PYTHON_CMD:-python3} -m pip --version >/dev/null 2>&1 && log_success "Available" || log_error "Missing")"
         echo ""
         echo "If pip is installed but pip3 command is missing, you can create a symlink:"
         echo "   sudo ln -sf \$(which pip) /usr/local/bin/pip3"
@@ -896,24 +889,24 @@ install_system_deps() {
         echo "Or the installer will use 'python3 -m pip' instead of 'pip3' command."
         
         # Don't exit - allow installer to continue with python3 -m pip
-        echo "⚠️ Continuing installation with available pip interface..."
+        log_warning "Continuing installation with available pip interface..."
     elif [ $final_status -eq 2 ]; then
-        echo "✅ Essential dependencies verified (build tools will be provided by conda)"
+        log_success "Essential dependencies verified (build tools will be provided by conda)"
     else
-        echo "✅ All system dependencies verified successfully"
+        log_success "All system dependencies verified successfully"
     fi
 }
 
 # Function to detect GPU
 detect_gpu() {
-    echo "🔍 Detecting GPU hardware..."
+    log_search "Detecting GPU hardware..."
     
     GPU_TYPE="none"
     GPU_INFO=""
     
     # Check if lspci is available
     if ! command_exists lspci; then
-        echo "⚠️ lspci command not available. Limited GPU detection."
+        log_warning "lspci command not available. Limited GPU detection."
         return 0
     fi
     
@@ -921,27 +914,27 @@ detect_gpu() {
     if command_exists nvidia-smi; then
         GPU_TYPE="nvidia"
         GPU_INFO=$(nvidia-smi --query-gpu=name --format=csv,noheader,nounits 2>/dev/null | head -1)
-        echo "✅ NVIDIA GPU detected: $GPU_INFO"
+        log_success "NVIDIA GPU detected: $GPU_INFO"
     elif lspci 2>/dev/null | grep -i nvidia >/dev/null 2>&1; then
         GPU_TYPE="nvidia"
         GPU_INFO=$(lspci 2>/dev/null | grep -i nvidia | head -1)
-        echo "✅ NVIDIA GPU detected: $GPU_INFO"
-        echo "⚠️ NVIDIA drivers may not be installed. GPU acceleration might not work."
+        log_success "NVIDIA GPU detected: $GPU_INFO"
+        log_warning "NVIDIA drivers may not be installed. GPU acceleration might not work."
     # Check for AMD GPU
     elif command_exists rocm-smi; then
         GPU_TYPE="amd"
         GPU_INFO=$(rocm-smi --showproductname 2>/dev/null | grep "Card series" | head -1)
-        echo "✅ AMD GPU detected: $GPU_INFO"
+        log_success "AMD GPU detected: $GPU_INFO"
     elif lspci 2>/dev/null | grep -i amd | grep -i vga >/dev/null 2>&1; then
         GPU_TYPE="amd"
         GPU_INFO=$(lspci 2>/dev/null | grep -i amd | grep -i vga | head -1)
-        echo "✅ AMD GPU detected: $GPU_INFO"
-        echo "⚠️ ROCm may not be installed. GPU acceleration might not work."
+        log_success "AMD GPU detected: $GPU_INFO"
+        log_warning "ROCm may not be installed. GPU acceleration might not work."
     # Check for Intel GPU
     elif lspci 2>/dev/null | grep -i intel | grep -i vga >/dev/null 2>&1; then
         GPU_TYPE="intel"
         GPU_INFO=$(lspci 2>/dev/null | grep -i intel | grep -i vga | head -1)
-        echo "✅ Intel GPU detected: $GPU_INFO"
+        log_success "Intel GPU detected: $GPU_INFO"
     else
         echo "ℹ️ No dedicated GPU detected. Using CPU-only mode."
     fi
@@ -955,7 +948,7 @@ install_miniconda() {
     
     # Check if conda is already installed
     if command_exists conda; then
-        echo "✅ Conda already installed"
+        log_success "Conda already installed"
         return 0
     fi
     
@@ -969,7 +962,7 @@ install_miniconda() {
             CONDA_ARCH="aarch64"
             ;;
         *)
-            echo "❌ Unsupported architecture: $ARCH"
+            log_error "Unsupported architecture: $ARCH"
             exit 1
             ;;
     esac
@@ -996,7 +989,7 @@ install_miniconda() {
         . "$HOME/miniconda3/etc/profile.d/conda.sh"
     fi
     
-    echo "✅ Miniconda installed successfully"
+    log_success "Miniconda installed successfully"
 
     # Monitor space after Miniconda installation
     if command -v monitor_installation_space >/dev/null 2>&1; then
@@ -1032,7 +1025,7 @@ choose_python_method() {
         # Auto-detect best method
         if command_exists conda; then
             PYTHON_METHOD="conda"
-            echo "✅ Using existing conda installation"
+            log_success "Using existing conda installation"
         elif ${PYTHON_CMD:-python3} --version >/dev/null 2>&1; then
             PYTHON_VERSION=$(${PYTHON_CMD:-python3} --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
             # Use simple version comparison instead of bc
@@ -1040,13 +1033,13 @@ choose_python_method() {
             MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
             if [ "$MAJOR" -gt 3 ] || [ "$MAJOR" -eq 3 ] && [ "$MINOR" -ge 8 ]; then
                 PYTHON_METHOD="system"
-                echo "✅ Using system Python $PYTHON_VERSION (${PYTHON_CMD:-python3})"
+                log_success "Using system Python $PYTHON_VERSION (${PYTHON_CMD:-python3})"
             else
-                echo "⚠️ System Python is too old ($PYTHON_VERSION). Installing conda..."
+                log_warning "System Python is too old ($PYTHON_VERSION). Installing conda..."
                 PYTHON_METHOD="conda"
             fi
         else
-            echo "⚠️ No suitable Python found. Installing conda..."
+            log_warning "No suitable Python found. Installing conda..."
             PYTHON_METHOD="conda"
         fi
     fi
@@ -1068,25 +1061,7 @@ ensure_shell_config() {
     echo "$rc_file"
 }
 
-# Function to check if a line exists in a file and add it if not
-add_line_if_not_exists() {
-    local file="$1"
-    local line="$2"
-    local comment="$3"
-    
-    # Escape the line for grep
-    local escaped_line=$(echo "$line" | sed 's/[]\/$*.^|[]/\\&/g')
-    
-    if ! grep -q "$escaped_line" "$file"; then
-        if [ -n "$comment" ]; then
-            echo "" >> "$file"
-            echo "$comment" >> "$file"
-        fi
-        echo "$line" >> "$file"
-        return 0
-    fi
-    return 1
-}
+# Note: add_line_if_not_exists() is now provided by installer_common.sh
 
 # Function to configure CUDA library paths for bitsandbytes
 configure_cuda_paths() {
@@ -1113,7 +1088,7 @@ configure_cuda_paths() {
     )
     
     CUDA_LIBS_FOUND=()
-    echo "🔍 Searching for CUDA libraries..."
+    log_search "Searching for CUDA libraries..."
     
     # Search for libcudart.so
     for search_path in "${CUDA_SEARCH_PATHS[@]}"; do
@@ -1133,7 +1108,7 @@ configure_cuda_paths() {
                     done
                     if [[ "$found" == "false" ]]; then
                         CUDA_LIBS_FOUND+=("$LIB_DIR")
-                        echo "✅ Found CUDA libraries in: $LIB_DIR"
+                        log_success "Found CUDA libraries in: $LIB_DIR"
                     fi
                 fi
             fi
@@ -1142,7 +1117,7 @@ configure_cuda_paths() {
     
     # If no CUDA libraries found, provide guidance
     if [ ${#CUDA_LIBS_FOUND[@]} -eq 0 ]; then
-        echo "⚠️ No CUDA libraries found. bitsandbytes may not work with GPU acceleration."
+        log_warning "No CUDA libraries found. bitsandbytes may not work with GPU acceleration."
         echo "   To fix this issue:"
         echo "   1. Install CUDA toolkit: https://developer.nvidia.com/cuda-downloads"
         echo "   2. Or use conda-forge CUDA packages: 'conda install cuda -c conda-forge'"
@@ -1183,7 +1158,7 @@ configure_cuda_paths() {
                 add_line_if_not_exists "$rc_file" "$CUDA_EXPORT_LINE" "# CUDA library paths for bitsandbytes (added by KwaaiNet installer)"
                 CUDA_UPDATED=true
             else
-                echo "✅ CUDA paths already configured in $rc_file"
+                log_success "CUDA paths already configured in $rc_file"
             fi
         fi
     done
@@ -1198,7 +1173,7 @@ configure_cuda_paths() {
     # Update current session LD_LIBRARY_PATH
     export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$CUDA_PATHS_STR"
     
-    echo "✅ CUDA library paths configured successfully"
+    log_success "CUDA library paths configured successfully"
     echo "   Added paths: $CUDA_PATHS_STR"
     
     return 0
@@ -1209,34 +1184,34 @@ configure_cuda_paths() {
 #     echo "🔤 Installing tokenizers with wheel-only strategy (source compilation disabled)..."
 # 
 #     # Only show minimal environment info since source compilation is disabled
-#     echo "🔍 Environment check:"
+#     log_search "Environment check:"
 #     echo "   - Installation mode: Pre-built wheels only (saves ~5GB space)"
 #     
 #     # Note: Rust detection and environment setup removed since source compilation is disabled
 #     # All tokenizer installation will use pre-built wheels only
 #     
 #     # Strategy 1: Safe wheel-only versions first (prioritize reliability)
-#     echo "📦 Strategy 1: Installing tokenizers with guaranteed pre-built wheels..."
+#     log_info "Strategy 1: Installing tokenizers with guaranteed pre-built wheels..."
 #     if $PIP_EXEC install --only-binary=tokenizers "tokenizers>=0.15.1" 2>/dev/null; then
-#         echo "✅ tokenizers installed successfully (safe wheel version >=0.15.1)"
+#         log_success "tokenizers installed successfully (safe wheel version >=0.15.1)"
 #         return 0
 #     else
-#         echo "⚠️ Strategy 1 failed: No wheels available for >=0.15.1"
+#         log_warning "Strategy 1 failed: No wheels available for >=0.15.1"
 #     fi
 # 
 #     # Strategy 2: Try specific known working versions with wheels
-#     echo "📦 Strategy 2: Trying specific versions with confirmed wheel availability..."
+#     log_info "Strategy 2: Trying specific versions with confirmed wheel availability..."
 #     for version in "0.22.0" "0.21.4" "0.21.2" "0.20.3" "0.19.1" "0.15.2" "0.15.1"; do
 #         echo "   Trying tokenizers==$version..."
 #         if $PIP_EXEC install --only-binary=tokenizers "tokenizers==$version" 2>/dev/null; then
-#             echo "✅ tokenizers $version installed successfully (confirmed wheel)"
+#             log_success "tokenizers $version installed successfully (confirmed wheel)"
 #             return 0
 #         fi
 #     done
-#     echo "⚠️ Strategy 2 failed: No specific wheel versions worked"
+#     log_warning "Strategy 2 failed: No specific wheel versions worked"
 # 
 #     # Strategy 3: Dynamic platform-specific wheel detection
-#     echo "📦 Strategy 3: Checking platform-specific wheel availability..."
+#     log_info "Strategy 3: Checking platform-specific wheel availability..."
 #     # Get available versions and try most recent that work
 #     if command -v python3 >/dev/null 2>&1; then
 #         # Try to get available wheel versions for this platform
@@ -1265,39 +1240,39 @@ configure_cuda_paths() {
 #                 version=$(echo "$version" | tr -d ' ')
 #                 echo "   Trying platform wheel for tokenizers==$version..."
 #                 if $PIP_EXEC install --only-binary=tokenizers "tokenizers==$version" 2>/dev/null; then
-#                     echo "✅ tokenizers $version installed (platform-specific wheel)"
+#                     log_success "tokenizers $version installed (platform-specific wheel)"
 #                     return 0
 #                 fi
 #             done
 #         fi
 #     fi
-#     echo "⚠️ Strategy 3 failed: No platform-specific wheels worked"
+#     log_warning "Strategy 3 failed: No platform-specific wheels worked"
 # 
 #     # Strategy 4: Emergency conda fallback (if conda environment)
 #     if command -v conda >/dev/null 2>&1 && [ "${PYTHON_METHOD:-}" = "conda" ]; then
-#         echo "📦 Strategy 4: Emergency conda installation..."
+#         log_info "Strategy 4: Emergency conda installation..."
 #         if conda install -y tokenizers -c conda-forge 2>/dev/null; then
-#             echo "✅ tokenizers installed via conda-forge"
+#             log_success "tokenizers installed via conda-forge"
 #             return 0
 #         else
-#             echo "⚠️ Strategy 4 failed: Conda installation failed"
+#             log_warning "Strategy 4 failed: Conda installation failed"
 #         fi
 #     fi
 # 
 #     # Strategy 5: Try any available tokenizers version (final wheel attempt)
-#     echo "📦 Strategy 5: Installing any available tokenizers version (final wheel attempt)..."
+#     log_info "Strategy 5: Installing any available tokenizers version (final wheel attempt)..."
 #     if $PIP_EXEC install --only-binary=tokenizers tokenizers 2>/dev/null; then
-#         echo "✅ tokenizers installed (any available version)"
+#         log_success "tokenizers installed (any available version)"
 #         return 0
 #     else
-#         echo "⚠️ Strategy 5 failed: No tokenizers wheels available for this platform"
+#         log_warning "Strategy 5 failed: No tokenizers wheels available for this platform"
 #     fi
 # 
 #     # Strategy 6: Source compilation DISABLED to prevent storage issues and build failures
 #     echo "ℹ️ Strategy 6 skipped: Source compilation disabled (saves ~5GB disk space and prevents build failures)"
 #     
 #     # All strategies failed
-#     echo "❌ All 5 tokenizers wheel installation strategies failed."
+#     log_error "All 5 tokenizers wheel installation strategies failed."
 #     echo ""
 #     echo "🔧 RECOMMENDED SOLUTIONS (in order of preference):"
 #     echo ""
@@ -1319,13 +1294,13 @@ configure_cuda_paths() {
 #         arch) echo "      sudo pacman -S python-tokenizers (if available)" ;;
 #     esac
 #     echo ""
-#     echo "⚠️ Installation will continue, but text processing may not work properly."
+#     log_warning "Installation will continue, but text processing may not work properly."
 #     export TOKENIZERS_INSTALL_FAILED=true
 #     return 1
 # }
 # 
 # # Main installation flow starts here
-# echo "🔍 Detecting system configuration..."
+# log_search "Detecting system configuration..."
 # 
 # # Detect distribution
 # detect_distro
@@ -1341,7 +1316,7 @@ if [ "$SKIP_SYSTEM_PACKAGES" = true ]; then
     echo "⏭️ Skipping system package installation"
     # Still check if we have the required dependencies
     if ! check_system_deps; then
-        echo "❌ Error: Required system dependencies are missing."
+        log_error "Error: Required system dependencies are missing."
         echo "Install them manually or run without --no-system-packages flag."
         exit 1
     fi
@@ -1357,18 +1332,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$SCRIPT_DIR/../common/storage_check.sh" ]; then
     source "$SCRIPT_DIR/../common/storage_check.sh"
 else
-    echo "⚠️ Warning: Storage check functions not found - continuing without space verification"
+    log_warning "Warning: Storage check functions not found - continuing without space verification"
 fi
 
 if [ -f "$SCRIPT_DIR/../common/error_diagnosis.sh" ]; then
     source "$SCRIPT_DIR/../common/error_diagnosis.sh"
 else
-    echo "⚠️ Warning: Error diagnosis functions not found - using basic error handling"
+    log_warning "Warning: Error diagnosis functions not found - using basic error handling"
 fi
 
 # Check storage requirements before installation
 echo ""
-echo "🔍 Verifying storage space requirements..."
+log_search "Verifying storage space requirements..."
 SKIP_STORAGE_CHECK="${SKIP_STORAGE_CHECK:-false}"
 if [ "$SKIP_STORAGE_CHECK" != "true" ] && command -v check_storage_requirements >/dev/null 2>&1; then
     # Determine installation parameters for space estimation
@@ -1384,7 +1359,7 @@ if [ "$SKIP_STORAGE_CHECK" != "true" ] && command -v check_storage_requirements 
     # Check storage and exit if insufficient
     if ! check_storage_requirements "$HOME" "$USE_CONDA_FOR_SPACE" "$INSTALL_BUILD_TOOLS"; then
         echo ""
-        echo "❌ Installation cannot proceed due to insufficient storage space."
+        log_error "Installation cannot proceed due to insufficient storage space."
         echo ""
         echo "💡 Options to continue:"
         echo "   1. Free up space using the suggestions above"
@@ -1417,19 +1392,19 @@ if [ "$PYTHON_METHOD" = "conda" ]; then
     echo "⚙️ Setting up KwaaiNet conda environment..."
     if ! conda info --envs | grep -q kwaainet; then
         if [ "${FORCE_CONDA_FOR_BUILD_TOOLS:-}" = "true" ]; then
-            echo "📦 Installing build tools via conda to avoid sudo requirements..."
+            log_info "Installing build tools via conda to avoid sudo requirements..."
             conda create -y -n kwaainet python=3.10 gcc_linux-64 gxx_linux-64 make
-            echo "✅ Created Python 3.10 environment with build tools for KwaaiNet"
+            log_success "Created Python 3.10 environment with build tools for KwaaiNet"
         else
             conda create -y -n kwaainet python=3.10
-            echo "✅ Created Python 3.10 environment for KwaaiNet"
+            log_success "Created Python 3.10 environment for KwaaiNet"
         fi
     else
-        echo "✅ Using existing kwaainet environment"
+        log_success "Using existing kwaainet environment"
         # Add build tools if needed and missing
         if [ "${FORCE_CONDA_FOR_BUILD_TOOLS:-}" = "true" ]; then
-            echo "📦 Adding build tools to existing conda environment..."
-            conda install -y -n kwaainet gcc_linux-64 gxx_linux-64 make || echo "⚠️ Some build tools may already be installed"
+            log_info "Adding build tools to existing conda environment..."
+            conda install -y -n kwaainet gcc_linux-64 gxx_linux-64 make || log_warning "Some build tools may already be installed"
         fi
     fi
 
@@ -1440,7 +1415,7 @@ if [ "$PYTHON_METHOD" = "conda" ]; then
     # Remove problematic Anaconda commercial channels if they exist
     conda config --env --remove channels https://repo.anaconda.com/pkgs/main 2>/dev/null || true
     conda config --env --remove channels https://repo.anaconda.com/pkgs/r 2>/dev/null || true
-    echo "✅ Configured conda-forge as primary channel (avoids Terms of Service issues)"
+    log_success "Configured conda-forge as primary channel (avoids Terms of Service issues)"
     
     # Determine conda installation path
     CONDA_BASE=""
@@ -1454,7 +1429,7 @@ if [ "$PYTHON_METHOD" = "conda" ]; then
     fi
     
     if [ -z "$CONDA_BASE" ] || [ ! -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
-        echo "❌ Error: Cannot find conda installation or conda.sh script"
+        log_error "Error: Cannot find conda installation or conda.sh script"
         exit 1
     fi
     
@@ -1465,7 +1440,7 @@ if [ "$PYTHON_METHOD" = "conda" ]; then
     
     # Activate environment
     if ! conda activate kwaainet 2>/dev/null; then
-        echo "⚠️ Failed to activate kwaainet environment. Re-initializing conda..."
+        log_warning "Failed to activate kwaainet environment. Re-initializing conda..."
         "$CONDA_BASE/bin/conda" init bash
         "$CONDA_BASE/bin/conda" init zsh 2>/dev/null || true
         # Re-source conda
@@ -1482,9 +1457,9 @@ elif [ "$PYTHON_METHOD" = "system" ]; then
     VENV_PATH="$HOME/.kwaainet-venv"
     if [ ! -d "$VENV_PATH" ]; then
         ${PYTHON_CMD:-python3} -m venv "$VENV_PATH"
-        echo "✅ Created virtual environment for KwaaiNet"
+        log_success "Created virtual environment for KwaaiNet"
     else
-        echo "✅ Using existing virtual environment"
+        log_success "Using existing virtual environment"
     fi
     
     # Activate virtual environment
@@ -1499,17 +1474,17 @@ test_huggingface_connectivity() {
     
     # Test basic HF connectivity
     if ! curl -s --connect-timeout 10 "https://huggingface.co" > /dev/null; then
-        echo "⚠️ Warning: Cannot reach huggingface.co"
+        log_warning "Warning: Cannot reach huggingface.co"
         echo "   Model downloads may fail due to network connectivity issues"
         return 1
     fi
     
     # Test model file access (small config file)
     if curl -s --connect-timeout 10 "https://huggingface.co/gpt2/resolve/main/config.json" > /dev/null; then
-        echo "✅ Hugging Face model download connectivity verified"
+        log_success "Hugging Face model download connectivity verified"
         return 0
     else
-        echo "⚠️ Warning: Cannot access Hugging Face model files"
+        log_warning "Warning: Cannot access Hugging Face model files"
         echo "   This may be due to network restrictions or firewall settings"
         echo "   Model downloads may fail, but installation will continue"
         return 1
@@ -1526,18 +1501,18 @@ rm -rf /tmp/pip-* 2>/dev/null || true
 test_huggingface_connectivity
 
 # Optimized consolidated installation to reduce redundant operations
-echo "📦 Installing KwaaiNet for Linux (optimized sequence)..."
+log_info "Installing KwaaiNet for Linux (optimized sequence)..."
 
 # Determine PyTorch variant and index URL
 PYTORCH_VERSION="2.3.1"
 if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
     PYTORCH_VARIANT="+cu121"
     PYTORCH_INDEX="--index-url https://download.pytorch.org/whl/cu121"
-    echo "📦 Installing CUDA-enabled PyTorch..."
+    log_info "Installing CUDA-enabled PyTorch..."
 else
     PYTORCH_VARIANT="+cpu"
     PYTORCH_INDEX="--index-url https://download.pytorch.org/whl/cpu"
-    echo "📦 Installing CPU-only PyTorch..."
+    log_info "Installing CPU-only PyTorch..."
 fi
 
 # Add --only-binary flag if no build tools
@@ -1548,7 +1523,7 @@ if [ "$NO_BUILD_TOOLS" = true ]; then
 fi
 
 # Phase 1: Install all major dependencies together to minimize conflicts
-echo "📦 Phase 1: Installing core dependencies with conflict resolution..."
+log_info "Phase 1: Installing core dependencies with conflict resolution..."
 INSTALL_CMD="$PIP_EXEC install $BINARY_FLAG"
 
 # Build package list excluding problematic git packages
@@ -1556,79 +1531,79 @@ PYTORCH_PACKAGES="torch==${PYTORCH_VERSION}${PYTORCH_VARIANT} torchvision==0.18.
 CORE_PACKAGES="transformers>=4.32.0,<4.45.0 huggingface_hub>=0.16.4 tokenizers>=0.14.0,<0.20.0 pyyaml"
 
 # Install core packages with proper dependency resolution
-echo "📦 Installing PyTorch ${PYTORCH_VERSION}${PYTORCH_VARIANT}..."
+log_info "Installing PyTorch ${PYTORCH_VERSION}${PYTORCH_VARIANT}..."
 if $INSTALL_CMD $PYTORCH_PACKAGES $PYTORCH_INDEX; then
-    echo "✅ PyTorch installed successfully"
+    log_success "PyTorch installed successfully"
 else
-    echo "❌ Failed to install PyTorch"
+    log_error "Failed to install PyTorch"
     exit 1
 fi
 
-echo "📦 Installing core ML packages..."
+log_info "Installing core ML packages..."
 if $INSTALL_CMD $CORE_PACKAGES; then
-    echo "✅ Core ML packages installed successfully"
+    log_success "Core ML packages installed successfully"
 else
-    echo "❌ Failed to install core ML packages"
+    log_error "Failed to install core ML packages"
     exit 1
 fi
 
 # Pin py-multihash to compatible version (before hivemind)
-echo "📦 Pinning py-multihash to compatible version..."
+log_info "Pinning py-multihash to compatible version..."
 if $PIP_EXEC install 'py-multihash<2.0' $BINARY_FLAG; then
-    echo "✅ py-multihash pinned successfully"
+    log_success "py-multihash pinned successfully"
 else
-    echo "⚠️  Warning: Failed to pin py-multihash (continuing anyway)"
+    log_warning "Warning: Failed to pin py-multihash (continuing anyway)"
 fi
 
 # Install hivemind - check if compatible version exists
-echo "📦 Installing hivemind..."
+log_info "Installing hivemind..."
 if [ "$NO_BUILD_TOOLS" = true ]; then
     if $PIP_EXEC install "hivemind>=1.1.10" --upgrade $BINARY_FLAG; then
-        echo "✅ hivemind installed successfully (pre-built)"
+        log_success "hivemind installed successfully (pre-built)"
     elif $PIP_EXEC install "hivemind>=1.1.10" --upgrade; then
-        echo "✅ hivemind installed successfully (fallback)"
+        log_success "hivemind installed successfully (fallback)"
     else
-        echo "⚠️ Using existing hivemind installation"
+        log_warning "Using existing hivemind installation"
     fi
 else
     if $PIP_EXEC install "hivemind>=1.1.10" --upgrade; then
-        echo "✅ hivemind installed successfully"
+        log_success "hivemind installed successfully"
     else
-        echo "⚠️ Using existing hivemind installation"
+        log_warning "Using existing hivemind installation"
     fi
 fi
 
 # Install petals
-echo "📦 Installing Petals..."
+log_info "Installing Petals..."
 if [ "$NO_BUILD_TOOLS" = true ]; then
     if $PIP_EXEC install petals --only-binary=all; then
-        echo "✅ Petals installed successfully (pre-built)"
+        log_success "Petals installed successfully (pre-built)"
     elif $PIP_EXEC install petals; then
-        echo "✅ Petals installed successfully (PyPI)"
+        log_success "Petals installed successfully (PyPI)"
     else
-        echo "❌ Failed to install Petals"
+        log_error "Failed to install Petals"
         exit 1
     fi
 else
     if $PIP_EXEC install git+https://github.com/bigscience-workshop/petals.git; then
-        echo "✅ Petals installed successfully (git)"
+        log_success "Petals installed successfully (git)"
     elif $PIP_EXEC install petals; then
-        echo "✅ Petals installed successfully (PyPI fallback)"
+        log_success "Petals installed successfully (PyPI fallback)"
     else
-        echo "❌ Failed to install Petals"
+        log_error "Failed to install Petals"
         exit 1
     fi
 fi
 
 # Phase 2: Install KwaaiNet package and finalize installation
-echo "📦 Phase 2: Installing KwaaiNet package..."
+log_info "Phase 2: Installing KwaaiNet package..."
 
 # Pre-install critical dependencies with explicit wheel-only flags if needed
 if [ "$NO_BUILD_TOOLS" = true ]; then
-    echo "📦 Pre-installing critical dependencies with wheel-only constraints..."
+    log_info "Pre-installing critical dependencies with wheel-only constraints..."
     # Pre-install tokenizers specifically to avoid Rust compilation
     if ! $PIP_EXEC install $BINARY_FLAG "tokenizers>=0.14.0,<0.20.0" --prefer-binary; then
-        echo "⚠️ No pre-built tokenizers wheel available for your platform"
+        log_warning "No pre-built tokenizers wheel available for your platform"
         echo "   Your platform: $(python -c 'import platform; print(platform.platform())' 2>/dev/null || echo 'unknown')"
         echo "   Python version: $(python --version 2>/dev/null || echo 'unknown')"
         echo "   This may require source compilation despite --no-build-tools flag"
@@ -1639,96 +1614,96 @@ fi
 # Try local development version first, then fallback to GitHub
 INSTALLER_DIR="$(dirname "$0")"
 if [ -d "$INSTALLER_DIR/linux" ]; then
-    echo "📦 Installing from local development version..."
+    log_info "Installing from local development version..."
     if $PIP_EXEC install $BINARY_FLAG -e "$INSTALLER_DIR/linux/"; then
-        echo "✅ KwaaiNet Linux package installed successfully (local development)"
+        log_success "KwaaiNet Linux package installed successfully (local development)"
     else
-        echo "⚠️ Local development install failed. Installing from GitHub..."
+        log_warning "Local development install failed. Installing from GitHub..."
         if $PIP_EXEC install $BINARY_FLAG "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
-            echo "✅ KwaaiNet Linux package installed successfully (GitHub)"
+            log_success "KwaaiNet Linux package installed successfully (GitHub)"
         elif [ "$NO_BUILD_TOOLS" = true ]; then
-            echo "⚠️ Wheel-only install failed. Trying with build tools as fallback..."
+            log_warning "Wheel-only install failed. Trying with build tools as fallback..."
             if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
-                echo "✅ KwaaiNet Linux package installed successfully (GitHub - with source compilation)"
+                log_success "KwaaiNet Linux package installed successfully (GitHub - with source compilation)"
             else
-                echo "❌ Failed to install KwaaiNet Linux package even with build tools"
+                log_error "Failed to install KwaaiNet Linux package even with build tools"
                 exit 1
             fi
         else
-            echo "❌ Failed to install KwaaiNet Linux package"
+            log_error "Failed to install KwaaiNet Linux package"
             exit 1
         fi
     fi
 else
-    echo "📦 Installing KwaaiNet from GitHub repository..."
+    log_info "Installing KwaaiNet from GitHub repository..."
     if $PIP_EXEC install $BINARY_FLAG "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
-        echo "✅ KwaaiNet Linux package installed successfully (GitHub)"
+        log_success "KwaaiNet Linux package installed successfully (GitHub)"
     elif [ "$NO_BUILD_TOOLS" = true ]; then
-        echo "⚠️ Wheel-only install failed. Trying with build tools as fallback..."
+        log_warning "Wheel-only install failed. Trying with build tools as fallback..."
         if $PIP_EXEC install "git+https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git#subdirectory=Installer/linux"; then
-            echo "✅ KwaaiNet Linux package installed successfully (GitHub - with source compilation)"
+            log_success "KwaaiNet Linux package installed successfully (GitHub - with source compilation)"
         else
             # Final fallback: clone and install in development mode
-            echo "⚠️ GitHub install failed. Trying development mode fallback..."
+            log_warning "GitHub install failed. Trying development mode fallback..."
             cd /tmp && rm -rf OpenAI-Petal 2>/dev/null || true
             if git clone https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git && cd OpenAI-Petal; then
                 if $PIP_EXEC install -e Installer/linux/; then
-                    echo "✅ KwaaiNet installed successfully (development mode - with source compilation)"
+                    log_success "KwaaiNet installed successfully (development mode - with source compilation)"
                     cd /tmp && rm -rf OpenAI-Petal
                 else
-                    echo "❌ Failed to install KwaaiNet package"
+                    log_error "Failed to install KwaaiNet package"
                     cd /tmp && rm -rf OpenAI-Petal
                     exit 1
                 fi
             else
-                echo "❌ Failed to clone repository"
+                log_error "Failed to clone repository"
                 exit 1
             fi
         fi
     else
         # Fallback: clone and install in development mode
-        echo "⚠️ GitHub install failed. Trying development mode fallback..."
+        log_warning "GitHub install failed. Trying development mode fallback..."
         cd /tmp && rm -rf OpenAI-Petal 2>/dev/null || true
         if git clone https://github.com/Kwaai-AI-Lab/OpenAI-Petal.git && cd OpenAI-Petal; then
             if $PIP_EXEC install $BINARY_FLAG -e Installer/linux/; then
-                echo "✅ KwaaiNet installed successfully (development mode)"
+                log_success "KwaaiNet installed successfully (development mode)"
                 cd /tmp && rm -rf OpenAI-Petal
             else
-                echo "❌ Failed to install KwaaiNet package"
+                log_error "Failed to install KwaaiNet package"
                 cd /tmp && rm -rf OpenAI-Petal
                 exit 1
             fi
         else
-            echo "❌ Failed to clone repository"
+            log_error "Failed to clone repository"
             exit 1
         fi
     fi
 fi
 
 # Install additional dependencies if needed
-echo "📦 Phase 3: Installing additional support packages..."
+log_info "Phase 3: Installing additional support packages..."
 
 # Install bitsandbytes for quantization support (pin to 0.41.1 for Petals 2.3.0.dev2 compatibility)
 if [ "$GPU_TYPE" = "nvidia" ] && command_exists nvidia-smi; then
-    echo "📦 Installing CUDA-compatible bitsandbytes..."
+    log_info "Installing CUDA-compatible bitsandbytes..."
     if [ "$NO_BUILD_TOOLS" = true ]; then
-        $PIP_EXEC install $BINARY_FLAG bitsandbytes==0.41.1 &>/dev/null || echo "⚠️ bitsandbytes CUDA install failed (pre-built)"
+        $PIP_EXEC install $BINARY_FLAG bitsandbytes==0.41.1 &>/dev/null || log_warning "bitsandbytes CUDA install failed (pre-built)"
     else
-        $PIP_EXEC install bitsandbytes==0.41.1 &>/dev/null || echo "⚠️ bitsandbytes CUDA install failed"
+        $PIP_EXEC install bitsandbytes==0.41.1 &>/dev/null || log_warning "bitsandbytes CUDA install failed"
     fi
 else
-    echo "📦 Installing CPU-only bitsandbytes..."
+    log_info "Installing CPU-only bitsandbytes..."
     if command -v conda >/dev/null 2>&1; then
-        conda install -c conda-forge bitsandbytes-cpu==0.41.1 -y &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
+        conda install -c conda-forge bitsandbytes-cpu==0.41.1 -y &>/dev/null || log_warning "bitsandbytes CPU install failed"
     else
         if [ "$NO_BUILD_TOOLS" = true ]; then
             # Try pre-built first for CPU bitsandbytes
             if ! $PIP_EXEC install $BINARY_FLAG bitsandbytes==0.41.1 &>/dev/null; then
-                echo "⚠️ Pre-built CPU bitsandbytes not available, trying fallback"
-                $PIP_EXEC install bitsandbytes==0.41.1 &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
+                log_warning "Pre-built CPU bitsandbytes not available, trying fallback"
+                $PIP_EXEC install bitsandbytes==0.41.1 &>/dev/null || log_warning "bitsandbytes CPU install failed"
             fi
         else
-            $PIP_EXEC install --no-binary bitsandbytes bitsandbytes==0.41.1 &>/dev/null || echo "⚠️ bitsandbytes CPU install failed"
+            $PIP_EXEC install --no-binary bitsandbytes bitsandbytes==0.41.1 &>/dev/null || log_warning "bitsandbytes CPU install failed"
         fi
     fi
 fi
@@ -1736,7 +1711,7 @@ fi
 # Apply compatibility patches
 echo "🔧 Applying compatibility patches..."
 if ! apply_hivemind_pytorch_patch; then
-    echo "⚠️ Patching failed, but continuing installation..."
+    log_warning "Patching failed, but continuing installation..."
 fi
 
 # Ensure proper default configuration
@@ -1749,20 +1724,20 @@ sys.path.insert(0, '$CONDA_BASE/envs/kwaainet/lib/python3.10/site-packages')
 from kwaainet.config import KwaaiNetConfig
 config = KwaaiNetConfig()
 print('✅ Configuration initialized with proper defaults')
-" 2>/dev/null || echo "⚠️ Config setup failed, but continuing..."
+" 2>/dev/null || log_warning "Config setup failed, but continuing..."
 else
     # Use virtual environment or system python
     $PYTHON_EXEC -c "
 from kwaainet.config import KwaaiNetConfig
 config = KwaaiNetConfig()
 print('✅ Configuration initialized with proper defaults')
-" 2>/dev/null || echo "⚠️ Config setup failed, but continuing..."
+" 2>/dev/null || log_warning "Config setup failed, but continuing..."
 fi
 
 # Verify installation
 echo "🧪 Verifying optimized installation..."
 if run_comprehensive_verification; then
-    echo "✅ Installation verification completed successfully!"
+    log_success "Installation verification completed successfully!"
 else
     echo "ℹ️ Installation completed with minor version differences (expected with latest packages)"
 fi
@@ -1797,7 +1772,7 @@ elif command -v conda >/dev/null 2>&1; then
 fi
 
 if [ -z "$CONDA_PATH" ] || [ ! -f "$CONDA_PATH/etc/profile.d/conda.sh" ]; then
-    echo "❌ Error: Could not find conda installation with conda.sh script."
+    log_error "Error: Could not find conda installation with conda.sh script."
     echo "Expected locations:"
     echo "  - $HOME/miniconda3/etc/profile.d/conda.sh"
     echo "  - $HOME/anaconda3/etc/profile.d/conda.sh"
@@ -1833,7 +1808,7 @@ conda activate kwaainet
 
 # Check if activation was successful
 if [ $? -ne 0 ]; then
-    echo "❌ Error: Failed to activate kwaainet conda environment."
+    log_error "Error: Failed to activate kwaainet conda environment."
     exit 1
 fi
 
@@ -1851,7 +1826,7 @@ else
 VENV_PATH="$VENV_PATH"
 
 if [ ! -d "\$VENV_PATH" ]; then
-    echo "❌ Error: KwaaiNet virtual environment not found at \$VENV_PATH"
+    log_error "Error: KwaaiNet virtual environment not found at \$VENV_PATH"
     exit 1
 fi
 
@@ -1881,7 +1856,7 @@ source "\$VENV_PATH/bin/activate"
 
 # Check if activation was successful
 if [ \$? -ne 0 ]; then
-    echo "❌ Error: Failed to activate virtual environment at \$VENV_PATH"
+    log_error "Error: Failed to activate virtual environment at \$VENV_PATH"
     exit 1
 fi
 
@@ -1914,7 +1889,7 @@ for rc_file in "${SHELL_FILES[@]}"; do
             add_line_if_not_exists "$rc_file" 'export PATH="$HOME/.local/bin:$PATH"' "# Added by KwaaiNet installer"
             PATH_UPDATED=true
         else
-            echo "✅ PATH already configured in $rc_file"
+            log_success "PATH already configured in $rc_file"
         fi
     fi
 done
@@ -1942,15 +1917,15 @@ echo "🧪 Testing kwaainet command availability..."
 # Ensure ~/.local/bin is in PATH for current session
 export PATH="$HOME/.local/bin:$PATH"
 if command -v kwaainet >/dev/null 2>&1; then
-    echo "✅ kwaainet command is available in PATH"
+    log_success "kwaainet command is available in PATH"
     # Test that it actually works
     if kwaainet --help >/dev/null 2>&1; then
-        echo "✅ kwaainet command verified working"
+        log_success "kwaainet command verified working"
     else
-        echo "⚠️ kwaainet found but not working properly"
+        log_warning "kwaainet found but not working properly"
     fi
 else
-    echo "❌ kwaainet not found in PATH even after adding ~/.local/bin"
+    log_error "kwaainet not found in PATH even after adding ~/.local/bin"
     echo "   Launcher script location: $LAUNCHER_PATH"
     if [ -x "$LAUNCHER_PATH" ]; then
         echo "   Launcher script exists and is executable"
@@ -1973,21 +1948,21 @@ if [ "$PYTHON_METHOD" = "conda" ]; then
         . "$CONDA_BASE/etc/profile.d/conda.sh"
         if conda activate kwaainet 2>/dev/null; then
             python -m kwaainet setup 2>/dev/null || {
-                echo "⚠️ Initial setup failed. You may need to run 'kwaainet setup' manually."
+                log_warning "Initial setup failed. You may need to run 'kwaainet setup' manually."
             }
         else
             "$LAUNCHER_PATH" setup 2>/dev/null || {
-                echo "⚠️ Initial setup failed. You may need to run 'kwaainet setup' manually."
+                log_warning "Initial setup failed. You may need to run 'kwaainet setup' manually."
             }
         fi
     else
         "$LAUNCHER_PATH" setup 2>/dev/null || {
-            echo "⚠️ Initial setup failed. You may need to run 'kwaainet setup' manually."
+            log_warning "Initial setup failed. You may need to run 'kwaainet setup' manually."
         }
     fi
 else
     "$LAUNCHER_PATH" setup 2>/dev/null || {
-        echo "⚠️ Initial setup failed. You may need to run 'kwaainet setup' manually."
+        log_warning "Initial setup failed. You may need to run 'kwaainet setup' manually."
     }
 fi
 
@@ -2026,7 +2001,7 @@ EOF
 # Enable user lingering (allows services to run without active session)
 if command_exists loginctl; then
     loginctl enable-linger "$USER" 2>/dev/null || {
-        echo "⚠️  Could not enable user lingering. Service may not start on boot without active login."
+        log_warning "Could not enable user lingering. Service may not start on boot without active login."
         echo "   To enable manually: loginctl enable-linger $USER"
     }
 fi
@@ -2034,11 +2009,11 @@ fi
 # Reload systemd user daemon and enable the service
 if systemctl --user daemon-reload 2>/dev/null && \
    systemctl --user enable kwaainet.service 2>/dev/null; then
-    echo "✅ Auto-start service configured successfully"
+    log_success "Auto-start service configured successfully"
     echo "   KwaaiNet will start automatically on system boot"
     echo "   Service: systemctl --user status kwaainet"
 else
-    echo "⚠️  Could not enable auto-start service"
+    log_warning "Could not enable auto-start service"
     echo "   You can manually enable it later with:"
     echo "   systemctl --user enable kwaainet.service"
     echo "   systemctl --user start kwaainet.service"
@@ -2072,7 +2047,7 @@ echo ""
 # Final verification test
 echo "🧪 Testing installation..."
 if [ -x "$LAUNCHER_PATH" ] && timeout 15s "$LAUNCHER_PATH" --help >/dev/null 2>&1; then
-    echo "✅ Installation SUCCESSFUL!"
+    log_success "Installation SUCCESSFUL!"
     echo ""
     echo "🚀 To use KwaaiNet, run ONE of these commands to update your PATH:"
     echo ""
@@ -2091,7 +2066,7 @@ if [ -x "$LAUNCHER_PATH" ] && timeout 15s "$LAUNCHER_PATH" --help >/dev/null 2>&
     echo "💡 Alternative: You can always run directly with:"
     echo "   $LAUNCHER_PATH --help"
 else
-    echo "❌ Installation FAILED"
+    log_error "Installation FAILED"
     echo "   Launcher script at $LAUNCHER_PATH is not working"
     echo "   Please check the installation log for errors"
 fi
