@@ -1,22 +1,55 @@
 #!/bin/bash
 
-# KwaaiNet for Linux - One-Step Installer v0.6.1
+# KwaaiNet for Linux - One-Step Installer v0.6.3
 # This script handles the entire installation process for KwaaiNet on Linux
 
 set -e  # Exit on error
 
 # Installer version
-INSTALLER_VERSION="0.6.1"
+INSTALLER_VERSION="0.6.3"
 
 # Source common installer functions
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMMON_DIR="$(cd "$SCRIPT_DIR/../common" && pwd)"
+# Handle both local execution (git clone) and remote execution (curl | bash)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || SCRIPT_DIR=""
 
+# Try to find installer_common.sh locally first
+COMMON_DIR=""
+if [ -n "$SCRIPT_DIR" ] && [ -d "$SCRIPT_DIR/../common" ]; then
+    COMMON_DIR="$(cd "$SCRIPT_DIR/../common" && pwd)"
+fi
+
+# If common directory not found locally, download from GitHub
+if [ -z "$COMMON_DIR" ] || [ ! -f "$COMMON_DIR/installer_common.sh" ]; then
+    echo "🌐 Downloading installer common functions from GitHub..."
+    TEMP_COMMON_DIR="/tmp/kwaainet-installer-common-$$"
+    mkdir -p "$TEMP_COMMON_DIR"
+
+    # Download installer_common.sh from GitHub
+    GITHUB_RAW_URL="https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/common"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$GITHUB_RAW_URL/installer_common.sh" -o "$TEMP_COMMON_DIR/installer_common.sh"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q "$GITHUB_RAW_URL/installer_common.sh" -O "$TEMP_COMMON_DIR/installer_common.sh"
+    else
+        echo "❌ Error: Neither curl nor wget found. Cannot download installer dependencies."
+        exit 1
+    fi
+
+    if [ -f "$TEMP_COMMON_DIR/installer_common.sh" ]; then
+        COMMON_DIR="$TEMP_COMMON_DIR"
+        echo "✅ Downloaded installer common functions"
+    else
+        echo "❌ Error: Failed to download installer_common.sh from GitHub"
+        exit 1
+    fi
+fi
+
+# Source the common functions
 if [ -f "$COMMON_DIR/installer_common.sh" ]; then
     # shellcheck disable=SC1091
     source "$COMMON_DIR/installer_common.sh"
 else
-    log_error "Error: Cannot find installer_common.sh at $COMMON_DIR"
+    echo "❌ Error: Cannot find installer_common.sh"
     exit 1
 fi
 
@@ -1328,17 +1361,49 @@ fi
 choose_python_method
 
 # Source storage check and error diagnosis functions
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/../common/storage_check.sh" ]; then
-    source "$SCRIPT_DIR/../common/storage_check.sh"
+# Use COMMON_DIR set earlier (either local or downloaded from GitHub)
+if [ -f "$COMMON_DIR/storage_check.sh" ]; then
+    source "$COMMON_DIR/storage_check.sh"
 else
-    log_warning "Warning: Storage check functions not found - continuing without space verification"
+    # Try to download if not already present
+    if [ -n "$TEMP_COMMON_DIR" ] && [ ! -f "$COMMON_DIR/storage_check.sh" ]; then
+        echo "🌐 Downloading storage_check.sh..."
+        GITHUB_RAW_URL="https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/common"
+        if command -v curl >/dev/null 2>&1; then
+            curl -fsSL "$GITHUB_RAW_URL/storage_check.sh" -o "$COMMON_DIR/storage_check.sh" 2>/dev/null || true
+        elif command -v wget >/dev/null 2>&1; then
+            wget -q "$GITHUB_RAW_URL/storage_check.sh" -O "$COMMON_DIR/storage_check.sh" 2>/dev/null || true
+        fi
+        if [ -f "$COMMON_DIR/storage_check.sh" ]; then
+            source "$COMMON_DIR/storage_check.sh"
+        else
+            log_warning "Warning: Storage check functions not found - continuing without space verification"
+        fi
+    else
+        log_warning "Warning: Storage check functions not found - continuing without space verification"
+    fi
 fi
 
-if [ -f "$SCRIPT_DIR/../common/error_diagnosis.sh" ]; then
-    source "$SCRIPT_DIR/../common/error_diagnosis.sh"
+if [ -f "$COMMON_DIR/error_diagnosis.sh" ]; then
+    source "$COMMON_DIR/error_diagnosis.sh"
 else
-    log_warning "Warning: Error diagnosis functions not found - using basic error handling"
+    # Try to download if not already present
+    if [ -n "$TEMP_COMMON_DIR" ] && [ ! -f "$COMMON_DIR/error_diagnosis.sh" ]; then
+        echo "🌐 Downloading error_diagnosis.sh..."
+        GITHUB_RAW_URL="https://raw.githubusercontent.com/Kwaai-AI-Lab/OpenAI-Petal/main/Installer/common"
+        if command -v curl >/dev/null 2>&1; then
+            curl -fsSL "$GITHUB_RAW_URL/error_diagnosis.sh" -o "$COMMON_DIR/error_diagnosis.sh" 2>/dev/null || true
+        elif command -v wget >/dev/null 2>&1; then
+            wget -q "$GITHUB_RAW_URL/error_diagnosis.sh" -O "$COMMON_DIR/error_diagnosis.sh" 2>/dev/null || true
+        fi
+        if [ -f "$COMMON_DIR/error_diagnosis.sh" ]; then
+            source "$COMMON_DIR/error_diagnosis.sh"
+        else
+            log_warning "Warning: Error diagnosis functions not found - using basic error handling"
+        fi
+    else
+        log_warning "Warning: Error diagnosis functions not found - using basic error handling"
+    fi
 fi
 
 # Check storage requirements before installation
@@ -2085,3 +2150,8 @@ echo "   (Include this file when reporting issues)"
 echo ""
 echo "Installation completed at: $(date)"
 echo "=========================================================="
+
+# Cleanup temp directory if it was created
+if [ -n "$TEMP_COMMON_DIR" ] && [ -d "$TEMP_COMMON_DIR" ]; then
+    rm -rf "$TEMP_COMMON_DIR" 2>/dev/null || true
+fi
