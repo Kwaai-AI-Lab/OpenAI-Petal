@@ -179,6 +179,7 @@ class DaemonProcess:
         try:
             import psutil
             killed_pids = []
+            killed_pgids = set()
             current_pid = os.getpid()
             parent_pid = os.getppid()
 
@@ -200,16 +201,35 @@ class DaemonProcess:
                         'hivemind' in cmdline):
                         logger.info(f"Found existing process to kill: PID={proc.info['pid']}, name={name}, cmdline={cmdline[:100]}")
                         try:
-                            proc.terminate()
+                            # Try to get process group ID to kill all children too
+                            try:
+                                pgid = os.getpgid(proc.info['pid'])
+                                if pgid not in killed_pgids and pgid != current_pid:
+                                    # Try to kill the entire process group (including worker children)
+                                    try:
+                                        os.killpg(pgid, signal.SIGTERM)
+                                        killed_pgids.add(pgid)
+                                        logger.info(f"Terminated process group {pgid} (leader PID {proc.info['pid']})")
+                                    except (OSError, ProcessLookupError):
+                                        # Fallback to individual process termination
+                                        proc.terminate()
+                                        logger.info(f"Terminated individual process {proc.info['pid']}")
+                                else:
+                                    # Process group already terminated or is current process
+                                    proc.terminate()
+                            except (OSError, AttributeError):
+                                # Can't get process group, terminate individual process
+                                proc.terminate()
+                                logger.info(f"Terminated individual process {proc.info['pid']}")
+
                             killed_pids.append(proc.info['pid'])
-                            logger.info(f"Terminated process {proc.info['pid']}")
                         except (psutil.AccessDenied, psutil.NoSuchProcess) as e:
                             logger.warning(f"Could not terminate PID {proc.info['pid']}: {e}")
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as e:
                     pass
 
             if killed_pids:
-                logger.info(f"Stopped {len(killed_pids)} existing process(es), waiting 2s for graceful shutdown")
+                logger.info(f"Stopped {len(killed_pids)} process(es) in {len(killed_pgids)} process group(s), waiting 2s for graceful shutdown")
                 # Wait for graceful termination
                 time.sleep(2)
 
@@ -218,9 +238,16 @@ class DaemonProcess:
                 for pid in killed_pids:
                     try:
                         if psutil.pid_exists(pid):
-                            os.kill(pid, signal.SIGKILL)
+                            # Try force kill via process group first
+                            try:
+                                pgid = os.getpgid(pid)
+                                os.killpg(pgid, signal.SIGKILL)
+                                logger.warning(f"Force killed process group {pgid}")
+                            except (OSError, ProcessLookupError):
+                                # Fallback to individual force kill
+                                os.kill(pid, signal.SIGKILL)
+                                logger.warning(f"Force killed remaining process {pid}")
                             remaining.append(pid)
-                            logger.warning(f"Force killed remaining process {pid}")
                     except (OSError, psutil.NoSuchProcess):
                         pass
 
@@ -426,6 +453,11 @@ class DaemonProcess:
                         import traceback
                         f.write(traceback.format_exc())
                     logger.error(f"Failed to initialize/start health monitor: {e}", exc_info=True)
+
+            # Release the startup lock now that process has started successfully
+            # This allows other kwaainet commands (status, stop, etc) to run
+            self.release_lock()
+            logger.debug("Released startup lock after successful process start")
 
             # Wait for process if not in daemon mode
             if not daemon_mode:

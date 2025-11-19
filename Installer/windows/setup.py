@@ -1,14 +1,27 @@
 from setuptools import setup, find_packages
 import os
+import shutil
 
-# Read version from VERSION file in project root
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-version_file = os.path.join(project_root, 'VERSION')
+# Read version from VERSION file and copy to package directory
+def read_version():
+    # Single source of truth: repository root VERSION file
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    repo_version_file = os.path.join(current_dir, '..', '..', 'VERSION')
+    pkg_version_file = os.path.join(current_dir, 'kwaainet', 'VERSION')
 
-version = "0.4.8"  # fallback
-if os.path.exists(version_file):
-    with open(version_file, 'r') as f:
-        version = f.read().strip()
+    if os.path.exists(repo_version_file):
+        with open(repo_version_file, 'r') as f:
+            version = f.read().strip()
+
+        # Copy VERSION to package directory to maintain single source of truth
+        os.makedirs(os.path.dirname(pkg_version_file), exist_ok=True)
+        shutil.copy2(repo_version_file, pkg_version_file)
+        print(f"Synced VERSION file: {version}")
+
+        return version
+    return "0.0.0"  # Fallback version
+
+version = read_version()
 
 # Read the README file
 current_dir = os.path.dirname(os.path.abspath(__file__))

@@ -8,4 +8,5 @@ tqdm>=4.66.0
 pyyaml>=6.0.0
 psutil>=5.9.0
 accelerate>=0.20.0
+py-multihash<2.0
 bitsandbytes==0.41.1

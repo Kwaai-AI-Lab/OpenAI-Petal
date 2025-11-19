@@ -1,5 +1,6 @@
 from setuptools import setup, find_packages
 import os
+import shutil
 
 # Read the README file
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -10,9 +11,29 @@ if os.path.exists(readme_path):
     with open(readme_path, "r", encoding="utf-8") as f:
         long_description = f.read()
 
+# Read version from VERSION file and copy to package directory
+def read_version():
+    # Single source of truth: repository root VERSION file
+    repo_version_file = os.path.join(current_dir, '..', '..', 'VERSION')
+    pkg_version_file = os.path.join(current_dir, 'kwaainet', 'VERSION')
+
+    if os.path.exists(repo_version_file):
+        with open(repo_version_file, 'r') as f:
+            version = f.read().strip()
+
+        # Copy VERSION to package directory to maintain single source of truth
+        os.makedirs(os.path.dirname(pkg_version_file), exist_ok=True)
+        shutil.copy2(repo_version_file, pkg_version_file)
+        print(f"Synced VERSION file: {version}")
+
+        return version
+    return "0.0.0"  # Fallback version
+
+VERSION = read_version()
+
 setup(
     name="kwaainet-linux",
-    version="0.6.0",
+    version=VERSION,
     author="Kwaai Labs",
     author_email="contact@kwaai.ai",
     description="KwaaiNet for Linux - Native compute sharing with GPU acceleration",

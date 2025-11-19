@@ -1,17 +1,28 @@
 from setuptools import setup, find_packages
 import os
 import platform
+import shutil
 
 # Check if running on macOS
 if platform.system() != "Darwin":
     print("WARNING: This package is specifically designed for macOS systems.")
 
-# Read version from VERSION file
+# Read version from VERSION file and copy to package directory
 def read_version():
-    version_file = os.path.join(os.path.dirname(__file__), '..', '..', 'VERSION')
-    if os.path.exists(version_file):
-        with open(version_file, 'r') as f:
-            return f.read().strip()
+    # Single source of truth: repository root VERSION file
+    repo_version_file = os.path.join(os.path.dirname(__file__), '..', '..', 'VERSION')
+    pkg_version_file = os.path.join(os.path.dirname(__file__), 'kwaainet', 'VERSION')
+
+    if os.path.exists(repo_version_file):
+        with open(repo_version_file, 'r') as f:
+            version = f.read().strip()
+
+        # Copy VERSION to package directory to maintain single source of truth
+        os.makedirs(os.path.dirname(pkg_version_file), exist_ok=True)
+        shutil.copy2(repo_version_file, pkg_version_file)
+        print(f"Synced VERSION file: {version}")
+
+        return version
     return "0.0.0"  # Fallback version
 
 VERSION = read_version()

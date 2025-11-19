@@ -127,12 +127,16 @@ class DaemonProcess:
         try:
             import psutil
             killed_pids = []
+            killed_pgids = set()
             current_pid = os.getpid()
+            parent_pid = os.getppid()
+
+            logger.info(f"Starting process cleanup (current PID: {current_pid}, parent PID: {parent_pid})")
 
             for proc in psutil.process_iter(['pid', 'cmdline', 'name']):
                 try:
                     # Skip the current process and its parent
-                    if proc.info['pid'] == current_pid or proc.info['pid'] == os.getppid():
+                    if proc.info['pid'] == current_pid or proc.info['pid'] == parent_pid:
                         continue
 
                     cmdline = ' '.join(proc.info['cmdline'] or [])
@@ -144,29 +148,64 @@ class DaemonProcess:
                         'p2pd' in name.lower() or
                         'hivemind' in cmdline.lower()):
                         try:
-                            proc.terminate()
+                            # Try to get process group ID to kill all children too
+                            try:
+                                pgid = os.getpgid(proc.info['pid'])
+                                if pgid not in killed_pgids and pgid != current_pid:
+                                    # Try to kill the entire process group (including worker children)
+                                    try:
+                                        os.killpg(pgid, signal.SIGTERM)
+                                        killed_pgids.add(pgid)
+                                        logger.info(f"Terminated process group {pgid} (leader PID {proc.info['pid']})")
+                                    except (OSError, ProcessLookupError):
+                                        # Fallback to individual process termination
+                                        proc.terminate()
+                                        logger.info(f"Terminated individual process {proc.info['pid']}")
+                                else:
+                                    # Process group already terminated or is current process
+                                    proc.terminate()
+                            except (OSError, AttributeError):
+                                # Can't get process group, terminate individual process
+                                proc.terminate()
+                                logger.debug(f"Terminated process {proc.info['pid']}: {name}")
+
                             killed_pids.append(proc.info['pid'])
-                            logger.debug(f"Terminated process {proc.info['pid']}: {name}")
                         except (psutil.AccessDenied, psutil.NoSuchProcess):
                             pass
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                     pass
 
             if killed_pids:
-                logger.info(f"Stopped {len(killed_pids)} existing process(es)")
+                logger.info(f"Stopped {len(killed_pids)} process(es) in {len(killed_pgids)} process group(s), waiting 2s for graceful shutdown")
                 # Wait for graceful termination
                 time.sleep(2)
 
                 # Force kill any that didn't terminate
+                remaining = []
                 for pid in killed_pids:
                     try:
                         if psutil.pid_exists(pid):
-                            os.kill(pid, signal.SIGKILL)
-                            logger.debug(f"Force killed remaining process {pid}")
+                            # Try force kill via process group first
+                            try:
+                                pgid = os.getpgid(pid)
+                                os.killpg(pgid, signal.SIGKILL)
+                                logger.warning(f"Force killed process group {pgid}")
+                            except (OSError, ProcessLookupError):
+                                # Fallback to individual force kill
+                                os.kill(pid, signal.SIGKILL)
+                                logger.debug(f"Force killed remaining process {pid}")
+                            remaining.append(pid)
                     except (OSError, psutil.NoSuchProcess):
                         pass
+
+                if remaining:
+                    logger.warning(f"Had to force kill {len(remaining)} process(es)")
+                else:
+                    logger.info("All processes terminated gracefully")
+            else:
+                logger.info("No existing kwaainet processes found to clean up")
         except Exception as e:
-            logger.warning(f"Error during process cleanup: {e}")
+            logger.error(f"Error during process cleanup: {e}", exc_info=True)
 
     def write_status(self, status: Dict[str, Any]):
         """Write daemon status to file"""
@@ -317,7 +356,7 @@ class DaemonProcess:
                         logger.warning(f"Health monitoring not available: {e}")
                     except Exception as e:
                         logger.error(f"Failed to initialize/start health monitor: {e}", exc_info=True)
-            
+
             # Wait for process if not in daemon mode
             if not daemon_mode:
                 return_code = self.process.wait()
