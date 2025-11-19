@@ -583,8 +583,13 @@ class DaemonProcess:
         # Already in daemon mode, so don't fork again
         result = self.start_process(command, env, daemon_mode=False, reuse_health_monitor=keep_health_monitor)
 
-        # If reusing health monitor, update its configuration and resume
+        # If reusing health monitor, wait for network join then update config and resume
         if keep_health_monitor and self.health_monitor and self.health_monitor.is_running:
+            # Grace period to allow process to join DHT network
+            grace_period = 60  # seconds
+            logger.info(f"Grace period: waiting {grace_period}s for network join before resuming health checks")
+            time.sleep(grace_period)
+
             try:
                 self.health_monitor.update_config(self.config)
                 logger.info("Health monitor configuration updated after restart")
@@ -630,6 +635,11 @@ class DaemonProcess:
 
     def _restart_via_systemd(self) -> bool:
         """Restart via systemd service"""
+        # Stop health monitor first to prevent orphaning with stale config
+        if self.health_monitor:
+            logger.info("Stopping health monitor before systemd restart")
+            self.health_monitor.stop()
+
         try:
             result = subprocess.run(
                 ["systemctl", "--user", "restart", "kwaainet.service"],

@@ -176,10 +176,10 @@ class HealthCheckClient:
         Returns:
             Action to take: "reconnect" or "monitor"
         """
-        # Critical errors: Always reconnect
+        # Critical errors: Evaluate carefully
         if status == self.CRITICAL:
             if reason == "api_unreachable":
-                return "reconnect"  # Could be network issue
+                return "monitor"  # Don't restart on API infrastructure failure
 
         # Unhealthy: Reconnect for node-specific issues
         elif status == self.UNHEALTHY:
