@@ -3,9 +3,62 @@
 ## Project Overview
 OpenAI API-compatible server for Petals distributed inference by Kwaai-AI-Lab. Provides cross-platform installers (Linux, macOS) for KwaaiNet distributed inference.
 
+**⚠️ PROJECT STATUS: MAINTENANCE MODE (as of 2025-11-20)**
+- No new features will be developed
+- Critical bug fixes only
+- See [docs/LEGACY_STATUS.md](docs/LEGACY_STATUS.md) for details
+
 ---
 
-## 📋 CURRENT SESSION STATUS (2025-11-07)
+## 🔄 STRATEGIC TRANSITION TO KWAAINET
+
+### Decision Made (2025-11-20)
+
+OpenAI-Petal **mission accomplished** as technical sandbox. Strategic pivot to KwaaiNet for mass adoption (1B+ users).
+
+**Why Switch:**
+1. **Security**: 8 CVEs in transformers (cannot fix without breaking Petals)
+2. **Onboarding**: 30-45 min setup kills viral growth
+3. **Architecture**: Python/Petals incompatible with browser/mobile
+4. **Dependency hell**: Every update breaks something
+
+**KwaaiNet Vision:**
+- Rust/WASM architecture
+- <10 second onboarding (vs 30-45 minutes)
+- Browser extension + mobile apps
+- Modern security, no Python trap
+
+**Timeline:**
+- **NOW**: OpenAI-Petal frozen (v0.6.3 final feature release)
+- **Q1 2026**: KwaaiNet browser extension launch
+- **Q2-Q3 2026**: Mobile apps (iOS/Android)
+- **Q4 2026**: Deprecation notice for OpenAI-Petal
+- **Q2 2027**: Final shutdown (estimated)
+
+**Documentation Created (2025-11-20):**
+- [INSTANT_ONBOARDING_BASELINE.md](docs/INSTANT_ONBOARDING_BASELINE.md) - Browser research, cloud proxy architecture
+- [LEGACY_STATUS.md](docs/LEGACY_STATUS.md) - Maintenance mode announcement
+- [REUSABLE_PATTERNS.md](docs/REUSABLE_PATTERNS.md) - UX patterns to port to KwaaiNet
+- [LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md) - Technical debt, what to avoid
+
+---
+
+## 📋 CURRENT SESSION STATUS (2025-11-20)
+
+**Status:** ✅ Strategic documentation complete, transition plan established
+**Version:** 0.6.3 (maintenance mode)
+**Branch:** main
+
+### Completed: Strategic Transition Documentation
+- ✅ Researched instant onboarding approaches (browser, cloud proxy)
+- ✅ Documented architectural constraints preventing mass adoption
+- ✅ Created 4 strategic documents for KwaaiNet team
+- ✅ Updated README with deprecation notice
+- ✅ Established maintenance-only mode
+
+---
+
+## 📋 PREVIOUS SESSION STATUS (2025-11-07)
 
 **Status:** ✅ Triton compatibility fixed, v0.5.2 ready for commit
 **Version:** 0.5.2 (pending commit)

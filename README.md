@@ -11,6 +11,41 @@
   <img alt="Browser" src="https://img.shields.io/badge/Browser-chrome-red" />
 </p>
 
+---
+
+## ⚠️ PROJECT STATUS: MAINTENANCE MODE
+
+**OpenAI-Petal (v0.6.3) is now in maintenance-only mode. No new features will be developed.**
+
+### Why?
+
+This project successfully served as a **technical sandbox** for distributed AI inference. We've proven the concepts and built working infrastructure. However, the Python/Petals architecture faces fundamental limitations that prevent mass adoption:
+
+- 🔒 **Security**: 8 CVEs in transformers dependency (cannot fix without breaking Petals)
+- ⏱️ **Onboarding**: 30-45 minute setup time (kills viral growth)
+- 🚫 **Browser/Mobile**: Architecturally impossible with Python runtime
+- 📦 **Dependency hell**: Every update breaks (transformers, triton, bitsandbytes conflicts)
+
+### The Future: KwaaiNet
+
+Development efforts are focused on **[KwaaiNet](https://github.com/Kwaai-AI-Lab/KwaaiNet)** - a ground-up rewrite in Rust for 1B+ users:
+
+- ✅ **Instant onboarding**: <10 seconds to network visibility (vs 30-45 minutes)
+- ✅ **Browser/mobile-first**: WASM + WebGPU, runs everywhere
+- ✅ **Modern security**: No Python dependency trap, memory-safe Rust
+- ✅ **Mass adoption**: Targeting app stores, one-click installation
+
+**Timeline:**
+- **Q1 2026**: Browser extension launch
+- **Q2-Q3 2026**: Mobile apps (iOS/Android)
+- **Q4 2026**: OpenAI-Petal deprecation notice
+- **Q2 2027**: Final shutdown (estimated)
+
+**Current users:** Your nodes will continue working through Q2 2027. Migration tools will be provided.
+
+📚 **Read more:** [docs/LEGACY_STATUS.md](docs/LEGACY_STATUS.md)
+
+---
 
 ## Table of Contents
 
