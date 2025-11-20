@@ -1,6 +1,6 @@
 <p>
 <h1 align="center">OpenAI API-compatible server for Petals distributed inference 👋</h1>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.2-blue.svg?cacheSeconds=2592000" />
+  <img alt="Version" src="https://img.shields.io/badge/version-0.6.3-blue.svg?cacheSeconds=2592000" />
   <img alt="Installer Version" src="https://img.shields.io/badge/installer-v0.6.3-brightgreen.svg?cacheSeconds=2592000" />
   <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">
     <img alt="License: CC-BY-4.0" src="https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg" />
@@ -50,7 +50,25 @@
 
 ## 🚀 Recent Updates
 
-### 🎯 **v0.6.0 - Health Monitoring Refactor & Strategy Pattern** (Latest)
+### 🎯 **v0.6.3 - Linux Installer Curl|Bash Fix** (Latest)
+- ✅ **Fixed curl | bash execution**: Resolved installer failure when piped from curl
+- ✅ **PATH preservation**: Fixed environment variable handling in piped execution context
+- ✅ **Improved reliability**: Enhanced error handling for remote installation
+- ✅ **Production tested**: Verified on multiple Linux distributions
+
+### 🎯 **v0.6.2 - Health Monitor Infrastructure Improvements**
+- ✅ **Infrastructure failure handling**: Graceful degradation when map.kwaai.ai is unreachable
+- ✅ **Enhanced error reporting**: Better diagnostics for network and API failures
+- ✅ **Stability improvements**: Reduced false positives in health monitoring
+- ✅ **Connection resilience**: Improved handling of transient network issues
+
+### 🎯 **v0.6.1 - Version Management Fix**
+- ✅ **Dynamic version detection**: Fixed VERSION file reading across all platforms
+- ✅ **Display improvements**: Consistent version reporting in CLI commands
+- ✅ **Auto-update compatibility**: Enhanced version comparison for update checks
+- ✅ **Build system fixes**: Resolved version synchronization issues
+
+### 🎯 **v0.6.0 - Health Monitoring Refactor & Strategy Pattern**
 - ✅ **Modular Architecture**: Refactored health monitoring using Strategy pattern for extensibility
 - ✅ **Abstract Base Classes**: Plugin architecture supports multiple service types (KwaaiNet nodes, MapAPI, Bootstrap DHT)
 - ✅ **Enhanced Thread Safety**: Comprehensive concurrency fixes eliminate race conditions
