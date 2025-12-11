@@ -639,6 +639,12 @@ kwaainet health-disable
 - **Zombie State Detection**: Prevents "process running but invisible on network" scenarios
 - **Strategy Pattern Architecture**: Extensible for monitoring multiple service types
 
+📚 **Technical Deep Dive**: See [docs/NETWORK_VISIBILITY_ARCHITECTURE.md](docs/NETWORK_VISIBILITY_ARCHITECTURE.md) for a comprehensive explanation of:
+- How nodes appear on map.kwaai.ai (DHT announcement mechanism)
+- The 6-step startup sequence with precise timing
+- Why TCP connections ≠ network visibility (zombie state analysis)
+- Health monitoring strategy and troubleshooting guide
+
 **Example Status Output:**
 ```
 📊 Health Monitoring Status
