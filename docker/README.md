@@ -342,7 +342,7 @@ cd ~/kwaainet
 sudo podman compose down
 
 # Remove images
-sudo podman rmi kwaailab/kwaainet-node kwaailab/kwaainet-api
+sudo podman rmi ghcr.io/kwaai-ai-lab/kwaainet-node ghcr.io/kwaai-ai-lab/kwaainet-api
 
 # Remove installation directory
 rm -rf ~/kwaainet

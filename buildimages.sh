@@ -3,7 +3,7 @@
 set -e  # Exit on error
 
 VERSION="v1.0.0"
-REPO="kwaailab"
+REPO="ghcr.io/kwaai-ai-lab"
 
 # Function to check if Docker is running
 docker_check() {
@@ -27,6 +27,12 @@ docker_image_changed() {
 
 # Build images
 docker_check
+
+# Authenticate with GitHub Container Registry
+echo "Logging in to GitHub Container Registry..."
+echo "You will need a GitHub Personal Access Token with 'write:packages' scope."
+docker login ghcr.io
+
 echo "Building production images..."
 make build-production-server
 make build-production-api

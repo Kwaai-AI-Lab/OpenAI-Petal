@@ -6,7 +6,7 @@ version: "3.9"
 
 services:
   kwaainet-node:
-    image: kwaailab/kwaainet-node:latest
+    image: ghcr.io/kwaai-ai-lab/kwaainet-node:latest
     container_name: kwaainet-node
     restart: unless-stopped
 

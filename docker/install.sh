@@ -112,7 +112,7 @@ version: "3.9"
 
 services:
   kwaainet-node:
-    image: kwaailab/kwaainet-node:latest
+    image: ghcr.io/kwaai-ai-lab/kwaainet-node:latest
     container_name: kwaainet-node
     restart: unless-stopped
     environment:
@@ -128,7 +128,7 @@ services:
       - nvidia.com/gpu=all
 
   kwaainet-api:
-    image: kwaailab/kwaainet-api:latest
+    image: ghcr.io/kwaai-ai-lab/kwaainet-api:latest
     container_name: kwaainet-api
     restart: unless-stopped
     volumes:
@@ -145,7 +145,7 @@ version: "3.9"
 
 services:
   kwaainet-node:
-    image: kwaailab/kwaainet-node:latest
+    image: ghcr.io/kwaai-ai-lab/kwaainet-node:latest
     container_name: kwaainet-node
     restart: unless-stopped
     environment:
@@ -159,7 +159,7 @@ services:
       - label=disable
 
   kwaainet-api:
-    image: kwaailab/kwaainet-api:latest
+    image: ghcr.io/kwaai-ai-lab/kwaainet-api:latest
     container_name: kwaainet-api
     restart: unless-stopped
     volumes:

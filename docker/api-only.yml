@@ -7,7 +7,7 @@ version: "3.9"
 
 services:
   kwaainet-api:
-    image: kwaailab/kwaainet-api:latest
+    image: ghcr.io/kwaai-ai-lab/kwaainet-api:latest
     container_name: kwaainet-api
     restart: unless-stopped
 

@@ -404,7 +404,7 @@ systemctl --user enable kwaainet.service
 podman compose -f compose-rootless.yml down
 
 # Remove images
-podman rmi kwaailab/kwaainet-node kwaailab/kwaainet-api
+podman rmi ghcr.io/kwaai-ai-lab/kwaainet-node ghcr.io/kwaai-ai-lab/kwaainet-api
 
 # Remove model cache (optional)
 rm -rf ~/.cache/huggingface
