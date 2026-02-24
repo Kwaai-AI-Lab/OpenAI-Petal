@@ -416,7 +416,16 @@ GPU-specific compatibility patches and workarounds.
   docker pull ghcr.io/kwaai-ai-lab/kwaainet-api:latest
   ```
 
-- [ ] **5. Cancel DockerHub subscription**
+- [ ] **5. Build and test end-to-end**
+  - Run `docker compose -f docker/compose.yml up -d` using the new GHCR images
+  - Verify node connects to KwaaiNet and appears on network map
+  - Verify API responds at `http://localhost:8000/v1/models`
+  - Test GPU passthrough (NVIDIA CDI)
+  - Test CPU-only mode (`docker/compose-cpu.yml`)
+  - Test rootless Podman deployment (`docker/compose-rootless.yml`)
+  - Run install script end-to-end on a fresh machine: `docker/install.sh`
+
+- [ ] **6. Cancel DockerHub subscription**
   - Confirm all images are working from GHCR first
   - Cancel at `hub.docker.com` → Account Settings → Billing (saves $32/month)
 
