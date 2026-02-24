@@ -379,6 +379,49 @@ GPU-specific compatibility patches and workarounds.
 
 ---
 
+## 🐳 Infrastructure TODOs
+
+### GitHub Container Registry (GHCR) Migration
+
+**Status:** ⏳ In Progress — code updated, images not yet published
+**Priority:** HIGH — required before DockerHub subscription can be cancelled
+
+#### Steps to Complete:
+
+- [ ] **1. Create GitHub Personal Access Token**
+  - Go to GitHub → Settings → Developer settings → Personal access tokens
+  - Generate token with `write:packages` and `read:packages` scopes
+  - Store securely (used in step 2)
+
+- [ ] **2. Build and push images to GHCR**
+  ```bash
+  cd /path/to/OpenAI-Petal
+  ./buildimages.sh
+  # Enter GitHub username + token when prompted for ghcr.io login
+  ```
+  Publishes 4 images to `ghcr.io/kwaai-ai-lab/`:
+  - `kwaainet-node`
+  - `kwaainet-api`
+  - `kwaainet-bootstrap`
+  - `kwaainet-health`
+
+- [ ] **3. Set packages to Public visibility**
+  - Go to `github.com/orgs/Kwaai-AI-Lab/packages`
+  - For each package → Package settings → Change visibility → Public
+  - Allows users to pull images without authenticating
+
+- [ ] **4. Verify images pull correctly**
+  ```bash
+  docker pull ghcr.io/kwaai-ai-lab/kwaainet-node:latest
+  docker pull ghcr.io/kwaai-ai-lab/kwaainet-api:latest
+  ```
+
+- [ ] **5. Cancel DockerHub subscription**
+  - Confirm all images are working from GHCR first
+  - Cancel at `hub.docker.com` → Account Settings → Billing (saves $32/month)
+
+---
+
 ## 📝 Completed Features (Changelog)
 
 ### 2025-10-15: Linux Auto-Update Feature
@@ -509,6 +552,7 @@ GPU-specific compatibility patches and workarounds.
 - [ ] Concurrent instance flag (deferred - not needed)
 
 **Q1 2026:**
+- [ ] Complete GHCR migration (push images, set public, cancel DockerHub)
 - [ ] Connection monitoring
 - [ ] Hardware calibration
 - [ ] Pre-flight checks
