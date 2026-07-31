@@ -31,9 +31,29 @@ RUN while IFS= read -r p; do \
 # Copy your custom requirements file with pinned versions
 COPY docker/kwaainet_health/requirements.txt /app/health_service/requirements.txt
 
+# petals pins hivemind to an exact commit whose setup.py does
+# `from pkg_resources import ...` at module level, and setuptools >=81 no longer
+# ships pkg_resources. Without the pin below the build dies with
+# "ModuleNotFoundError: No module named 'pkg_resources'".
+#
+# The install below therefore runs with --no-build-isolation, so every sdist
+# builds against *this* setuptools rather than a fresh one pip resolves into an
+# isolated environment. That means the build requirements have to be present up
+# front: setuptools<81 (for pkg_resources), wheel, and grpcio-tools, which
+# hivemind declares via setup_requires and so is not otherwise installed.
+#
+# Routes that do NOT work, all verified:
+#   - Installing setuptools into the image alone: the isolated build env has its
+#     own freshly-resolved setuptools and ignores it.
+#   - PIP_CONSTRAINT: not honoured for the isolated build env (pip 23.0.1 and 26.2).
+#   - Prebuilding a hivemind wheel (via --find-links or pre-install): petals
+#     declares `hivemind @ git+...` as a direct URL, which always wins over an
+#     index or an installed copy, so pip re-clones and rebuilds from source.
+RUN python -m pip install --no-cache-dir --upgrade "setuptools<81" wheel grpcio-tools
+
 # Install dependencies from health service
 WORKDIR /app/health_service
-RUN pip install --no-cache-dir -r requirements.txt --upgrade pip
+RUN pip install --no-cache-dir --no-build-isolation -r requirements.txt
 
 # Copy entrypoint script
 COPY docker/kwaainet_health/entrypoint.sh /app/entrypoint.sh
