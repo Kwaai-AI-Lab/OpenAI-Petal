@@ -1,0 +1,37 @@
+Subject: normalise bytes dht_prefix from the DHT model index
+
+fetch_health_state assigns dht_prefix straight from the _petals.models DHT
+index onto ModelInfo *after* ModelInfo.from_dict(), so pydantic never coerces
+it -- pydantic dataclasses do not validate on attribute assignment. hivemind
+returns record subkeys as bytes when they are not stored as UTF-8-decodable
+strings, so the index holds a mix of str and bytes prefixes, and sorting that
+mixed list raises:
+
+    TypeError: '<' not supported between instances of 'bytes' and 'str'
+
+Decode bytes at the point of assignment, and make the sort key total via str()
+so one malformed DHT record cannot take down the updater.
+
+The decode also matters beyond the sort: dht_prefix is interpolated into
+block_uids, where a bytes value renders as b'Foo' and silently fails to match
+server-announced UIDs -- showing the model as "broken" rather than crashing.
+
+Upstream: https://github.com/petals-infra/health.petals.dev
+Applies-to: 30d00fb644a0b1333e37278d43735b29623f9932
+---
+--- a/health.py
++++ b/health.py
+@@ -41,10 +41,12 @@
+                 model_info = ModelInfo.from_dict(model.value)
+                 if model_info.repository is None or not model_info.repository.startswith("https://huggingface.co/"):
+                     continue
++                if isinstance(dht_prefix, bytes):
++                    dht_prefix = dht_prefix.decode("utf-8", errors="replace")
+                 model_info.dht_prefix = dht_prefix
+                 model_info.official = False
+                 custom_models.append(model_info)
+-        models.extend(sorted(custom_models, key=lambda info: (-info.num_blocks, info.dht_prefix)))
++        models.extend(sorted(custom_models, key=lambda info: (-info.num_blocks, str(info.dht_prefix))))
+     logger.info(f"Fetching info for models {[info.name for info in models]}")
+ 
+     block_uids = [f"{model.dht_prefix}{UID_DELIMITER}{i}" for model in models for i in range(model.num_blocks)]
