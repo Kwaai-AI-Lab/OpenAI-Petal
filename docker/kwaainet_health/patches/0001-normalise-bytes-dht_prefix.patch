@@ -17,7 +17,11 @@ block_uids, where a bytes value renders as b'Foo' and silently fails to match
 server-announced UIDs -- showing the model as "broken" rather than crashing.
 
 Upstream: https://github.com/petals-infra/health.petals.dev
-Applies-to: 30d00fb644a0b1333e37278d43735b29623f9932
+Developed-against: 30d00fb644a0b1333e37278d43735b29623f9932
+Note: the Dockerfile clones upstream unpinned, so this patch tracks a moving
+target. `git apply` runs without fuzz, so if upstream changes these lines the
+build fails loudly rather than silently dropping the fix -- refresh the patch
+against the new revision at that point.
 ---
 --- a/health.py
 +++ b/health.py

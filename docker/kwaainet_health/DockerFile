@@ -15,11 +15,8 @@ RUN apt update && apt install -y libopenblas-dev ninja-build build-essential wge
 RUN python -m pip install --upgrade pip pytest cmake scikit-build setuptools
 
 
-# Clone health service repository, pinned so the patches below apply against a
-# known revision rather than a moving target.
-ARG HEALTH_SERVICE_REF=30d00fb644a0b1333e37278d43735b29623f9932
-RUN git clone https://github.com/petals-infra/health.petals.dev /app/health_service \
-    && git -C /app/health_service checkout --quiet "${HEALTH_SERVICE_REF}"
+# Clone health service repository
+RUN git clone https://github.com/petals-infra/health.petals.dev /app/health_service
 
 # Apply local patches in quilt series order. Each is applied with `git apply`
 # (no fuzz), so a patch that no longer matches upstream fails the build loudly
