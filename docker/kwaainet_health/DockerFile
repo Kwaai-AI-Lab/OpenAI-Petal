@@ -15,8 +15,11 @@ RUN apt update && apt install -y libopenblas-dev ninja-build build-essential wge
 RUN python -m pip install --upgrade pip pytest cmake scikit-build setuptools
 
 
-# Clone health service repository
-RUN git clone https://github.com/petals-infra/health.petals.dev /app/health_service
+# Clone health service repository, pinned so the patched files below cannot
+# silently overwrite a newer upstream revision.
+ARG HEALTH_SERVICE_REF=30d00fb644a0b1333e37278d43735b29623f9932
+RUN git clone https://github.com/petals-infra/health.petals.dev /app/health_service \
+    && git -C /app/health_service checkout --quiet "${HEALTH_SERVICE_REF}"
 
 # Copy your custom requirements file with pinned versions
 COPY docker/kwaainet_health/requirements.txt /app/health_service/requirements.txt
@@ -29,6 +32,8 @@ RUN pip install --no-cache-dir -r requirements.txt --upgrade pip
 COPY docker/kwaainet_health/entrypoint.sh /app/entrypoint.sh
 # Patch p2p utils for async timeout call.
 COPY docker/kwaainet_health/p2p_utils.py /app/health_service/p2p_utils.py
+# Patch health.py to normalise bytes dht_prefix values from the DHT.
+COPY docker/kwaainet_health/health.py /app/health_service/health.py
 COPY docker/kwaainet_health/kwaainet.html /app/health_service/templates/index.html
 
 # Ensure script is executable
