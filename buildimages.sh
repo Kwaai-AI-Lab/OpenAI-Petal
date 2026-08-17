@@ -37,7 +37,6 @@ echo "Building production images..."
 make build-production-server
 make build-production-api
 make build-production-bootstrap
-make build-production-health
 
 # Tag images
 echo "Tagging images..."
@@ -50,15 +49,12 @@ docker tag kwaainet-node $REPO/kwaainet-node:latest
 docker tag kwaainet-bootstrap $REPO/kwaainet-bootstrap:$VERSION
 docker tag kwaainet-bootstrap $REPO/kwaainet-bootstrap:latest
 
-docker tag kwaainet-health $REPO/kwaainet-health:$VERSION
-docker tag kwaainet-health $REPO/kwaainet-health:latest
-
 echo "Images tagged successfully."
 
 # Check for changed images
 echo "Checking for changes in images..."
 declare -A image_status
-IMAGES=("kwaainet-api" "kwaainet-node" "kwaainet-bootstrap" "kwaainet-health")
+IMAGES=("kwaainet-api" "kwaainet-node" "kwaainet-bootstrap")
 
 for image in "${IMAGES[@]}"; do
     if docker_image_changed "$image"; then

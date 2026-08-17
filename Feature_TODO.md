@@ -399,11 +399,13 @@ GPU-specific compatibility patches and workarounds.
   ./buildimages.sh
   # Enter GitHub username + token when prompted for ghcr.io login
   ```
-  Publishes 4 images to `ghcr.io/kwaai-ai-lab/`:
+  Publishes 3 images to `ghcr.io/kwaai-ai-lab/`:
   - `kwaainet-node`
   - `kwaainet-api`
   - `kwaainet-bootstrap`
-  - `kwaainet-health`
+
+  `kwaainet-health` is published from
+  [KwaaiNetMap](https://github.com/Kwaai-AI-Lab/KwaaiNetMap) instead.
 
 - [ ] **3. Set packages to Public visibility**
   - Go to `github.com/orgs/Kwaai-AI-Lab/packages`
